@@ -60,9 +60,6 @@
     <ClInclude Include="MouseInterface.h">
       <Filter>classes</Filter>
     </ClInclude>
-    <ClInclude Include="Msg.h">
-      <Filter>classes</Filter>
-    </ClInclude>
     <ClInclude Include="Mydib.h">
       <Filter>classes</Filter>
     </ClInclude>
@@ -75,9 +72,6 @@
     <ClInclude Include="Sprite.h">
       <Filter>classes</Filter>
     </ClInclude>
-    <ClInclude Include="StrTok.h">
-      <Filter>classes</Filter>
-    </ClInclude>
     <ClInclude Include="Tile.h">
       <Filter>classes</Filter>
     </ClInclude>
@@ -87,24 +81,19 @@
     <ClInclude Include="XSocket.h">
       <Filter>classes</Filter>
     </ClInclude>
-    <ClInclude Include="ActionID.h" />
-    <ClInclude Include="DynamicObjectID.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GlobalDef.h" />
-    <ClInclude Include="NetMessages.h" />
     <ClInclude Include="SpriteID.h" />
     <ClInclude Include="MobCounter.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="ActionID_Client.h" />
+    <ClInclude Include="Benchmark.h" />
+    <ClInclude Include="ChatMsg.h" />
+    <ClInclude Include="ClientMessages.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="YWSound.cpp">
       <Filter>Library</Filter>
-    </ClCompile>
-    <ClCompile Include="BuildItem.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="CharInfo.cpp">
-      <Filter>classes</Filter>
     </ClCompile>
     <ClCompile Include="Curse.cpp">
       <Filter>classes</Filter>
@@ -115,40 +104,16 @@
     <ClCompile Include="DXC_dinput.cpp">
       <Filter>classes</Filter>
     </ClCompile>
-    <ClCompile Include="DXC_dsound.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Effect.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
     <ClCompile Include="GameMonitor.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Item.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="ItemName.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Magic.cpp">
       <Filter>classes</Filter>
     </ClCompile>
     <ClCompile Include="MapData.cpp">
       <Filter>classes</Filter>
     </ClCompile>
-    <ClCompile Include="Misc.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
     <ClCompile Include="MouseInterface.cpp">
       <Filter>classes</Filter>
     </ClCompile>
-    <ClCompile Include="Msg.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
     <ClCompile Include="Mydib.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Skill.cpp">
       <Filter>classes</Filter>
     </ClCompile>
     <ClCompile Include="SoundBuffer.cpp">
@@ -157,21 +122,11 @@
     <ClCompile Include="Sprite.cpp">
       <Filter>classes</Filter>
     </ClCompile>
-    <ClCompile Include="StrTok.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Tile.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="TileSpr.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
     <ClCompile Include="XSocket.cpp">
       <Filter>classes</Filter>
     </ClCompile>
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="Wmain.cpp" />
-    <ClCompile Include="MobCounter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Game.rc" />

@@ -4,6 +4,9 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
+
 #include <windows.h>
 #include "OccupyFlag.h"
 #include "Tile.h"
@@ -31,6 +34,9 @@
 #define DEF_MAXAGRICULTURE		200
 #define DEF_MAXDYNAMICGATES		10
 #define DEF_MAXHELDENIANTOWER	200
+
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
 
 #include <windows.h>
 #include "Game.h"

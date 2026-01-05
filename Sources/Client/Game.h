@@ -4,6 +4,9 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
+
 #include <windows.h>
 #include <windowsx.h>
 #include <stdio.h>
@@ -576,7 +579,7 @@ public:
 	void PutString_SprNum(int iX, int iY, char * pStr, short sR, short sG, short sB);
 	void LogRecvMsgHandler(char * pData);
 	void LogResponseHandler(char * pData);
-	void OnLogSocketEvent(WPARAM wParam, LPARAM lParam);
+	void OnLogSocketEvent();  // MODERNIZED: Polls socket instead of handling window messages
 	void OnTimer();
 	void LogEventHandler(char * pData);
 	void _ReadMapData(short sPivotX, short sPivotY, char * pData);
@@ -591,7 +594,7 @@ public:
 	char cGetNextMoveDir(short sX, short sY, short dstX, short dstY, bool bMoveCheck = false, bool bMIM = false);
 	void RestoreSprites();
 	void CommandProcessor(short msX, short msY, short indexX, short indexY, char cLB, char cRB);
-	void OnGameSocketEvent(WPARAM wParam, LPARAM lParam);
+	void OnGameSocketEvent();  // MODERNIZED: Polls socket instead of handling window messages
 	void CalcViewPoint();
 	void OnKeyDown(WPARAM wParam);
 	void Quit();
@@ -921,6 +924,7 @@ public:
 	short m_sVDL_X, m_sVDL_Y;
 
 	WORD m_wCommObjectID;
+	WORD m_wLastAttackTargetID;
 	WORD m_wEnterGameType;
 	WORD m_wR[16], m_wG[16], m_wB[16];
 	WORD m_wWR[16], m_wWG[16], m_wWB[16];

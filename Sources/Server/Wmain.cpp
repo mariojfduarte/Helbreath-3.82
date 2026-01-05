@@ -14,17 +14,20 @@
 // --------------------------------------------------------------
 
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
+
 #include <windows.h>
 #include <windowsx.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <winbase.h>
 #include <mmsystem.h>
-#include <time.h>				   
+#include <time.h>
 #include "winmain.h"
 #include "Game.h"
 #include "UserMessages.h"
-#include "resource.h"
+// #include "resource.h" - REMOVED: No resources needed for console mode
 #include "LoginServer.h"
 
 void PutAdminLogFileList(char* cStr);
@@ -37,8 +40,8 @@ void PutPvPLogFileList(char* cStr);
 
 char			szAppClass[32];
 HWND			G_hWnd = 0;
-char			G_cMsgList[120 * 50];
-bool            G_cMsgUpdated = false;
+// G_cMsgList - REMOVED: No longer needed for console output
+// G_cMsgUpdated - REMOVED: No longer needed for console output
 char            G_cTxt[512];
 char			G_cData50000[50000];
 MMRESULT        G_mmTimer = 0;
@@ -91,53 +94,32 @@ unsigned __stdcall ThreadProc(void* ch)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message) {
-	case WM_CREATE:
-		break;
-
-	case WM_KEYDOWN:
-		G_pGame->OnKeyDown(wParam, lParam);
-		return (DefWindowProc(hWnd, message, wParam, lParam));
-		break;
-
-	case WM_KEYUP:
-		G_pGame->OnKeyUp(wParam, lParam);
-		return (DefWindowProc(hWnd, message, wParam, lParam));
-		break;
+	// WM_CREATE - REMOVED: No initialization needed
+	// WM_KEYDOWN - REMOVED: No keyboard input for console mode
+	// WM_KEYUP - REMOVED: No keyboard input for console mode
+	// WM_PAINT - REMOVED: No GDI rendering for console mode
 
 	case WM_USER_STARTGAMESIGNAL:
 		G_pGame->OnStartGameSignal();
 		break;
 
 	case WM_USER_TIMERSIGNAL:
+		// MODERNIZED: Game logic moved to EventLoop to prevent blocking socket polling
+		// OnTimer still called for other timer-based events (if any)
 		G_pGame->OnTimer(0);
 		break;
 
-	case WM_USER_ACCEPT:
-		OnAccept();
-		break;
-
-	case WM_USER_ACCEPT_LOGIN:
-		OnAcceptLogin();
-		break;
-
-		//case WM_KEYUP:
-		//	OnKeyUp(wParam, lParam);
-		//	break;
-
-	case WM_PAINT:
-		OnPaint();
-		break;
+	// MODERNIZED: Removed WM_USER_ACCEPT and WM_USER_ACCEPT_LOGIN handlers
+	// Listen sockets are now polled directly in OnTimer() instead of using window messages
 
 	case WM_DESTROY:
 		OnDestroy();
 		break;
 
 	case WM_CLOSE:
-		if (G_pGame->bOnClose()) return (DefWindowProc(hWnd, message, wParam, lParam));
-		//G_iQuitProgramCount++;
-		//if (G_iQuitProgramCount >= 2) {
-		//	return (DefWindowProc(hWnd, message, wParam, lParam));
-		//}
+		// Simple shutdown without MessageBox
+		if (G_pGame->bOnClose())
+			return (DefWindowProc(hWnd, message, wParam, lParam));
 		break;
 
 	case WM_ONGATESOCKETEVENT:
@@ -149,14 +131,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	default:
-		/*if ((message >= WM_ONLOGSOCKETEVENT + 1) && (message <= WM_ONLOGSOCKETEVENT + DEF_MAXSUBLOGSOCK))
-			G_pGame->OnSubLogSocketEvent(message, wParam, lParam);*/
-
+		// Handle sub log socket events
 		if ((message >= WM_USER_BOT_ACCEPT + 1) && (message <= WM_USER_BOT_ACCEPT + DEF_MAXCLIENTLOGINSOCK))
 			G_pGame->OnSubLogSocketEvent(message, wParam, lParam);
 
-		if ((message >= WM_ONCLIENTSOCKETEVENT) && (message < WM_ONCLIENTSOCKETEVENT + DEF_MAXCLIENTS))
-			G_pGame->OnClientSocketEvent(message, wParam, lParam);
+		// MODERNIZED: Removed WM_ONCLIENTSOCKETEVENT handler
+		// Client sockets are now polled directly in GameProcess() instead of using window messages
 
 		return (DefWindowProc(hWnd, message, wParam, lParam));
 	}
@@ -482,49 +462,99 @@ BOOL InitApplication(HINSTANCE hInstance)
 bool InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 	char cTitle[100];
-	// HANDLE hFile;
 	SYSTEMTIME SysTime;
-	// ¼­¹ö ºÎÆÃ½Ã°£ ±â·Ï 
-
-	//hFile = hFile = CreateFile("HGserver.exe", GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	//if (hFile == INVALID_HANDLE_VALUE) return false;
-	//GetFileTime(hFile, &ftCT, &ftLAT, &ftLWT);
-	//CloseHandle(hFile);
 
 	GetLocalTime(&SysTime);
-	//wsprintf(cTitle, "Helbreath Korean Test Server Version %s.%s %d (Executed at: %d %d %d)", DEF_UPPERVERSION, DEF_LOWERVERSION, DEF_BUILDDATE, SysTime.wMonth, SysTime.wDay, SysTime.wHour);
 	wsprintf(cTitle, "Helbreath GameServer V%s.%s %d (Executed at: %d %d %d)", DEF_UPPERVERSION, DEF_LOWERVERSION, DEF_BUILDDATE, SysTime.wMonth, SysTime.wDay, SysTime.wHour);
 
-	G_hWnd = CreateWindowEx(0,  // WS_EX_TOPMOST,
+	// Create message-only window (hidden) for socket events
+	G_hWnd = CreateWindowEx(
+		0,
 		szAppClass,
 		cTitle,
-		WS_VISIBLE | // so we don't have to call ShowWindow
-		WS_POPUP |   // non-app window
-		WS_CAPTION | // so our menu doesn't look ultra-goofy
-		WS_SYSMENU |  // so we get an icon in the tray
-		WS_MINIMIZEBOX,
-		100,
-		100,
-		800, //GetSystemMetrics(SM_CXSCREEN),
-		600, //GetSystemMetrics(SM_CYSCREEN),
-		0,
+		WS_OVERLAPPED,        // Not visible
+		0, 0, 0, 0,           // No size/position
+		HWND_MESSAGE,         // Message-only window (no UI)
 		0,
 		hInstance,
 		0);
 
 	if (!G_hWnd) return (false);
 
-	ShowWindow(G_hWnd, nCmdShow);
-	UpdateWindow(G_hWnd);
+	// Allocate console for output
+	AllocConsole();
+	SetConsoleTitle(cTitle);
+
+	// Redirect stdout/stderr to console
+	freopen("CONOUT$", "w", stdout);
+	freopen("CONOUT$", "w", stderr);
+
+	// Print startup banner
+	printf("\n");
+	printf("=======================================================================\n");
+	printf("         HELBREATH GAME SERVER - CONSOLE MODE                         \n");
+	printf("=======================================================================\n");
+	printf("Version: %s.%s\n", DEF_UPPERVERSION, DEF_LOWERVERSION);
+	printf("Build: %d\n", DEF_BUILDDATE);
+	printf("Started: %d/%d/%d %02d:%02d\n", SysTime.wMonth, SysTime.wDay, SysTime.wYear, SysTime.wHour, SysTime.wMinute);
+	printf("=======================================================================\n\n");
+	printf("Initializing server...\n\n");
 
 	return (true);
 }
 
+// MODERNIZED: Poll all sockets for network events
+// This function can be called from anywhere to keep sockets responsive during long operations
+void PollAllSockets()
+{
+	if (G_pGame == nullptr) return;
 
+	// Poll listen sockets for new connections
+	if (G_pListenSock != nullptr) {
+		int iRet = G_pListenSock->Poll();
+		if (iRet == DEF_XSOCKEVENT_CONNECTIONESTABLISH) {
+			PutLogList("[DEBUG] Accepting connection on ListenSock");
+			G_pGame->bAccept(G_pListenSock);
+		}
+		else if (iRet < 0 && iRet != DEF_XSOCKEVENT_QUENEFULL) {
+			// Log errors only (negative values except queue full)
+			wsprintf(G_cTxt, "[ERROR] ListenSock Poll() error: %d", iRet);
+			PutLogList(G_cTxt);
+		}
+	}
+	if (G_pLoginSock != nullptr) {
+		int iRet = G_pLoginSock->Poll();
+		if (iRet == DEF_XSOCKEVENT_CONNECTIONESTABLISH) {
+			PutLogList("[DEBUG] Accepting connection on LoginSock");
+			G_pGame->bAcceptLogin(G_pLoginSock);
+		}
+		else if (iRet < 0 && iRet != DEF_XSOCKEVENT_QUENEFULL) {
+			// Log errors only (negative values except queue full)
+			wsprintf(G_cTxt, "[ERROR] LoginSock Poll() error: %d", iRet);
+			PutLogList(G_cTxt);
+		}
+	}
+
+	// Poll all game client sockets
+	for (int i = 1; i < DEF_MAXCLIENTS; i++) {
+		if (G_pGame->m_pClientList[i] != nullptr && G_pGame->m_pClientList[i]->m_pXSock != nullptr) {
+			G_pGame->OnClientSocketEvent(i);
+		}
+	}
+
+	// Poll all login client sockets
+	for (int i = 0; i < DEF_MAXCLIENTLOGINSOCK; i++) {
+		if (G_pGame->_lclients[i] != nullptr && G_pGame->_lclients[i]->_sock != nullptr) {
+			G_pGame->OnLoginClientSocketEvent(i);
+		}
+	}
+}
 
 int EventLoop()
 {
 	static unsigned short _usCnt = 0;
+	static DWORD dwLastDebug = 0;
+	static DWORD dwLastGameProcess = 0;
 	MSG msg;
 
 	while (true) {
@@ -534,9 +564,40 @@ int EventLoop()
 			}
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
-			UpdateScreen();
 		}
-		else WaitMessage();
+		else {
+			// MODERNIZED: Poll sockets and run game logic continuously without blocking
+			if (G_pGame != nullptr) {
+				DWORD dwNow = timeGetTime();
+
+				// Run game logic every 300ms (same as old timer)
+				// GameProcess calls NpcProcess which now polls sockets during entity processing
+				if (dwNow - dwLastGameProcess >= 300) {
+					G_pGame->GameProcess();
+					dwLastGameProcess = dwNow;
+				}
+
+				// Poll all sockets for network events
+				PollAllSockets();
+
+				// Debug: Show polling stats every 60 seconds (optional, can be removed)
+				if (dwNow - dwLastDebug > 60000) {
+					int activeClients = 0;
+					int activeLoginClients = 0;
+					for (int i = 1; i < DEF_MAXCLIENTS; i++) {
+						if (G_pGame->m_pClientList[i] != nullptr) activeClients++;
+					}
+					for (int i = 0; i < DEF_MAXCLIENTLOGINSOCK; i++) {
+						if (G_pGame->_lclients[i] != nullptr) activeLoginClients++;
+					}
+					wsprintf(G_cTxt, "[DEBUG] EventLoop - Active clients: %d, Login clients: %d", activeClients, activeLoginClients);
+					PutLogList(G_cTxt);
+					dwLastDebug = dwNow;
+				}
+			}
+			// Small sleep to prevent 100% CPU usage
+			Sleep(1);
+		}
 	}
 }
 
@@ -557,14 +618,15 @@ void Initialize()
 		return;
 	}
 
-	// °ÔÀÓ ÁøÇà¿ë Å¸ÀÌ¸Ó 
+	// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ Å¸ï¿½Ì¸ï¿½ 
 	G_mmTimer = _StartTimer(300);
 
-	G_pListenSock = new class XSocket(G_hWnd, DEF_SERVERSOCKETBLOCKLIMIT);
-	G_pListenSock->bListen(G_pGame->m_cGameServerAddr, G_pGame->m_iGameServerPort, WM_USER_ACCEPT);
+	// MODERNIZED: Removed G_hWnd parameter, using WSAEventSelect
+	G_pListenSock = new class XSocket(DEF_SERVERSOCKETBLOCKLIMIT);
+	G_pListenSock->bListen(G_pGame->m_cGameServerAddr, G_pGame->m_iGameServerPort);
 
-	G_pLoginSock = new class XSocket(G_hWnd, DEF_SERVERSOCKETBLOCKLIMIT);
-	G_pLoginSock->bListen(G_pGame->m_cGameServerAddr, G_pGame->m_iLogServerPort, WM_USER_ACCEPT_LOGIN);
+	G_pLoginSock = new class XSocket(DEF_SERVERSOCKETBLOCKLIMIT);
+	G_pLoginSock->bListen(G_pGame->m_cGameServerAddr, G_pGame->m_iLogServerPort);
 
 	pLogFile = 0;
 	//pLogFile = fopen("test.log","wt+");
@@ -603,13 +665,14 @@ void OnAcceptLogin()
 
 void PutLogList(char* cMsg)
 {
-	char cTemp[120 * 50];
+	// Get timestamp
+	SYSTEMTIME st;
+	GetLocalTime(&st);
 
-	G_cMsgUpdated = true;
-	ZeroMemory(cTemp, sizeof(cTemp));
-	memcpy((cTemp + 120), G_cMsgList, 120 * 49);
-	memcpy(cTemp, cMsg, strlen(cMsg));
-	memcpy(G_cMsgList, cTemp, 120 * 50);
+	// Direct console output with timestamp
+	printf("[%02d:%02d:%02d] %s\n", st.wHour, st.wMinute, st.wSecond, cMsg);
+
+	// Still log to file
 	PutAdminLogFileList(cMsg);
 }
 
@@ -626,36 +689,9 @@ void PutXSocketLogList(char* cMsg)
 
 }
 
-void UpdateScreen()
-{
-	if (G_cMsgUpdated) {
-		InvalidateRect(G_hWnd, 0, true);
-		G_cMsgUpdated = false;
-	}
-}
+// UpdateScreen() - REMOVED: No longer needed for console output
 
-
-void OnPaint()
-{
-	HDC hdc;
-	PAINTSTRUCT ps;
-	short i;
-	char* cMsg;
-
-	hdc = BeginPaint(G_hWnd, &ps);
-
-	SetBkMode(hdc, TRANSPARENT);
-
-	for (i = 0; i < 20; i++) {
-		cMsg = (char*)(G_cMsgList + i * 120);
-		TextOut(hdc, 5, 5 + 350 - i * 16, cMsg, strlen(cMsg));
-	}
-
-	if (G_pGame != 0)
-		G_pGame->DisplayInfo(hdc);
-
-	EndPaint(G_hWnd, &ps);
-}
+// OnPaint() - REMOVED: No longer needed for console output
 
 
 

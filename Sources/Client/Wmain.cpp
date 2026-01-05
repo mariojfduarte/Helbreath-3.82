@@ -6,6 +6,9 @@
 // --------------------------------------------------------------
 
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
+
 #include <windows.h>
 #include <windowsx.h>
 #include <stdio.h>
@@ -142,13 +145,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		return DefWindowProc(hWnd, message, wParam, lParam);
 		break;
 
-	case WM_USER_GAMESOCKETEVENT:
-		G_pGame->OnGameSocketEvent(wParam, lParam);
-		break;
-
-	case WM_USER_LOGSOCKETEVENT:
-		G_pGame->OnLogSocketEvent(wParam, lParam);
-		break;
+	// MODERNIZED: Removed WM_USER_GAMESOCKETEVENT and WM_USER_LOGSOCKETEVENT handlers
+	// Sockets now polled directly in UpdateScreen_OnGame() instead of window messages
 
 	default:
 		return (DefWindowProc(hWnd, message, wParam, lParam));
@@ -269,7 +267,7 @@ void Initialize(char* pCmdLine)
 	iErrCode = WSAStartup(wVersionRequested, &wsaData);
 	if (iErrCode)
 	{
-		MessageBox(G_hWnd, "Winsock-V1.1 not found! Cannot execute program.", "ERROR", MB_ICONEXCLAMATION | MB_OK);
+		MessageBox(G_hWnd, "Winsock-V2.2 not found! Cannot execute program.", "ERROR", MB_ICONEXCLAMATION | MB_OK);
 		PostQuitMessage(0);
 		return;
 	}

@@ -2,10 +2,12 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#pragma once
+#if !defined(AFX_GAME_H__C3D29FC5_755B_11D2_A8E6_00001C7030A6__INCLUDED_)
+#define AFX_GAME_H__C3D29FC5_755B_11D2_A8E6_00001C7030A6__INCLUDED_
 
-// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
-#define _WINSOCKAPI_
+#if _MSC_VER >= 1000
+#pragma once
+#endif
 
 #include <windows.h>
 #include <winbase.h>
@@ -19,17 +21,17 @@
 #include <vector>
 
 #include "winmain.h"
+#include "StrTok.h"
 #include "Xsocket.h"
 #include "Client.h"
 #include "Npc.h"
 #include "Map.h"
-#include "ActionID_Server.h"
+#include "ActionID.h"
 #include "UserMessages.h"
 #include "NetMessages.h"
-#include "ServerMessages.h"
 #include "MessageIndex.h"
 #include "Misc.h"
-#include "NetworkMsg.h"
+#include "Msg.h"
 #include "Magic.h"
 #include "Skill.h"
 #include "DynamicObject.h"
@@ -60,7 +62,7 @@
 #define DEF_MAXCLIENTLOGINSOCK		2000
 #define DEF_MAXNPCS					5000
 #define DEF_MAXITEMTYPES			5000
-#define DEF_CLIENTTIMEOUT			30000  // MODERNIZED: Increased from 10s to 30s for heavy entity rendering
+#define DEF_CLIENTTIMEOUT			10000
 #define DEF_SPUPTIME				10000
 #define DEF_POISONTIME				12000
 #define DEF_HPUPTIME				15000
@@ -71,37 +73,37 @@
 #define DEF_AUTOSAVETIME			600000
 #define MAX_HELDENIANTOWER			200
 
-#define DEF_EXPSTOCKTIME		1000*10		// ExpStockï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ï´ï¿½? ï¿½Ã°ï¿½ ï¿½ï¿½ï¿½ï¿½ 
-#define DEF_MSGQUENESIZE		100000		// ï¿½Þ½ï¿½ï¿½ï¿½ Å¥ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 10ï¿½ï¿½ï¿½ï¿½ 
-#define DEF_AUTOEXPTIME			1000*60*6	// ï¿½Úµï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½Ã¶ó°¡´ï¿½ ï¿½Ã°ï¿½ï¿½ï¿½ï¿½ï¿½ 
-#define DEF_TOTALLEVELUPPOINT	3			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ò´ï¿½ï¿½Ï´ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½ 
+#define DEF_EXPSTOCKTIME		1000*10		// ExpStockÀ» °è»êÇÏ´Â ½Ã°£ °£°Ý 
+#define DEF_MSGQUENESIZE		100000		// ¸Þ½ÃÁö Å¥ »çÀÌÁî 10¸¸°³ 
+#define DEF_AUTOEXPTIME			1000*60*6	// ÀÚµ¿À¸·Î °æÇèÄ¡°¡ ¿Ã¶ó°¡´Â ½Ã°£°£°Ý 
+#define DEF_TOTALLEVELUPPOINT	3			// ·¹º§¾÷½Ã ÇÒ´çÇÏ´Â ÃÑ Æ÷ÀÎÆ® ¼ö 
 
 
 #define DEF_MAXDYNAMICOBJECTS	60000
 #define DEF_MAXDELAYEVENTS		60000
 #define DEF_GUILDSTARTRANK		12
 
-#define DEF_SSN_LIMIT_MULTIPLY_VALUE	2	// SSN-limit ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½ï¿½ 
+#define DEF_SSN_LIMIT_MULTIPLY_VALUE	2	// SSN-limit °öÇÏ´Â ¼ö 
 
-#define DEF_MAXNOTIFYMSGS		300			// ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Þ½ï¿½ï¿½ï¿½ 
-#define DEF_MAXSKILLPOINTS		700			// ï¿½ï¿½Å³ ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 
+#define DEF_MAXNOTIFYMSGS		300			// ÃÖ´ë °øÁö»çÇ× ¸Þ½ÃÁö 
+#define DEF_MAXSKILLPOINTS		700			// ½ºÅ³ Æ÷ÀÎÆ®ÀÇ ÃÑÇÕ 
 #define DEF_NIGHTTIME			30
 
-#define DEF_CHARPOINTLIMIT		1000		// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Æ¯ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½Ö´ë°ª 
-#define DEF_RAGPROTECTIONTIME	7000		// ï¿½ï¿½ ï¿½ï¿½ ï¿½Ì»ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È£ï¿½ï¿½ ï¿½Þ´ï¿½ï¿½ï¿½ 
-#define DEF_MAXREWARDGOLD		99999999	// ï¿½ï¿½ï¿½ï¿½ï¿½? ï¿½Ö´ï¿½Ä¡ 
+#define DEF_CHARPOINTLIMIT		1000		// °¢°¢ÀÇ Æ¯¼ºÄ¡ÀÇ ÃÖ´ë°ª 
+#define DEF_RAGPROTECTIONTIME	7000		// ¸î ÃÊ ÀÌ»ó Áö³ª¸é ·¢À¸·Î ºÎÅÍ º¸È£¸¦ ¹Þ´ÂÁö 
+#define DEF_MAXREWARDGOLD		99999999	// Æ÷»ó±Ý ÃÖ´ëÄ¡ 
 
-#define DEF_ATTACKAI_NORMAL				1	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 
-#define DEF_ATTACKAI_EXCHANGEATTACK		2	// ï¿½ï¿½È¯ ï¿½ï¿½ï¿½ï¿½ - ï¿½ï¿½ï¿½ï¿½ 
-#define DEF_ATTACKAI_TWOBYONEATTACK		3	// 2-1 ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ 
+#define DEF_ATTACKAI_NORMAL				1	// ¹«Á¶°Ç °ø°Ý 
+#define DEF_ATTACKAI_EXCHANGEATTACK		2	// ±³È¯ °ø°Ý - ÈÄÅð 
+#define DEF_ATTACKAI_TWOBYONEATTACK		3	// 2-1 °ø°Ý, ÈÄÅð 
 
 #define DEF_MAXFISHS					200
 #define DEF_MAXMINERALS					200
 #define	DEF_MAXCROPS					200
-#define DEF_MAXENGAGINGFISH				30  // ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½â¿¡ ï¿½ï¿½ï¿½Ã¸ï¿½ ï¿½Ãµï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½Ö´ï¿½ ï¿½Î¿ï¿½ 
-#define DEF_MAXPORTIONTYPES				500 // ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 
+#define DEF_MAXENGAGINGFISH				30  // ÇÑ ¹°°í±â¿¡ ³¬½Ã¸¦ ½ÃµµÇÒ ¼ö ÀÖ´Â ÃÖ´ë ÀÎ¿ø 
+#define DEF_MAXPORTIONTYPES				500 // ÃÖ´ë Æ÷¼Ç Á¤ÀÇ °¹¼ö 
 
-#define DEF_SPECIALEVENTTIME			300000 //600000 // 10ï¿½ï¿½
+#define DEF_SPECIALEVENTTIME			300000 //600000 // 10ºÐ
 #define DEF_MAXQUESTTYPE				200
 #define DEF_DEF_MAXHELDENIANDOOR			10
 
@@ -130,8 +132,8 @@
 
 #define DEF_MAXDUPITEMID				100
 
-#define DEF_MAXGUILDS					1000 // ï¿½ï¿½ï¿½Ã¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½ 
-#define DEF_MAXONESERVERUSERS			800	// 800 // ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½? ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½Ú¼ï¿½?. ï¿½Ê°ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½? ï¿½ï¿½È°ï¿½ï¿½ È¤ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½? ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½.
+#define DEF_MAXGUILDS					1000 // µ¿½Ã¿¡ Á¢¼ÓÇÒ ¼ö ÀÖ´Â ±æµå¼ö 
+#define DEF_MAXONESERVERUSERS			800	// 800 // ÇÑ ¼­¹ö¿¡¼­ Çã¿ëÇÒ ¼ö ÀÖ´Â ÃÖ´ë »ç¿ëÀÚ¼ö. ÃÊ°úµÈ °æ¿ì ºÎÈ°Á¸ È¤Àº ºí¸®µù ¾ÆÀÏ, ³ó°æÁö·Î º¸³»Áø´Ù.
 
 #define DEF_MAXGATESERVERSTOCKMSGSIZE	10000
 
@@ -140,31 +142,31 @@
 #define DEF_MAXAPOCALYPSE				7
 #define DEF_MAXHELDENIAN				10
 
-//v1.4311-3  ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½
+//v1.4311-3  »çÅõÀåÀÇ ÃÖ´ë ¼ýÀÚ
 #define DEF_MAXFIGHTZONE 10 
 
 //============================
-#define DEF_LEVELLIMIT		20				// Ã¼ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ä¡!!!			
+#define DEF_LEVELLIMIT		20				// Ã¼ÇèÆÇ ·¹º§ Á¦ÇÑÄ¡!!!			
 //============================
 
 //============================
-#define DEF_MINIMUMHITRATIO 15				// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ È®ï¿½ï¿½ 
+#define DEF_MINIMUMHITRATIO 15				// ÃÖÀú ¸íÁß È®·ü 
 //============================		
 
 //============================
-#define DEF_MAXIMUMHITRATIO	99				// ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½ È®ï¿½ï¿½
+#define DEF_MAXIMUMHITRATIO	99				// ÃÖ´ë ¸íÁß È®·ü
 //============================
 
 //============================
-#define DEF_PLAYERMAXLEVEL	180				// ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½: Npc.cfg ï¿½ï¿½ï¿½Ï¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ç¾ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½? m_iPlayerMaxLevelï¿½ï¿½ ï¿½Ô·ÂµÈ´ï¿½.
+#define DEF_PLAYERMAXLEVEL	180				// ÃÖ´ë ·¹º§: Npc.cfg ÆÄÀÏ¿¡ ¼³Á¤µÇ¾î ÀÖÁö ¾ÊÀ» °æ¿ì m_iPlayerMaxLevel¿¡ ÀÔ·ÂµÈ´Ù.
 //============================
 
 //============================
 // New Changed 12/05/2004
-#define DEF_GMGMANACONSUMEUNIT	15			// Grand Magic Generator ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½.
+#define DEF_GMGMANACONSUMEUNIT	15			// Grand Magic Generator ¸¶³ª Èí¼ö ´ÜÀ§.
 //============================
 
-#define DEF_MAXCONSTRUCTIONPOINT 30000		// ï¿½Ö´ï¿½ ï¿½ï¿½È¯ ï¿½ï¿½ï¿½ï¿½Æ® 
+#define DEF_MAXCONSTRUCTIONPOINT 30000		// ÃÖ´ë ¼ÒÈ¯ Æ÷ÀÎÆ® 
 #define DEF_MAXSUMMONPOINTS		 30000
 #define DEF_MAXWARCONTRIBUTION	 200000
 
@@ -172,7 +174,7 @@
 // MOG Definitions - 3.51
 // Level up MSG
 #define MSGID_LEVELUPSETTINGS				0x11A01000
-// 2003-04-14 ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½...
+// 2003-04-14 ÁöÁ¸ Æ÷ÀÎÆ®¸¦ ·¹º§ ¼öÁ¤¿¡ ¾µ¼ö ÀÖ´Ù...
 // Stat Point Change MSG
 #define MSGID_STATECHANGEPOINT				0x11A01001
 
@@ -274,11 +276,10 @@ static void Pop(char*& src, string& str) {
 
 struct LoginClient
 {
-	// MODERNIZED: Removed HWND parameter
 	LoginClient(HWND hWnd)
 	{
 		_sock = 0;
-		_sock = new class XSocket(DEF_CLIENTSOCKETBLOCKLIMIT);
+		_sock = new class XSocket(hWnd, DEF_CLIENTSOCKETBLOCKLIMIT);
 		_sock->bInitBufferSize(DEF_MSGBUFFERSIZE);
 		_timeout_tm = 0;
 	}
@@ -450,6 +451,7 @@ public:
 	void AdminOrder_SetStatus(int iClientH, char *pData, DWORD dwMsgSize);
 	
 	void SetPoisonFlag(short sOwnerH, char cOwnerType, bool bStatus);
+	void GayDave(char cDave[350], char cInput[350]);
 	void AdminOrder_SummonStorm(int iClientH, char* pData, DWORD dwMsgSize);
 	
 	void AdminOrder_SummonDeath(int iClientH);
@@ -678,7 +680,7 @@ public:
 	void RequestCivilRightHandler(int iClientH, char * pData);
 	bool bCheckLimitedUser(int iClientH);
 	void LevelUpSettingsHandler(int iClientH, char * pData, DWORD dwMsgSize);
-	// v1.4311-3 ï¿½ï¿½ï¿½ï¿½ ï¿½Ô¼ï¿½  ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ô¼ï¿½ ï¿½ï¿½ï¿½ï¿½ FightzoneReserveHandler
+	// v1.4311-3 ¼±¾ð ÇÔ¼ö  »çÅõÀå ¿¹¾à ÇÔ¼ö ¼±¾ð FightzoneReserveHandler
 	void FightzoneReserveHandler(int iClientH, char * pData, DWORD dwMsgSize);
 	bool bCheckLevelUp(int iClientH);
 	DWORD iGetLevelExp(int iLevel);
@@ -781,10 +783,10 @@ public:
 	void RequestInitPlayerHandler(int iClientH, char * pData, char cKey);
 	int iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDir, char cMoveType);
 	void ClientMotionHandler(int iClientH, char * pData);
-	void DisplayInfo(); // Console version - no HDC needed
+	void DisplayInfo(HDC hdc);
 	void OnClientRead(int iClientH);
 	bool bInit();
-	void OnClientSocketEvent(int iClientH);  // MODERNIZED: Polls socket instead of handling window messages
+	void OnClientSocketEvent(UINT message, WPARAM wParam, LPARAM lParam);
 	bool bAccept(class XSocket * pXSock);
 	void GetFightzoneTicketHandler(int iClientH);
 	void FightzoneReserveProcessor() ;
@@ -865,19 +867,18 @@ public:
 	bool _bRegisterMap(char * pName);
 
 	class CClient * m_pClientList[DEF_MAXCLIENTS];
-	class CNpc   ** m_pNpcList;  // Pointer to EntityManager's entity array (for backward compatibility)
+	class CNpc    * m_pNpcList[DEF_MAXNPCS];
 	class CMap    * m_pMapList[DEF_MAXMAPS];
 	class CNpcItem * m_pTempNpcItem[DEF_MAXNPCITEMS];
 	class CDynamicObject * m_pDynamicObjectList[DEF_MAXDYNAMICOBJECTS];
 	class CDelayEvent    * m_pDelayEventList[DEF_MAXDELAYEVENTS];
-
-	class CEntityManager * m_pEntityManager;  // Entity spawn/despawn manager
 
 	class CMsg    * m_pMsgQuene[DEF_MSGQUENESIZE];
 	int             m_iQueneHead, m_iQueneTail;
 	int             m_iTotalMaps;
 	//class XSocket * m_pMainLogSock, * m_pGateSock;
 	//int				m_iGateSockConnRetryTimes;
+	class CMisc     m_Misc;
 	bool			m_bIsGameStarted;
 	//bool            m_bIsLogSockAvailable, m_bIsGateSockAvailable;
 	bool			m_bIsItemAvailable, m_bIsBuildItemAvailable, m_bIsNpcAvailable, m_bIsMagicAvailable;
@@ -894,7 +895,6 @@ public:
 	class PartyManager* m_pPartyManager;
 
 	void OnClientLoginRead(int h);
-	void OnLoginClientSocketEvent(int iLoginClientH);  // MODERNIZED: Polls login client socket instead of handling window messages
 	void DeleteLoginClient(int h);
 
 	std::vector<LoginClient*> _lclients_disconn;
@@ -937,8 +937,8 @@ public:
 	class CMineral * m_pMineral[DEF_MAXMINERALS];
 
 	int   m_iMiddlelandMapIndex; 
-	int   m_iAresdenMapIndex;		// ï¿½Æ·ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Îµï¿½ï¿½ï¿½ 
-	int	  m_iElvineMapIndex;		// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Îµï¿½ï¿½ï¿½
+	int   m_iAresdenMapIndex;		// ¾Æ·¹½ºµ§ ¸Ê ÀÎµ¦½º 
+	int	  m_iElvineMapIndex;		// ¿¤¹ÙÀÎ ¸Ê ÀÎµ¦½º
 	int   m_iBTFieldMapIndex;
 	int   m_iGodHMapIndex;
 	int   m_iAresdenOccupyTiles;
@@ -976,7 +976,7 @@ public:
 	DWORD  m_dwMapSectorInfoTime;
 	int    m_iMapSectorInfoUpdateCount;
 
-	// Crusade Ã³ï¿½ï¿½ï¿½ï¿½
+	// Crusade Ã³¸®¿ë
 	int	   m_iCrusadeCount;	
 	bool   m_bIsCrusadeMode;		
 	bool   m_bIsApocalypseMode;
@@ -1215,3 +1215,5 @@ public:
 	void RequestRepairAllItemsConfirmHandler(int iClientH);
 
 };
+
+#endif // !defined(AFX_GAME_H__C3D29FC5_755B_11D2_A8E6_00001C7030A6__INCLUDED_)

@@ -16,7 +16,7 @@ CClient::CClient(HWND hWnd)
  int i;
 
 	m_pXSock = 0;
-	m_pXSock = new class XSocket(hWnd, DEF_CLIENTSOCKETBLOCKLIMIT);
+	m_pXSock = new class XSocket(DEF_CLIENTSOCKETBLOCKLIMIT);
 	m_pXSock->bInitBufferSize(DEF_MSGBUFFERSIZE);
 
 	ZeroMemory(m_cProfile, sizeof(m_cProfile));

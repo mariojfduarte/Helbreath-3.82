@@ -52,6 +52,10 @@ CNpc::CNpc(char * pName5)
 	m_iNpcItemType = 0;
 	m_iNpcItemMax = 0;
 
+	// OPTIMIZATION FIX #3: Initialize previous position for delta detection
+	m_sPrevX = -1;
+	m_sPrevY = -1;
+
 }
 
 CNpc::~CNpc()

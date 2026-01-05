@@ -4,12 +4,13 @@
 
 #pragma once
 
-#define _WINSOCK2API_
+// MODERNIZED: Prevent old winsock.h from loading (conflicts with winsock2.h)
+#define _WINSOCKAPI_   // Stops windows.h from including winsock.h
+
 //#define  FD_SETSIZE 2000
+#include <winsock2.h>  // MUST be before windows.h to use WSAEventSelect
 #include <windows.h>
 #include <windowsx.h>
-#include <winsock2.h>
-//#include <winsock.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <memory.h>
@@ -48,15 +49,15 @@ public:
 	int iSendMsgBlockingMode(char *buf,int nbytes);
 	int iGetPeerAddress(char * pAddrString);
 	char * pGetRcvDataPointer(DWORD * pMsgSize, char * pKey = 0);
-	bool bAccept(class XSocket * pXSock, unsigned int uiMsg);
-	bool bListen(char * pAddr, int iPort, unsigned int uiMsg);
-	
+	bool bAccept(class XSocket * pXSock);
+	bool bListen(char * pAddr, int iPort);
+
 	int iSendMsg(char * cData, DWORD dwSize, char cKey = 0);
-	bool bConnect(char * pAddr, int iPort, unsigned int uiMsg);
-	bool bBlockConnect(char * pAddr, int iPort, unsigned int uiMsg);
-	int  iOnSocketEvent(WPARAM wParam, LPARAM lParam);
+	bool bConnect(char * pAddr, int iPort);
+	bool bBlockConnect(char * pAddr, int iPort);
+	int  Poll();  // MODERNIZED: Replaces iOnSocketEvent, polls for network events
 	bool bInitBufferSize(DWORD dwBufferSize);
-	XSocket(HWND hWnd, int iBlockLimit);
+	XSocket(int iBlockLimit);  // MODERNIZED: Removed HWND parameter
 	virtual ~XSocket();
 
 	int  m_WSAErr;
@@ -87,8 +88,7 @@ public:
 	int    m_iUnsentDataSize[DEF_XSOCKBLOCKLIMIT];
 	short  m_sHead, m_sTail;
 
-	unsigned int m_uiMsg;
-	HWND         m_hWnd;
+	WSAEVENT     m_hEvent;  // MODERNIZED: WSAEventSelect event handle instead of window messages
 
 	int			 m_iBlockLimit;
 };

@@ -24,7 +24,7 @@ teleport-loc     =      82     76     arefarm             -1    -1     5
 no-attack-area          = 1       131 35 138 40
 
 
-maximum-object		= 50
+maximum-object		= 122
 
 //------------------------Num-Type-waypoints--------------Mob-MobNum
 spot-mob-generator	= 1   1    81  72  82  73         26  1

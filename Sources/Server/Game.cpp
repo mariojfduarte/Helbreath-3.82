@@ -4,6 +4,7 @@
 
 #include "Game.h"
 #include "LoginServer.h"
+#include "EntityManager.h"
 
 class CDebugWindow* DbgWnd;
 
@@ -185,8 +186,12 @@ CGame::CGame(HWND hWnd)
 	for (i = 0; i < DEF_MAXNPCTYPES; i++)
 		m_pNpcConfigList[i] = 0;
 
-	for (i = 0; i < DEF_MAXNPCS; i++)
-		m_pNpcList[i] = 0;
+	// Initialize Entity Manager (MUST be before any entity operations)
+	m_pEntityManager = new CEntityManager();
+
+	// Get reference to EntityManager's entity array for backward compatibility
+	// This allows existing code to access entities via m_pNpcList
+	m_pNpcList = m_pEntityManager->GetEntityArray();
 
 	for (i = 0; i < DEF_MSGQUENESIZE; i++)
 		m_pMsgQuene[i] = 0;
@@ -317,6 +322,12 @@ CGame::~CGame()
 	}
 
 	delete m_pPartyManager;
+
+	// Cleanup Entity Manager
+	if (m_pEntityManager != NULL) {
+		delete m_pEntityManager;
+		m_pEntityManager = NULL;
+	}
 }
 
 bool CGame::bAcceptLogin(XSocket* sock)
@@ -333,8 +344,7 @@ bool CGame::bAcceptLogin(XSocket* sock)
 		if (!p)
 		{
 			p = new LoginClient(m_hWnd);
-			sock->bAccept(p->_sock, WM_USER_BOT_ACCEPT + i + 1);
-			//	PutLogList("Login Client Acepted");
+			sock->bAccept(p->_sock);  // MODERNIZED: Removed WM_USER_BOT_ACCEPT message ID
 			ZeroMemory(p->_ip, sizeof(p->_ip));
 			p->_sock->iGetPeerAddress(p->_ip);
 			return true;
@@ -343,8 +353,9 @@ bool CGame::bAcceptLogin(XSocket* sock)
 
 CLOSE_ANYWAY:
 
-	auto pTmpSock = new XSocket(m_hWnd, DEF_SERVERSOCKETBLOCKLIMIT);
-	sock->bAccept(pTmpSock, 0);
+	// MODERNIZED: Removed m_hWnd parameter
+	auto pTmpSock = new XSocket(DEF_SERVERSOCKETBLOCKLIMIT);
+	sock->bAccept(pTmpSock);
 	delete pTmpSock;
 
 	return false;
@@ -370,7 +381,7 @@ bool CGame::bAccept(class XSocket* pXSock)
 				m_pClientList[i]->m_dwTime = m_pClientList[i]->m_dwHungerTime = m_pClientList[i]->m_dwExpStockTime =
 				m_pClientList[i]->m_dwRecentAttackTime = m_pClientList[i]->m_dwAutoExpTime = m_pClientList[i]->m_dwSpeedHackCheckTime = timeGetTime();
 
-			pXSock->bAccept(m_pClientList[i]->m_pXSock, WM_ONCLIENTSOCKETEVENT + i);
+			pXSock->bAccept(m_pClientList[i]->m_pXSock);  // MODERNIZED: Removed WM_ONCLIENTSOCKETEVENT message ID
 
 			ZeroMemory(m_pClientList[i]->m_cIPaddress, sizeof(m_pClientList[i]->m_cIPaddress));
 			m_pClientList[i]->m_pXSock->iGetPeerAddress(m_pClientList[i]->m_cIPaddress);
@@ -429,8 +440,8 @@ bool CGame::bAccept(class XSocket* pXSock)
 
 CLOSE_ANYWAY:
 
-	pTmpSock = new class XSocket(m_hWnd, DEF_SERVERSOCKETBLOCKLIMIT);
-	pXSock->bAccept(pTmpSock, 0);
+	pTmpSock = new class XSocket(DEF_SERVERSOCKETBLOCKLIMIT);
+	pXSock->bAccept(pTmpSock);
 	delete pTmpSock;
 
 	return false;
@@ -443,20 +454,17 @@ CLOSE_CONN:
 }
 
 
-void CGame::OnClientSocketEvent(UINT message, WPARAM wParam, LPARAM lParam)
+// MODERNIZED: No longer uses window messages, directly polls socket
+void CGame::OnClientSocketEvent(int iClientH)
 {
-	UINT iTmp;
-	int iClientH, iRet;
+	int iRet;
 	DWORD dwTime = timeGetTime();
-
-	iTmp = WM_ONCLIENTSOCKETEVENT;
-	iClientH = (int)(message - iTmp);
 
 	if (iClientH <= 0) return;
 
 	if (m_pClientList[iClientH] == 0) return;
 
-	iRet = m_pClientList[iClientH]->m_pXSock->iOnSocketEvent(wParam, lParam);
+	iRet = m_pClientList[iClientH]->m_pXSock->Poll();  // MODERNIZED: Poll() instead of iOnSocketEvent()
 
 	switch (iRet) {
 	case DEF_XSOCKEVENT_READCOMPLETE:
@@ -465,7 +473,8 @@ void CGame::OnClientSocketEvent(UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case DEF_XSOCKEVENT_BLOCK:
-		PutLogList("Socket BLOCKED!");
+		wsprintf(G_cTxt, "[WARN] Client %d Socket BLOCKED (send buffer full)", iClientH);
+		PutLogList(G_cTxt);
 		break;
 
 	case DEF_XSOCKEVENT_CONFIRMCODENOTMATCH:
@@ -475,9 +484,23 @@ void CGame::OnClientSocketEvent(UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case DEF_XSOCKEVENT_MSGSIZETOOLARGE:
+		wsprintf(G_cTxt, "<%d> Client Disconnected! MSGSIZETOOLARGE (%s)", iClientH, m_pClientList[iClientH]->m_cIPaddress);
+		PutLogList(G_cTxt);
+		DeleteClient(iClientH, true, true);
+		break;
+
 	case DEF_XSOCKEVENT_SOCKETERROR:
+		wsprintf(G_cTxt, "<%d> Client Disconnected! SOCKETERROR (%s)", iClientH, m_pClientList[iClientH]->m_cIPaddress);
+		PutLogList(G_cTxt);
+		DeleteClient(iClientH, true, true);
+		break;
+
 	case DEF_XSOCKEVENT_SOCKETCLOSED:
-		wsprintf(G_cTxt, "<%d> Client Disconnected! (%s)", iClientH, m_pClientList[iClientH]->m_cIPaddress);
+		// DEBUG: Add detailed disconnect info
+		wsprintf(G_cTxt, "<%d> Client Disconnected! SOCKETCLOSED (%s) - TimeSinceLastPacket: %dms, CharName: %s",
+			iClientH, m_pClientList[iClientH]->m_cIPaddress,
+			dwTime - m_pClientList[iClientH]->m_dwTime,
+			m_pClientList[iClientH]->m_cCharName);
 		PutLogList(G_cTxt);
 		if ((dwTime - m_pClientList[iClientH]->m_dwLogoutHackCheck) < 1000) {
 			try
@@ -844,8 +867,8 @@ bool CGame::bInit()
 	//wsprintf(cTxt, "(!) Try to Connect Gate Server... Addr:%s  Port:%d", m_cGateServerAddr, m_iGateServerPort);
 	//PutLogList(cTxt);
 
-	_lsock = new class XSocket(m_hWnd, DEF_SERVERSOCKETBLOCKLIMIT);
-	_lsock->bConnect(m_cGameServerAddr, m_iLogServerPort, WM_ONLOGSOCKETEVENT);
+	_lsock = new class XSocket(DEF_SERVERSOCKETBLOCKLIMIT);  // MODERNIZED: Removed m_hWnd
+	_lsock->bConnect(m_cGameServerAddr, m_iLogServerPort);  // MODERNIZED: Removed WM_ONLOGSOCKETEVENT
 	_lsock->bInitBufferSize(DEF_MSGBUFFERSIZE);
 
 	m_bF1pressed = m_bF4pressed = m_bF12pressed = m_bF5pressed = false;
@@ -941,33 +964,36 @@ void CGame::OnClientRead(int iClientH)
 }
 
 
-void CGame::DisplayInfo(HDC hdc)
+void CGame::DisplayInfo()
 {
-	char cTxt[350], cDave[350];
-	int  i, iLine;
+	char cTxt[350];
+	int  i;
 
-	wsprintf(cTxt, "Server-Name(%s) Max.Level(%d) Players(%d/%d - %d/%d)", m_cServerName, m_iPlayerMaxLevel, m_iTotalClients, m_iMaxClients, m_iTotalGameServerClients, m_iTotalGameServerMaxClients);
-	TextOut(hdc, 5, 10, cTxt, strlen(cTxt));
+	// Server info line
+	printf("\n");
+	printf("=======================================================================\n");
+	printf("Server: %s | Max Level: %d\n", m_cServerName, m_iPlayerMaxLevel);
+	printf("Players: %d/%d | Total: %d/%d\n",
+		m_iTotalClients, m_iMaxClients,
+		m_iTotalGameServerClients, m_iTotalGameServerMaxClients);
+	printf("=======================================================================\n");
 
-	//#ifdef DEF_TESTSERVER
-	//	ZeroMemory(cTxt, sizeof(cTxt));
-	//	strcpy(cTxt, "인접한 클라이언트들에게 방향전환 이벤트를 알린다. ********** TEST SERVER MODE **********");
-	//	TextOut(hdc, 5, 25, cTxt, strlen(cTxt));
-	//#endif
-
-	iLine = 0;
-	for (i = 0; i < DEF_MAXMAPS; i++)
+	// Map info
+	printf("Active Maps:\n");
+	printf("-----------------------------------------------------------------------\n");
+	for (i = 0; i < DEF_MAXMAPS; i++) {
 		if (m_pMapList[i] != 0) {
-
-			ZeroMemory(G_cTxt, sizeof(G_cTxt));
-			wsprintf(G_cTxt, "Map(%s)    Object(%d)    P(%d, %d)    N(%d, %d)    A(%d, %d)    E(%d, %d)    M(%d, %d)",
-				m_pMapList[i]->m_cName, m_pMapList[i]->m_iTotalActiveObject, m_pMapList[i]->m_iMaxPx * 20 + 10, m_pMapList[i]->m_iMaxPy * 20 + 10,
-				m_pMapList[i]->m_iMaxNx * 20 + 10, m_pMapList[i]->m_iMaxNy * 20 + 10, m_pMapList[i]->m_iMaxAx * 20 + 10, m_pMapList[i]->m_iMaxAy * 20 + 10,
-				m_pMapList[i]->m_iMaxEx * 20 + 10, m_pMapList[i]->m_iMaxEy * 20 + 10, m_pMapList[i]->m_iMaxMx * 20 + 10, m_pMapList[i]->m_iMaxMy * 20 + 10);
-
-			TextOut(hdc, 5, 400 + iLine * 15, G_cTxt, strlen(G_cTxt));
-			iLine++;
+			printf("%-20s | Objects: %4d | P(%d,%d) N(%d,%d) A(%d,%d) E(%d,%d) M(%d,%d)\n",
+				m_pMapList[i]->m_cName,
+				m_pMapList[i]->m_iTotalActiveObject,
+				m_pMapList[i]->m_iMaxPx * 20 + 10, m_pMapList[i]->m_iMaxPy * 20 + 10,
+				m_pMapList[i]->m_iMaxNx * 20 + 10, m_pMapList[i]->m_iMaxNy * 20 + 10,
+				m_pMapList[i]->m_iMaxAx * 20 + 10, m_pMapList[i]->m_iMaxAy * 20 + 10,
+				m_pMapList[i]->m_iMaxEx * 20 + 10, m_pMapList[i]->m_iMaxEy * 20 + 10,
+				m_pMapList[i]->m_iMaxMx * 20 + 10, m_pMapList[i]->m_iMaxMy * 20 + 10);
 		}
+	}
+	printf("=======================================================================\n\n");
 }
 
 void CGame::ClientMotionHandler(int iClientH, char* pData)
@@ -1042,6 +1068,7 @@ void CGame::ClientMotionHandler(int iClientH, char* pData)
 		if (iRet == 1) {
 			SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_MOTION, DEF_OBJECTRUN, 0, 0, 0);
 		}
+		else if (iRet == 2) SendObjectMotionRejectMsg(iClientH);
 		if ((m_pClientList[iClientH] != 0) && (m_pClientList[iClientH]->m_iHP <= 0)) ClientKilledHandler(iClientH, 0, 0, 1); // v1.4
 		// v2.171
 		bCheckClientMoveFrequency(iClientH, dwClientTime);
@@ -1052,6 +1079,7 @@ void CGame::ClientMotionHandler(int iClientH, char* pData)
 		if (iRet == 1) {
 			SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_MOTION, DEF_OBJECTMOVE, 0, 0, 0);
 		}
+		else if (iRet == 2) SendObjectMotionRejectMsg(iClientH);
 		if ((m_pClientList[iClientH] != 0) && (m_pClientList[iClientH]->m_iHP <= 0)) ClientKilledHandler(iClientH, 0, 0, 1); // v1.4
 		// v2.171
 		bCheckClientMoveFrequency(iClientH, dwClientTime);
@@ -1062,6 +1090,7 @@ void CGame::ClientMotionHandler(int iClientH, char* pData)
 		if (iRet == 1) {
 			SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_MOTION, DEF_OBJECTDAMAGEMOVE, m_pClientList[iClientH]->m_iLastDamage, 0, 0);
 		}
+		else if (iRet == 2) SendObjectMotionRejectMsg(iClientH);
 		if ((m_pClientList[iClientH] != 0) && (m_pClientList[iClientH]->m_iHP <= 0)) ClientKilledHandler(iClientH, 0, 0, 1); // v1.4
 		break;
 
@@ -1071,6 +1100,7 @@ void CGame::ClientMotionHandler(int iClientH, char* pData)
 			SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_MOTION, DEF_OBJECTATTACKMOVE, 0, 0, 0);
 			iClientMotion_Attack_Handler(iClientH, m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY, dX, dY, wType, cDir, wTargetObjectID, false, true); // v1.4
 		}
+		else if (iRet == 2) SendObjectMotionRejectMsg(iClientH);
 		if ((m_pClientList[iClientH] != 0) && (m_pClientList[iClientH]->m_iHP <= 0)) ClientKilledHandler(iClientH, 0, 0, 1); // v1.4
 		// v2.171
 		bCheckClientAttackFrequency(iClientH, dwClientTime);
@@ -1163,7 +1193,9 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 	if (m_pClientList[iClientH]->m_bIsKilled) return 0;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return 0;
 
-	if ((sX != m_pClientList[iClientH]->m_sX) || (sY != m_pClientList[iClientH]->m_sY)) return 2;
+	if ((sX != m_pClientList[iClientH]->m_sX) || (sY != m_pClientList[iClientH]->m_sY)) {
+		return 2;
+	}
 
 	//locobans
 	dwTime = timeGetTime();
@@ -2904,6 +2936,97 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 	char cKey;
 	int iTemp3, iTemp, iTemp2;
 
+	// OPTIMIZATION FIX #2: Early exit if no clients online
+	// Check if there are any clients in the shortcut list before building packets
+	if (m_iClientShortCut[0] == 0) {
+		// DEBUG: Log when we skip broadcast due to no clients
+		static DWORD dwLastNoClientLog = 0;
+		DWORD dwNow = timeGetTime();
+		if (dwNow - dwLastNoClientLog > 5000) {
+			wsprintf(G_cTxt, "[DEBUG] SendEventToNearClient_TypeA: No clients online, skipping broadcast");
+			PutLogList(G_cTxt);
+			dwLastNoClientLog = dwNow;
+		}
+		return;
+	}
+
+	// OPTIMIZATION FIX #2: Pre-check if any clients are in range before building packets
+	// This prevents wasting CPU cycles building 3 packets (43+ bytes each) when no one is nearby
+	bool bHasNearbyClients = false;
+	char cOwnerMapIndex;
+	short sOwnerX, sOwnerY;
+
+	// Determine range modifier and get owner position
+	if ((dwMsgID == MSGID_EVENT_LOG) || (wMsgType == DEF_OBJECTMOVE) || (wMsgType == DEF_OBJECTRUN) ||
+		(wMsgType == DEF_OBJECTATTACKMOVE) || (wMsgType == DEF_OBJECTDAMAGEMOVE) || (wMsgType == DEF_OBJECTDYING))
+		sRange = 1;
+	else sRange = 0;
+
+	if (cOwnerType == DEF_OWNERTYPE_PLAYER) {
+		if (m_pClientList[sOwnerH] == 0) return;
+		cOwnerMapIndex = m_pClientList[sOwnerH]->m_cMapIndex;
+		sOwnerX = m_pClientList[sOwnerH]->m_sX;
+		sOwnerY = m_pClientList[sOwnerH]->m_sY;
+	}
+	else {
+		if (m_pNpcList[sOwnerH] == 0) return;
+		cOwnerMapIndex = m_pNpcList[sOwnerH]->m_cMapIndex;
+		sOwnerX = m_pNpcList[sOwnerH]->m_sX;
+		sOwnerY = m_pNpcList[sOwnerH]->m_sY;
+	}
+
+	// Quick scan: check if ANY clients are in range before building packets
+	iShortCutIndex = 0;
+	while (m_iClientShortCut[iShortCutIndex] != 0) {
+		i = m_iClientShortCut[iShortCutIndex];
+
+		// CRITICAL FIX: NPC broadcasts don't require m_bIsInitComplete, only player broadcasts do
+		bool bClientValid = (m_pClientList[i] != 0);
+		if (cOwnerType == DEF_OWNERTYPE_PLAYER) {
+			bClientValid = bClientValid && (m_pClientList[i]->m_bIsInitComplete);
+		}
+
+		if (bClientValid &&
+			(m_pClientList[i]->m_cMapIndex == cOwnerMapIndex) &&
+			(m_pClientList[i]->m_sX >= sOwnerX - 12 - sRange) &&
+			(m_pClientList[i]->m_sX <= sOwnerX + 12 + sRange) &&
+			(m_pClientList[i]->m_sY >= sOwnerY - 10 - sRange) &&
+			(m_pClientList[i]->m_sY <= sOwnerY + 10 + sRange)) {
+			bHasNearbyClients = true;
+			break;
+		}
+		iShortCutIndex++;
+	}
+
+	// TEMPORARILY DISABLED FOR TESTING - Early exit if no clients in range
+	if (false && !bHasNearbyClients) {
+		// DEBUG: Enhanced logging with position details
+		static int iSkipCount = 0;
+		static DWORD dwLastSkipLog = 0;
+		DWORD dwNow = timeGetTime();
+		iSkipCount++;
+		if (dwNow - dwLastSkipLog > 5000) {
+			// Log first client's position if any exist
+			if (m_iClientShortCut[0] != 0 && m_pClientList[m_iClientShortCut[0]] != 0) {
+				int iFirstClient = m_iClientShortCut[0];
+				wsprintf(G_cTxt, "[DEBUG] No nearby clients | Entity(Type:%d Map:%d X:%d Y:%d) | Client1(Map:%d X:%d Y:%d) | Range:±%d | Skipped:%d in 5s",
+					cOwnerType, cOwnerMapIndex, sOwnerX, sOwnerY,
+					m_pClientList[iFirstClient]->m_cMapIndex,
+					m_pClientList[iFirstClient]->m_sX,
+					m_pClientList[iFirstClient]->m_sY,
+					12 + sRange, iSkipCount);
+			}
+			else {
+				wsprintf(G_cTxt, "[DEBUG] SendEventToNearClient_TypeA: No nearby clients for entity (Type:%d MsgType:0x%X), skipped %d broadcasts in last 5s",
+					cOwnerType, wMsgType, iSkipCount);
+			}
+			PutLogList(G_cTxt);
+			dwLastSkipLog = dwNow;
+			iSkipCount = 0;
+		}
+		return;
+	}
+
 	ZeroMemory(cData_All, sizeof(cData_All));
 	ZeroMemory(cData_Srt, sizeof(cData_Srt));
 	ZeroMemory(cData_Srt_Av, sizeof(cData_Srt_Av));
@@ -3206,6 +3329,18 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 43, cKey);
 							break;
 						} //Switch
+
+						if ((iRet == DEF_XSOCKEVENT_QUENEFULL) || (iRet == DEF_XSOCKEVENT_SOCKETERROR) ||
+							(iRet == DEF_XSOCKEVENT_SOCKETCLOSED) || (iRet == DEF_XSOCKEVENT_CRITICALERROR)) {
+							static DWORD s_dwLastNetWarn = 0;
+							DWORD dwNow = timeGetTime();
+							if (dwNow - s_dwLastNetWarn > 5000) {
+								wsprintf(G_cTxt, "[NETWARN] SendEventToNearClient_TypeA: client=%d ret=%d ownerType=%d msgType=0x%X",
+									i, iRet, cOwnerType, wMsgType);
+								PutLogList(G_cTxt);
+								s_dwLastNetWarn = dwNow;
+							}
+						}
 					} //else
 				} // If 1
 		} //While finish
@@ -3342,6 +3477,18 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 							break;
 
 						} //Switch
+
+						if ((iRet == DEF_XSOCKEVENT_QUENEFULL) || (iRet == DEF_XSOCKEVENT_SOCKETERROR) ||
+							(iRet == DEF_XSOCKEVENT_SOCKETCLOSED) || (iRet == DEF_XSOCKEVENT_CRITICALERROR)) {
+							static DWORD s_dwLastNetWarnNpc = 0;
+							DWORD dwNow = timeGetTime();
+							if (dwNow - s_dwLastNetWarnNpc > 5000) {
+								wsprintf(G_cTxt, "[NETWARN] SendEventToNearClient_TypeA(NPC): client=%d ret=%d ownerType=%d msgType=0x%X",
+									i, iRet, cOwnerType, wMsgType);
+								PutLogList(G_cTxt);
+								s_dwLastNetWarnNpc = dwNow;
+							}
+						}
 					}
 					else {
 						switch (wMsgType) {
@@ -3370,6 +3517,18 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 							break;
 
 						} //Switch
+
+						if ((iRet == DEF_XSOCKEVENT_QUENEFULL) || (iRet == DEF_XSOCKEVENT_SOCKETERROR) ||
+							(iRet == DEF_XSOCKEVENT_SOCKETCLOSED) || (iRet == DEF_XSOCKEVENT_CRITICALERROR)) {
+							static DWORD s_dwLastNetWarnNpcFar = 0;
+							DWORD dwNow = timeGetTime();
+							if (dwNow - s_dwLastNetWarnNpcFar > 5000) {
+								wsprintf(G_cTxt, "[NETWARN] SendEventToNearClient_TypeA(NPC-far): client=%d ret=%d ownerType=%d msgType=0x%X",
+									i, iRet, cOwnerType, wMsgType);
+								PutLogList(G_cTxt);
+								s_dwLastNetWarnNpcFar = dwNow;
+							}
+						}
 					}
 				}
 		}
@@ -4878,6 +5037,8 @@ void CGame::InitPlayerData(int iClientH, char* pData, DWORD dwSize)
 
 void CGame::GameProcess()
 {
+	// MODERNIZED: Socket polling moved to EventLoop (wmain.cpp) for continuous responsiveness
+	// This function now handles only game logic processing
 	NpcProcess();
 	MsgProcess();
 	ForceRecallProcess();
@@ -8435,7 +8596,9 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 			if (_bInitNpcAttr(m_pNpcList[i], pNpcName, sClass, cSA) == false) {
 				wsprintf(cTxt, "(!) Not existing NPC creation request! (%s) Ignored.", pNpcName);
 				PutLogList(cTxt);
-
+#ifdef _DEBUG
+				printf("[DEBUG] bCreateNewNpc: FAILED - Invalid NPC type '%s'\n", pNpcName);
+#endif
 				delete m_pNpcList[i];
 				m_pNpcList[i] = 0;
 				return false;
@@ -8443,6 +8606,10 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 
 			if (m_pNpcList[i]->m_cDayOfWeekLimit < 10) {
 				if (m_pNpcList[i]->m_cDayOfWeekLimit != SysTime.wDayOfWeek) {
+#ifdef _DEBUG
+					printf("[DEBUG] bCreateNewNpc: FAILED - Day of week restriction (need=%d, current=%d) for '%s'\n",
+						m_pNpcList[i]->m_cDayOfWeekLimit, SysTime.wDayOfWeek, pNpcName);
+#endif
 					delete m_pNpcList[i];
 					m_pNpcList[i] = 0;
 					return false;
@@ -8475,6 +8642,10 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 						if (bFlag) goto GET_VALIDLOC_SUCCESS;
 
 					}
+#ifdef _DEBUG
+					printf("[DEBUG] bCreateNewNpc: FAILED - No valid location after 30 tries for '%s' on map '%s'\n",
+						pNpcName, pMapName);
+#endif
 					delete m_pNpcList[i];
 					m_pNpcList[i] = 0;
 					return false;
@@ -8512,13 +8683,20 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 			}
 
 			if (bGetEmptyPosition(&sX, &sY, iMapIndex) == false) {
-
+#ifdef _DEBUG
+				printf("[DEBUG] bCreateNewNpc: FAILED - bGetEmptyPosition failed for '%s' on map '%s' at (%d,%d) - area too crowded\n",
+					pNpcName, pMapName, sX, sY);
+#endif
 				delete m_pNpcList[i];
 				m_pNpcList[i] = 0;
 				return false;
 			}
 
 			if ((bHideGenMode) && (_iGetPlayerNumberOnSpot(sX, sY, iMapIndex, 7) != 0)) {
+#ifdef _DEBUG
+				printf("[DEBUG] bCreateNewNpc: FAILED - Players nearby (bHideGenMode) for '%s' on map '%s' at (%d,%d)\n",
+					pNpcName, pMapName, sX, sY);
+#endif
 				delete m_pNpcList[i];
 				m_pNpcList[i] = 0;
 				return false;
@@ -8685,6 +8863,10 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 
 			m_pNpcList[i]->m_cBravery = (rand() % 3) + m_pNpcList[i]->m_iMinBravery;
 			m_pNpcList[i]->m_iSpotMobIndex = iSpotMobIndex;
+#ifdef _DEBUG
+			printf("[DEBUG] bCreateNewNpc: Created NPC[%d] '%s' on map '%s' with iSpotMobIndex=%d\n",
+				i, pName, pMapName, iSpotMobIndex);
+#endif
 			m_pNpcList[i]->m_iGuildGUID = iGuildGUID;
 			//testcode
 			if (iGuildGUID != 0) {
@@ -8714,6 +8896,10 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 			return true;
 		}
 
+#ifdef _DEBUG
+	printf("[DEBUG] bCreateNewNpc: FAILED - No free NPC slots available (all %d slots full) for '%s'\n",
+		DEF_MAXNPCS, pNpcName);
+#endif
 	return false;
 }
 
@@ -8722,92 +8908,105 @@ void CGame::NpcProcess()
 	if (m_bOnExitProcess)
 		return;
 
-	int i, iMaxHP;
+	int i, iMaxHP, iNpcH;
 	DWORD dwTime, dwActionTime;
 
 	dwTime = timeGetTime();
 
-	for (i = 1; i < DEF_MAXNPCS; i++) {
+	// PERFORMANCE OPTIMIZATION: Use active entity list instead of iterating all 5000 slots
+	// With 70 entities: 71x faster (70 iterations vs 5000)
+	int* pActiveList = m_pEntityManager->GetActiveEntityList();
+	int iActiveCount = m_pEntityManager->GetActiveEntityCount();
 
-		if (m_pNpcList[i] != 0) {
-			if (m_pNpcList[i]->m_cBehavior == DEF_BEHAVIOR_ATTACK) {
+	for (i = 0; i < iActiveCount; i++) {
+		iNpcH = pActiveList[i]; // Get active entity handle (guaranteed non-NULL)
+
+		// MODERNIZED: Poll sockets every 10 entities to prevent lag during heavy entity processing
+		if (i % 10 == 0) {
+			// Call the socket polling function from EventLoop
+			extern void PollAllSockets();
+			PollAllSockets();
+		}
+
+		if (m_pNpcList[iNpcH] != 0) {
+			if (m_pNpcList[iNpcH]->m_cBehavior == DEF_BEHAVIOR_ATTACK) {
 				switch (iDice(1, 7)) {
-				case 1: dwActionTime = m_pNpcList[i]->m_dwActionTime; break;
-				case 2: dwActionTime = m_pNpcList[i]->m_dwActionTime - 100; break;
-				case 3: dwActionTime = m_pNpcList[i]->m_dwActionTime - 200; break;
-				case 4: dwActionTime = m_pNpcList[i]->m_dwActionTime - 300; break;
-				case 5: dwActionTime = m_pNpcList[i]->m_dwActionTime - 400; break;
-				case 6: dwActionTime = m_pNpcList[i]->m_dwActionTime - 600; break;
-				case 7: dwActionTime = m_pNpcList[i]->m_dwActionTime - 700; break;
+				case 1: dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime; break;
+				case 2: dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime - 100; break;
+				case 3: dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime - 200; break;
+				case 4: dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime - 300; break;
+				case 5: dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime - 400; break;
+				case 6: dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime - 600; break;
+				case 7: dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime - 700; break;
 				}
 				if (dwActionTime < 600) dwActionTime = 600;
 			}
-			else dwActionTime = m_pNpcList[i]->m_dwActionTime;
+			else dwActionTime = m_pNpcList[iNpcH]->m_dwActionTime;
 
 			// v1.42
-			if (m_pNpcList[i]->m_cMagicEffectStatus[DEF_MAGICTYPE_ICE] != 0)
+			if (m_pNpcList[iNpcH]->m_cMagicEffectStatus[DEF_MAGICTYPE_ICE] != 0)
 				dwActionTime += (dwActionTime / 2);
 		}
 
-		if ((m_pNpcList[i] != 0) && ((dwTime - m_pNpcList[i]->m_dwTime) > dwActionTime)) {
-			m_pNpcList[i]->m_dwTime = dwTime;
+		if ((m_pNpcList[iNpcH] != 0) && ((dwTime - m_pNpcList[iNpcH]->m_dwTime) > dwActionTime)) {
+			m_pNpcList[iNpcH]->m_dwTime = dwTime;
 
-			if (abs(m_pNpcList[i]->m_cMagicLevel) > 0) {
-				if ((dwTime - m_pNpcList[i]->m_dwMPupTime) > DEF_MPUPTIME) {
-					m_pNpcList[i]->m_dwMPupTime = dwTime;
+			if (abs(m_pNpcList[iNpcH]->m_cMagicLevel) > 0) {
+				if ((dwTime - m_pNpcList[iNpcH]->m_dwMPupTime) > DEF_MPUPTIME) {
+					m_pNpcList[iNpcH]->m_dwMPupTime = dwTime;
 
-					//if (m_pNpcList[i]->m_bIsSummoned == false)
-					m_pNpcList[i]->m_iMana += iDice(1, (m_pNpcList[i]->m_iMaxMana / 5));
+					//if (m_pNpcList[iNpcH]->m_bIsSummoned == false)
+					m_pNpcList[iNpcH]->m_iMana += iDice(1, (m_pNpcList[iNpcH]->m_iMaxMana / 5));
 
-					if (m_pNpcList[i]->m_iMana > m_pNpcList[i]->m_iMaxMana)
-						m_pNpcList[i]->m_iMana = m_pNpcList[i]->m_iMaxMana;
+					if (m_pNpcList[iNpcH]->m_iMana > m_pNpcList[iNpcH]->m_iMaxMana)
+						m_pNpcList[iNpcH]->m_iMana = m_pNpcList[iNpcH]->m_iMaxMana;
 				}
 			}
 
 			// HP
-			if (((dwTime - m_pNpcList[i]->m_dwHPupTime) > DEF_HPUPTIME) && (m_pNpcList[i]->m_bIsKilled == false)) {
-				m_pNpcList[i]->m_dwHPupTime = dwTime;
+			if (((dwTime - m_pNpcList[iNpcH]->m_dwHPupTime) > DEF_HPUPTIME) && (m_pNpcList[iNpcH]->m_bIsKilled == false)) {
+				m_pNpcList[iNpcH]->m_dwHPupTime = dwTime;
 
-				iMaxHP = iDice(m_pNpcList[i]->m_iHitDice, 8) + m_pNpcList[i]->m_iHitDice;
-				if (m_pNpcList[i]->m_iHP < iMaxHP) {
+				iMaxHP = iDice(m_pNpcList[iNpcH]->m_iHitDice, 8) + m_pNpcList[iNpcH]->m_iHitDice;
+				if (m_pNpcList[iNpcH]->m_iHP < iMaxHP) {
 
-					if (m_pNpcList[i]->m_bIsSummoned == false)
-						m_pNpcList[i]->m_iHP += iDice(1, m_pNpcList[i]->m_iHitDice); // Hit Point
+					if (m_pNpcList[iNpcH]->m_bIsSummoned == false)
+						m_pNpcList[iNpcH]->m_iHP += iDice(1, m_pNpcList[iNpcH]->m_iHitDice); // Hit Point
 
-					if (m_pNpcList[i]->m_iHP > iMaxHP) m_pNpcList[i]->m_iHP = iMaxHP;
-					if (m_pNpcList[i]->m_iHP <= 0)     m_pNpcList[i]->m_iHP = 1;
+					if (m_pNpcList[iNpcH]->m_iHP > iMaxHP) m_pNpcList[iNpcH]->m_iHP = iMaxHP;
+					if (m_pNpcList[iNpcH]->m_iHP <= 0)     m_pNpcList[iNpcH]->m_iHP = 1;
 				}
 			}
 
-			switch (m_pNpcList[i]->m_cBehavior) {
+			switch (m_pNpcList[iNpcH]->m_cBehavior) {
 			case DEF_BEHAVIOR_DEAD:
-				NpcBehavior_Dead(i);
+				NpcBehavior_Dead(iNpcH);
 				break;
 			case DEF_BEHAVIOR_STOP:
-				NpcBehavior_Stop(i);
+				NpcBehavior_Stop(iNpcH);
 				break;
 			case DEF_BEHAVIOR_MOVE:
-				NpcBehavior_Move(i);
+				NpcBehavior_Move(iNpcH);
 				break;
 			case DEF_BEHAVIOR_ATTACK:
-				NpcBehavior_Attack(i);
+				NpcBehavior_Attack(iNpcH);
 				break;
 			case DEF_BEHAVIOR_FLEE:
-				NpcBehavior_Flee(i);
+				NpcBehavior_Flee(iNpcH);
 				break;
 			}
 
 			// !!! m_pNpcList
-			if ((m_pNpcList[i] != 0) && (m_pNpcList[i]->m_iHP != 0) && (m_pNpcList[i]->m_bIsSummoned)) {
-				switch (m_pNpcList[i]->m_sType) {
+			if ((m_pNpcList[iNpcH] != 0) && (m_pNpcList[iNpcH]->m_iHP != 0) && (m_pNpcList[iNpcH]->m_bIsSummoned)) {
+				switch (m_pNpcList[iNpcH]->m_sType) {
 				case 29:
-					if ((dwTime - m_pNpcList[i]->m_dwSummonedTime) > 1000 * 90)
-						NpcKilledHandler(0, 0, i, 0);
+					if ((dwTime - m_pNpcList[iNpcH]->m_dwSummonedTime) > 1000 * 90)
+						m_pEntityManager->OnEntityKilled(iNpcH, 0, 0, 0);
 					break;
 
 				default:
-					if ((dwTime - m_pNpcList[i]->m_dwSummonedTime) > DEF_SUMMONTIME)
-						NpcKilledHandler(0, 0, i, 0);
+					if ((dwTime - m_pNpcList[iNpcH]->m_dwSummonedTime) > DEF_SUMMONTIME)
+						m_pEntityManager->OnEntityKilled(iNpcH, 0, 0, 0);
 					break;
 				}
 			}
@@ -10135,11 +10334,13 @@ void CGame::NpcBehavior_Move(int iNpcH)
 			else {
 				dX = m_pNpcList[iNpcH]->m_sX + _tmp_cTmpDirX[cDir];
 				dY = m_pNpcList[iNpcH]->m_sY + _tmp_cTmpDirY[cDir];
+
 				m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->ClearOwner(3, iNpcH, DEF_OWNERTYPE_NPC, m_pNpcList[iNpcH]->m_sX, m_pNpcList[iNpcH]->m_sY);
 				m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->SetOwner(iNpcH, DEF_OWNERTYPE_NPC, dX, dY);
 				m_pNpcList[iNpcH]->m_sX = dX;
 				m_pNpcList[iNpcH]->m_sY = dY;
 				m_pNpcList[iNpcH]->m_cDir = cDir;
+
 				SendEventToNearClient_TypeA(iNpcH, DEF_OWNERTYPE_NPC, MSGID_EVENT_MOTION, DEF_OBJECTMOVE, 0, 0, 0);
 			}
 		}
@@ -10156,11 +10357,13 @@ void CGame::NpcBehavior_Move(int iNpcH)
 		else {
 			dX = m_pNpcList[iNpcH]->m_sX + _tmp_cTmpDirX[cDir];
 			dY = m_pNpcList[iNpcH]->m_sY + _tmp_cTmpDirY[cDir];
+
 			m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->ClearOwner(4, iNpcH, DEF_OWNERTYPE_NPC, m_pNpcList[iNpcH]->m_sX, m_pNpcList[iNpcH]->m_sY);
 			m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->SetOwner(iNpcH, DEF_OWNERTYPE_NPC, dX, dY);
 			m_pNpcList[iNpcH]->m_sX = dX;
 			m_pNpcList[iNpcH]->m_sY = dY;
 			m_pNpcList[iNpcH]->m_cDir = cDir;
+
 			SendEventToNearClient_TypeA(iNpcH, DEF_OWNERTYPE_NPC, MSGID_EVENT_MOTION, DEF_OBJECTMOVE, 0, 0, 0);
 		}
 	}
@@ -10779,6 +10982,11 @@ void CGame::NpcKilledHandler(short sAttackerH, char cAttackerType, int iNpcH, sh
 
 	if (m_pNpcList[iNpcH] == 0) return;
 	if (m_pNpcList[iNpcH]->m_bIsKilled) return;
+
+#ifdef _DEBUG
+	printf("[DEBUG] NpcKilledHandler: NPC[%d] '%s' killed - iSpotMobIndex=%d\n",
+		iNpcH, m_pNpcList[iNpcH]->m_cName, m_pNpcList[iNpcH]->m_iSpotMobIndex);
+#endif
 
 	m_pNpcList[iNpcH]->m_bIsKilled = true;
 	m_pNpcList[iNpcH]->m_iHP = 0;
@@ -12758,6 +12966,29 @@ void CGame::SendEventToNearClient_TypeB(DWORD dwMsgID, WORD wMsgType, char cMapI
 	WORD* wp;
 	short* sp;
 	bool bFlag;
+
+	// OPTIMIZATION FIX #2: Early exit if no clients online
+	if (m_iClientShortCut[0] == 0) return;
+
+	// OPTIMIZATION FIX #2: Pre-check if any clients are in range before building packet
+	bool bHasNearbyClients = false;
+	iShortCutIndex = 0;
+	while (m_iClientShortCut[iShortCutIndex] != 0) {
+		i = m_iClientShortCut[iShortCutIndex];
+		if ((m_pClientList[i] != 0) &&
+			(m_pClientList[i]->m_cMapIndex == cMapIndex) &&
+			(m_pClientList[i]->m_sX >= sX - 12) &&
+			(m_pClientList[i]->m_sX <= sX + 12) &&
+			(m_pClientList[i]->m_sY >= sY - 10) &&
+			(m_pClientList[i]->m_sY <= sY + 10)) {
+			bHasNearbyClients = true;
+			break;
+		}
+		iShortCutIndex++;
+	}
+
+	// TEMPORARILY DISABLED FOR TESTING - Early exit if no clients in range
+	if (false && !bHasNearbyClients) return;
 
 	ZeroMemory(cData, sizeof(cData));
 
@@ -26328,6 +26559,12 @@ void CGame::MobGenerator()
 			for (j = 1; j < DEF_MAXSPOTMOBGENERATOR; j++)
 				if ((iDice(1, 3) == 2) && (m_pMapList[i]->m_stSpotMobGenerator[j].bDefined) &&
 					(m_pMapList[i]->m_stSpotMobGenerator[j].iMaxMobs > m_pMapList[i]->m_stSpotMobGenerator[j].iCurMobs)) {
+#ifdef _DEBUG
+					printf("[DEBUG] MobGenerator: Map[%s] Spot[%d] can spawn - iCurMobs=%d, iMaxMobs=%d\n",
+						m_pMapList[i]->m_cName, j,
+						m_pMapList[i]->m_stSpotMobGenerator[j].iCurMobs,
+						m_pMapList[i]->m_stSpotMobGenerator[j].iMaxMobs);
+#endif
 					iNamingValue = m_pMapList[i]->iGetEmptyNamingValue();
 					if (iNamingValue != -1) {
 
@@ -26431,18 +26668,36 @@ void CGame::MobGenerator()
 						case 1:
 							if (bCreateNewNpc(cNpcName, cName_Master, m_pMapList[i]->m_cName, (rand() % 3), cSA, DEF_MOVETYPE_RANDOMAREA, &pX, &pY, cWaypoint, &m_pMapList[i]->m_stSpotMobGenerator[j].rcRect, j, -1, false, false, bFirmBerserk) == false) {
 								m_pMapList[i]->SetNamingValueEmpty(iNamingValue);
+#ifdef _DEBUG
+								printf("[DEBUG] MobGenerator: Map[%s] Spot[%d] Type1 spawn FAILED for %s\n",
+									m_pMapList[i]->m_cName, j, cNpcName);
+#endif
 							}
 							else {
 								m_pMapList[i]->m_stSpotMobGenerator[j].iCurMobs++;
+#ifdef _DEBUG
+								printf("[DEBUG] MobGenerator: Map[%s] Spot[%d] Type1 spawn SUCCESS for %s - iCurMobs incremented to %d\n",
+									m_pMapList[i]->m_cName, j, cNpcName,
+									m_pMapList[i]->m_stSpotMobGenerator[j].iCurMobs);
+#endif
 							}
 							break;
 
 						case 2:
 							if (bCreateNewNpc(cNpcName, cName_Master, m_pMapList[i]->m_cName, (rand() % 3), cSA, DEF_MOVETYPE_RANDOMWAYPOINT, 0, 0, m_pMapList[i]->m_stSpotMobGenerator[j].cWaypoint, 0, j, -1, false, false, bFirmBerserk) == false) {
 								m_pMapList[i]->SetNamingValueEmpty(iNamingValue);
+#ifdef _DEBUG
+								printf("[DEBUG] MobGenerator: Map[%s] Spot[%d] Type2 spawn FAILED for %s\n",
+									m_pMapList[i]->m_cName, j, cNpcName);
+#endif
 							}
 							else {
 								m_pMapList[i]->m_stSpotMobGenerator[j].iCurMobs++;
+#ifdef _DEBUG
+								printf("[DEBUG] MobGenerator: Map[%s] Spot[%d] Type2 spawn SUCCESS for %s - iCurMobs incremented to %d\n",
+									m_pMapList[i]->m_cName, j, cNpcName,
+									m_pMapList[i]->m_stSpotMobGenerator[j].iCurMobs);
+#endif
 							}
 							break;
 						}
@@ -26556,8 +26811,28 @@ void CGame::DeleteNpc(int iNpcH)
 	m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_iTotalActiveObject--;
 
 	// Spot-mob-generatorì •ë³´ 
-	if (m_pNpcList[iNpcH]->m_iSpotMobIndex != 0)
+#ifdef _DEBUG
+	printf("[DEBUG] DeleteNpc: NPC[%d] '%s' on map '%s' - iSpotMobIndex=%d\n",
+		iNpcH, m_pNpcList[iNpcH]->m_cName,
+		m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_cName,
+		m_pNpcList[iNpcH]->m_iSpotMobIndex);
+#endif
+	if (m_pNpcList[iNpcH]->m_iSpotMobIndex != 0) {
+#ifdef _DEBUG
+		int iOldValue = m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_stSpotMobGenerator[m_pNpcList[iNpcH]->m_iSpotMobIndex].iCurMobs;
+#endif
 		m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_stSpotMobGenerator[m_pNpcList[iNpcH]->m_iSpotMobIndex].iCurMobs--;
+#ifdef _DEBUG
+		printf("[DEBUG] DeleteNpc: Spot[%d] iCurMobs decremented from %d to %d\n",
+			m_pNpcList[iNpcH]->m_iSpotMobIndex, iOldValue,
+			m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_stSpotMobGenerator[m_pNpcList[iNpcH]->m_iSpotMobIndex].iCurMobs);
+#endif
+	}
+#ifdef _DEBUG
+	else {
+		printf("[DEBUG] DeleteNpc: **BUG** iSpotMobIndex == 0, counter NOT decremented! (This is the bug!)\n");
+	}
+#endif
 
 	RemoveFromTarget(iNpcH, DEF_OWNERTYPE_NPC);
 
@@ -28043,7 +28318,9 @@ void CGame::Effect_Damage_Spot(short sAttackerH, char cAttackerType, short sTarg
 			SendEventToNearClient_TypeA(sTargetH, DEF_OWNERTYPE_NPC, MSGID_EVENT_MOTION, DEF_OBJECTMOVE, 0, 0, 0);
 
 			if (bCheckEnergySphereDestination(sTargetH, sAttackerH, cAttackerType)) {
-				DeleteNpc(sTargetH);
+				// Use EntityManager for NPC deletion
+		if (m_pEntityManager != NULL)
+			m_pEntityManager->DeleteEntity(sTargetH);
 			}
 			return;
 		}
@@ -28078,7 +28355,9 @@ void CGame::Effect_Damage_Spot(short sAttackerH, char cAttackerType, short sTarg
 
 		m_pNpcList[sTargetH]->m_iHP -= iDamage;
 		if (m_pNpcList[sTargetH]->m_iHP < 0) {
-			NpcKilledHandler(sAttackerH, cAttackerType, sTargetH, iDamage);
+			// Use EntityManager for NPC death handling
+			if (m_pEntityManager != NULL)
+				m_pEntityManager->OnEntityKilled(sTargetH, sAttackerH, cAttackerType, iDamage);
 		}
 		else {
 			switch (cAttackerType) {
@@ -28528,7 +28807,9 @@ void CGame::Effect_Damage_Spot_Type2(short sAttackerH, char cAttackerType, short
 
 		m_pNpcList[sTargetH]->m_iHP -= iDamage;
 		if (m_pNpcList[sTargetH]->m_iHP < 0) {
-			NpcKilledHandler(sAttackerH, cAttackerType, sTargetH, iDamage);
+			// Use EntityManager for NPC death handling
+			if (m_pEntityManager != NULL)
+				m_pEntityManager->OnEntityKilled(sTargetH, sAttackerH, cAttackerType, iDamage);
 		}
 		else {
 			switch (cAttackerType) {
@@ -29005,7 +29286,7 @@ void CGame::Effect_Damage_Spot_DamageMove(short sAttackerH, char cAttackerType, 
 		m_pNpcList[sTargetH]->m_iHP -= iDamage;
 		if (m_pNpcList[sTargetH]->m_iHP < 0) {
 			// NPC�� ����ߴ�.
-			NpcKilledHandler(sAttackerH, cAttackerType, sTargetH, iDamage);
+			m_pEntityManager->OnEntityKilled(sTargetH, sAttackerH, cAttackerType, iDamage);
 		}
 		else {
 			// ���ݴ������� ����ִ�. �ݰ��Ѵ�.
@@ -30062,7 +30343,7 @@ void CGame::DynamicObjectEffectProcessor()
 
 								if (m_pNpcList[sOwnerH]->m_iHP <= 0) {
 									// NPC°¡ »ç¸ÁÇß´Ù.
-									NpcKilledHandler(sOwnerH, cOwnerType, sOwnerH, 0); //v1.2 Áßµ¶±¸¸§¿¡ Á×À¸¸é ¸¶Áö¸· ´ë¹ÌÁö°¡ 0. ¾ÆÀÌÅÛÀ» ½±°Ô ±¸ÇÏÁö ¸øÇÏ°Ô ÇÏ±â À§ÇÔ.
+									m_pEntityManager->OnEntityKilled(sOwnerH, sOwnerH, cOwnerType, 0); //v1.2 Áßµ¶±¸¸§¿¡ Á×À¸¸é ¸¶Áö¸· ´ë¹ÌÁö°¡ 0. ¾ÆÀÌÅÛÀ» ½±°Ô ±¸ÇÏÁö ¸øÇÏ°Ô ÇÏ±â À§ÇÔ.
 								}
 								else {
 									// Damage¸¦ ÀÔÀº Ãæ°ÝÀ¸·Î ÀÎÇÑ Áö¿¬È¿°ú.
@@ -30156,7 +30437,7 @@ void CGame::DynamicObjectEffectProcessor()
 
 								if (m_pNpcList[sOwnerH]->m_iHP <= 0) {
 									// NPC°¡ »ç¸ÁÇß´Ù.
-									NpcKilledHandler(sOwnerH, cOwnerType, sOwnerH, 0); //v1.2 Å¸¼­ Á×À¸¸é ¸¶Áö¸· ´ë¹ÌÁö°¡ 0. ¾ÆÀÌÅÛÀ» ½±°Ô ±¸ÇÏÁö ¸øÇÏ°Ô ÇÏ±â À§ÇÔ.
+									m_pEntityManager->OnEntityKilled(sOwnerH, sOwnerH, cOwnerType, 0); //v1.2 Å¸¼­ Á×À¸¸é ¸¶Áö¸· ´ë¹ÌÁö°¡ 0. ¾ÆÀÌÅÛÀ» ½±°Ô ±¸ÇÏÁö ¸øÇÏ°Ô ÇÏ±â À§ÇÔ.
 								}
 								else {
 									// Damage¸¦ ÀÔÀº Ãæ°ÝÀ¸·Î ÀÎÇÑ Áö¿¬È¿°ú.
@@ -30294,7 +30575,7 @@ void CGame::DynamicObjectEffectProcessor()
 
 								if (m_pNpcList[sOwnerH]->m_iHP <= 0) {
 									// NPC°¡ »ç¸ÁÇß´Ù.
-									NpcKilledHandler(sOwnerH, cOwnerType, sOwnerH, 0); //v1.2 Å¸¼­ Á×À¸¸é ¸¶Áö¸· ´ë¹ÌÁö°¡ 0. ¾ÆÀÌÅÛÀ» ½±°Ô ±¸ÇÏÁö ¸øÇÏ°Ô ÇÏ±â À§ÇÔ.
+									m_pEntityManager->OnEntityKilled(sOwnerH, sOwnerH, cOwnerType, 0); //v1.2 Å¸¼­ Á×À¸¸é ¸¶Áö¸· ´ë¹ÌÁö°¡ 0. ¾ÆÀÌÅÛÀ» ½±°Ô ±¸ÇÏÁö ¸øÇÏ°Ô ÇÏ±â À§ÇÔ.
 								}
 								else {
 									// Damage¸¦ ÀÔÀº Ãæ°ÝÀ¸·Î ÀÎÇÑ Áö¿¬È¿°ú.
@@ -39361,6 +39642,48 @@ void CGame::_CheckStrategicPointOccupyStatus(char cMapIndex)
 		}
 }
 
+// MODERNIZED: New function that polls login client socket instead of handling window messages
+void CGame::OnLoginClientSocketEvent(int iLoginClientH)
+{
+	int iRet;
+
+	if (iLoginClientH < 0 || iLoginClientH >= DEF_MAXCLIENTLOGINSOCK) return;
+
+	auto p = _lclients[iLoginClientH];
+	if (p == 0) return;
+
+	iRet = p->_sock->Poll();
+
+	switch (iRet) {
+	case DEF_XSOCKEVENT_UNSENTDATASENDCOMPLETE:
+		break;
+	case DEF_XSOCKEVENT_CONNECTIONESTABLISH:
+		wsprintf(G_cTxt, "[DEBUG] Login Client %d - Connection established", iLoginClientH);
+		PutLogList(G_cTxt);
+		break;
+
+	case DEF_XSOCKEVENT_READCOMPLETE:
+		OnClientLoginRead(iLoginClientH);
+		break;
+
+	case DEF_XSOCKEVENT_BLOCK:
+		break;
+
+	case DEF_XSOCKEVENT_CONFIRMCODENOTMATCH:
+		wsprintf(G_cTxt, "<%d> Confirmcode Login notmatch!", iLoginClientH);
+		PutLogList(G_cTxt);
+		DeleteLoginClient(iLoginClientH);
+		break;
+	case DEF_XSOCKEVENT_MSGSIZETOOLARGE:
+	case DEF_XSOCKEVENT_SOCKETERROR:
+	case DEF_XSOCKEVENT_SOCKETCLOSED:
+		wsprintf(G_cTxt, "[DEBUG] Login Client %d - Socket closed/error, deleting", iLoginClientH);
+		PutLogList(G_cTxt);
+		DeleteLoginClient(iLoginClientH);
+		break;
+	}
+}
+
 void CGame::OnSubLogSocketEvent(UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UINT iTmp;
@@ -39379,7 +39702,7 @@ void CGame::OnSubLogSocketEvent(UINT message, WPARAM wParam, LPARAM lParam)
 	auto p = _lclients[iLogSockH];
 	if (p == 0) return;
 
-	iRet = p->_sock->iOnSocketEvent(wParam, lParam);
+	iRet = p->_sock->Poll();
 
 	switch (iRet) {
 	case DEF_XSOCKEVENT_UNSENTDATASENDCOMPLETE:
@@ -39421,8 +39744,8 @@ void CGame::OnSubLogSocketEvent(UINT message, WPARAM wParam, LPARAM lParam)
 		PutLogList(G_cTxt);
 		PutLogFileList(G_cTxt);
 
-		m_pSubLogSock[iLogSockH] = new class XSocket(m_hWnd, DEF_SERVERSOCKETBLOCKLIMIT);
-		m_pSubLogSock[iLogSockH]->bConnect(m_cLogServerAddr, m_iLogServerPort, (WM_ONLOGSOCKETEVENT + iLogSockH + 1));
+		m_pSubLogSock[iLogSockH] = new class XSocket(DEF_SERVERSOCKETBLOCKLIMIT);  // MODERNIZED: Removed m_hWnd
+		m_pSubLogSock[iLogSockH]->bConnect(m_cLogServerAddr, m_iLogServerPort);  // MODERNIZED: Removed WM_ONLOGSOCKETEVENT
 		m_pSubLogSock[iLogSockH]->bInitBufferSize(DEF_MSGBUFFERSIZE);
 
 		wsprintf(G_cTxt, "(!!!) Try to reconnect sub-log-socket(%d)... Addr:%s  Port:%d", iLogSockH, m_cLogServerAddr, m_iLogServerPort);
@@ -40203,7 +40526,7 @@ void CGame::AdminOrder_UnsummonAll(int iClientH)
 	for (i = 1; i < DEF_MAXNPCS; i++)
 		if (m_pNpcList[i] != 0) {
 			if ((m_pNpcList[i]->m_bIsSummoned) && (m_pNpcList[i]->m_bIsKilled == false))
-				NpcKilledHandler(iClientH, DEF_OWNERTYPE_PLAYER, i, 0);
+				m_pEntityManager->OnEntityKilled(i, iClientH, DEF_OWNERTYPE_PLAYER, 0);
 		}
 }
 
@@ -40222,7 +40545,7 @@ void CGame::AdminOrder_UnsummonDemon(int iClientH)
 	for (i = 1; i < DEF_MAXNPCS; i++)
 		if (m_pNpcList[i] != 0) {
 			if ((m_pNpcList[i]->m_sType == 31) && (m_pNpcList[i]->m_bIsKilled == false))
-				NpcKilledHandler(iClientH, DEF_OWNERTYPE_PLAYER, i, 0);
+				m_pEntityManager->OnEntityKilled(i, iClientH, DEF_OWNERTYPE_PLAYER, 0);
 		}
 }
 
@@ -42984,7 +43307,9 @@ void CGame::RemoveCrusadeStructures()
 			case 40:
 			case 41:
 			case 42:
-				DeleteNpc(i);
+				// Use EntityManager for NPC deletion
+		if (m_pEntityManager != NULL)
+			m_pEntityManager->DeleteEntity(i);
 				break;
 			}
 		}
@@ -45566,7 +45891,7 @@ void CGame::AdminOrder_UnsummonBoss(int iClientH)
 			case 66: //Wyvern
 			case 73: //Fire-Wyvern
 				m_pNpcList[i]->m_bIsUnsummoned = true;
-				NpcKilledHandler(iClientH, DEF_OWNERTYPE_PLAYER, i, 0);
+				m_pEntityManager->OnEntityKilled(i, iClientH, DEF_OWNERTYPE_PLAYER, 0);
 				break;
 			}
 		}
@@ -45600,7 +45925,7 @@ void CGame::AdminOrder_ClearNpc(int iClientH)
 
 			default:
 				m_pNpcList[i]->m_bIsUnsummoned = true;
-				NpcKilledHandler(iClientH, DEF_OWNERTYPE_PLAYER, i, 0);
+				m_pEntityManager->OnEntityKilled(i, iClientH, DEF_OWNERTYPE_PLAYER, 0);
 				break;
 			}
 		}
@@ -45613,7 +45938,7 @@ void CGame::RemoveCrusadeNpcs(void)
 	for (int i = 0; i < DEF_MAXNPCS; i++) {
 		if (m_pNpcList[i] != 0) {
 			if ((m_pNpcList[i]->m_sType >= 43 && m_pNpcList[i]->m_sType <= 47) || m_pNpcList[i]->m_sType == 51) {
-				NpcKilledHandler(0, 0, i, 0);
+				m_pEntityManager->OnEntityKilled(i, 0, 0, 0);
 			}
 		}
 	}
@@ -46386,10 +46711,9 @@ void CGame::OnTimer(char cType)
 
 	dwTime = timeGetTime();
 
-	//if ((dwTime - m_dwGameTime1) > 200) {
-	GameProcess();
-	// m_dwGameTime1 = dwTime;
-	//}
+	// MODERNIZED: GameProcess moved to EventLoop to prevent blocking socket polling
+	// OnTimer now only handles periodic events (CheckClientResponseTime, weather, etc.)
+	// GameProcess() is called directly in EventLoop every 300ms
 
 
 	if ((dwTime - m_dwGameTime2) > 1000) {
@@ -46408,6 +46732,14 @@ void CGame::OnTimer(char cType)
 			PutLogList("Sending start message...");
 			SendMessage(m_hWnd, WM_USER_STARTGAMESIGNAL, 0, 0);
 			m_bIsGameStarted = true;
+
+			// Initialize EntityManager now that maps are loaded
+			if (m_pEntityManager != NULL) {
+				// EntityManager owns the entity array now, just set maps and game reference
+				m_pEntityManager->SetMapList(m_pMapList, DEF_MAXMAPS);
+				m_pEntityManager->SetGame(this);
+				PutLogList("EntityManager initialized");
+			}
 		}
 	}
 	if ((dwTime - m_dwGameTime6) > 1000) {
@@ -46440,12 +46772,14 @@ void CGame::OnTimer(char cType)
 	}
 
 	if ((dwTime - m_dwGameTime4) > 600) {
-		MobGenerator();
+		// Use EntityManager for spawn generation
+		if (m_pEntityManager != NULL)
+			m_pEntityManager->ProcessSpawns();
 
 		// v1.432-3 Sub-Log-Socket�� �Ѳ����� ����� ���� �ƴ϶� ������ �����.
 		/*if (m_iSubLogSockInitIndex < DEF_MAXSUBLOGSOCK) {
-		 m_pSubLogSock[m_iSubLogSockInitIndex] = new class XSocket(m_hWnd, DEF_SERVERSOCKETBLOCKLIMIT);
-		 m_pSubLogSock[m_iSubLogSockInitIndex]->bConnect(m_cLogServerAddr, m_iLogServerPort, (WM_ONLOGSOCKETEVENT + m_iSubLogSockInitIndex + 1));
+		 m_pSubLogSock[m_iSubLogSockInitIndex] = new class XSocket(DEF_SERVERSOCKETBLOCKLIMIT);  // MODERNIZED: Removed m_hWnd
+		 m_pSubLogSock[m_iSubLogSockInitIndex]->bConnect(m_cLogServerAddr, m_iLogServerPort);  // MODERNIZED: Removed WM_ONLOGSOCKETEVENT
 		 m_pSubLogSock[m_iSubLogSockInitIndex]->bInitBufferSize(DEF_MSGBUFFERSIZE);
 		 wsprintf(G_cTxt, "(!) Try to connect sub-log-socket(%d)... Addr:%s  Port:%d", m_iSubLogSockInitIndex, m_cLogServerAddr, m_iLogServerPort);
 		 PutLogList(G_cTxt);
@@ -53122,7 +53456,9 @@ DWORD CGame::iCalculateAttackEffect(short sTargetH, char cTargetType, short sAtt
 						//sub_4B67E0
 						CalculateSSN_SkillIndex(sAttackerH, 2, cFarmingSkill <= cCropSkill + 10);
 						_CheckFarmingAction(sAttackerH, sTargetH, 1);
-						DeleteNpc(sTargetH);
+						// Use EntityManager for NPC deletion
+		if (m_pEntityManager != NULL)
+			m_pEntityManager->DeleteEntity(sTargetH);
 						return 0;
 					case 8:
 						m_pNpcList[sTargetH]->m_sAppr2 = 3;
@@ -53757,7 +54093,7 @@ DWORD CGame::iCalculateAttackEffect(short sTargetH, char cTargetType, short sAtt
 			}
 
 			if (m_pNpcList[sTargetH]->m_iHP <= 0) {
-				NpcKilledHandler(sAttackerH, cAttackerType, sTargetH, iDamage);
+				m_pEntityManager->OnEntityKilled(sTargetH, sAttackerH, cAttackerType, iDamage);
 				bKilled = true;
 				iKilledDice = m_pNpcList[sTargetH]->m_iHitDice;
 			}
@@ -53905,7 +54241,9 @@ DWORD CGame::iCalculateAttackEffect(short sTargetH, char cTargetType, short sAtt
 
 							GetExp(sAttackerH, iExp);
 
-							DeleteNpc(sTargetH);
+							// Use EntityManager for NPC deletion
+		if (m_pEntityManager != NULL)
+			m_pEntityManager->DeleteEntity(sTargetH);
 							return false;
 						}
 					}
@@ -54254,8 +54592,16 @@ void CGame::NpcBehavior_Dead(int iNpcH)
 		m_pNpcList[iNpcH]->m_sBehaviorTurnCount = 0;
 	}
 
-	if ((dwTime - m_pNpcList[iNpcH]->m_dwDeadTime) > m_pNpcList[iNpcH]->m_dwRegenTime)
-		DeleteNpc(iNpcH);
+	if ((dwTime - m_pNpcList[iNpcH]->m_dwDeadTime) > m_pNpcList[iNpcH]->m_dwRegenTime) {
+#ifdef _DEBUG
+		DWORD dwElapsed = dwTime - m_pNpcList[iNpcH]->m_dwDeadTime;
+		printf("[DEBUG] NpcBehavior_Dead: NPC[%d] '%s' respawn timer expired - elapsed=%dms, regenTime=%dms, calling DeleteNpc()\n",
+			iNpcH, m_pNpcList[iNpcH]->m_cName, dwElapsed, m_pNpcList[iNpcH]->m_dwRegenTime);
+#endif
+		// Use EntityManager for NPC deletion
+	if (m_pEntityManager != NULL)
+		m_pEntityManager->DeleteEntity(iNpcH);
+	}
 }
 
 bool CGame::bGetItemNameWhenDeleteNpc(int& iItemID, short sNpcType)

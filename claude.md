@@ -15,6 +15,9 @@ Helbreath 3.82 is a classic MMORPG client-server application written in C++ for 
 
 The project uses Visual Studio 2022 (v143 platform toolset) and requires Windows SDK 10.0.
 
+**IMPORTANT: Always build from the solution level, not individual project files.**
+Building from the solution level ensures shared include paths (`Dependencies/Shared/`) are properly resolved.
+
 **Build both projects:**
 ```bash
 # From the Helbreath-3.82 directory
@@ -23,21 +26,26 @@ msbuild Helbreath.sln /p:Configuration=Release /p:Platform=x86
 msbuild Helbreath.sln /p:Configuration=Debug /p:Platform=x86
 ```
 
-**Build client only:**
+**Build client only (from solution):**
 ```bash
-msbuild Sources\Client\Client.vcxproj /p:Configuration=Release /p:Platform=Win32
+# From the Helbreath-3.82 directory
+msbuild Helbreath.sln /t:Client /p:Configuration=Release /p:Platform=x86
 ```
 
-**Build server only:**
+**Build server only (from solution):**
 ```bash
-msbuild Sources\Server\Server.vcxproj /p:Configuration=Release /p:Platform=Win32
+# From the Helbreath-3.82 directory
+msbuild Helbreath.sln /t:Server /p:Configuration=Release /p:Platform=x86
 ```
 
 **Output locations:**
 - Client: `Helbreath-3.82/Debug/Game.exe` or `Helbreath-3.82/Release/Game.exe`
 - Server: `Helbreath-3.82/Debug/Server.exe` or `Helbreath-3.82/Release/Server.exe`
 
-**Important**: Both projects target **Win32 (x86)** architecture only.
+**Important Notes:**
+- Both projects target **Win32 (x86)** architecture only
+- **DO NOT** build from project directories (`Sources/Client/` or `Sources/Server/`) as this breaks shared include path resolution
+- Shared headers in `Dependencies/Shared/` (ActionID.h, DynamicObjectID.h, NetMessages.h) require solution-level builds
 
 ## Architecture
 

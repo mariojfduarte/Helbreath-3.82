@@ -134,9 +134,9 @@
     <ClInclude Include="ActionID_Server.h" />
     <ClInclude Include="BuildItem.h" />
     <ClInclude Include="Client.h" />
-    <ClInclude Include="DebugDialog.h" />
     <ClInclude Include="DelayEvent.h" />
     <ClInclude Include="DynamicObject.h" />
+    <ClInclude Include="EntityManager.h" />
     <ClInclude Include="Fish.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GlobalDef.h" />
@@ -156,7 +156,6 @@
     <ClInclude Include="Player.h" />
     <ClInclude Include="Portion.h" />
     <ClInclude Include="Quest.h" />
-    <ClInclude Include="resource.h" />
     <ClInclude Include="ServerMessages.h" />
     <ClInclude Include="Skill.h" />
     <ClInclude Include="SkillNum.h" />
@@ -170,7 +169,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Client.cpp" />
-    <ClCompile Include="DebugDialog.cpp" />
+    <ClCompile Include="EntityManager.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="LoginServer.cpp" />
     <ClCompile Include="Map.cpp" />
@@ -181,9 +180,6 @@
     <ClCompile Include="Tile.cpp" />
     <ClCompile Include="wmain.cpp" />
     <ClCompile Include="XSocket.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="HGserver.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="logo.bmp" />

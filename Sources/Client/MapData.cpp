@@ -1,8 +1,10 @@
 // MapData.cpp: implementation of the CMapData class.
 //
 //////////////////////////////////////////////////////////////////////
+#define _WINSOCKAPI_
 
 #include "MapData.h"
+#include "Benchmark.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -961,7 +963,7 @@ bool CMapData::bGetIsLocateable(short sX, short sY)
 		(sY < m_sPivotY) || (sY > m_sPivotY + MAPDATASIZEY)) return false;
 	dX = sX - m_sPivotX;
 	dY = sY - m_sPivotY;
-	//Helltrayn 28/05/09. Añadimos esto para corregir el bug MIM que cierra el cliente
+	//Helltrayn 28/05/09. Aï¿½adimos esto para corregir el bug MIM que cierra el cliente
 	if (dX <= 0 || dY <= 0) return false;
 	if (m_pData[dX][dY].m_sOwnerType != 0) return false;
 	if (m_tile[sX][sY].m_bIsMoveAllowed == false) return false;
@@ -1715,8 +1717,17 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 	dynObjsNeedUpdate = (dwTime - m_dwDOframeTime) > 100;
 	bAutoUpdate = (dwTime - S_dwUpdateTime) > 40;
 
-	for (dX = 0; dX < MAPDATASIZEX; dX++)
-		for (dY = 0; dY < MAPDATASIZEY; dY++)
+	// PERFORMANCE OPTIMIZATION: Only process tiles near player's view
+	// Screen is ~800x600 pixels = ~25x19 tiles, add buffer for effects
+	// OLD: Processed all 60x55 = 3300 tiles every frame
+	// NEW: Process only ~35x30 = 1050 tiles (68% reduction)
+	int startX = (sCenterX - 17 < 0) ? 0 : sCenterX - 17;
+	int endX = (sCenterX + 18 > MAPDATASIZEX) ? MAPDATASIZEX : sCenterX + 18;
+	int startY = (sCenterY - 15 < 0) ? 0 : sCenterY - 15;
+	int endY = (sCenterY + 15 > MAPDATASIZEY) ? MAPDATASIZEY : sCenterY + 15;
+
+	for (dX = startX; dX < endX; dX++)
+		for (dY = startY; dY < endY; dY++)
 		{
 			sDist = (abs(sCenterX - dX) + abs(sCenterY - dY)) / 2;
 			lPan = -(sCenterX - dX) * 800;
@@ -2496,12 +2507,12 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 							{
 								if ((m_pData[dX][dY].m_sAppr2 & 0xF000) != 0) // not Peace mode
 								{
-									if (m_pData[dX][dY].m_sV3 != 1) // autre que corp à corp
+									if (m_pData[dX][dY].m_sV3 != 1) // autre que corp ï¿½ corp
 									{
 										m_pGame->bAddNewEffect(m_pData[dX][dY].m_sV3, m_sPivotX + dX, m_sPivotY + dY
 											, m_sPivotX + dX + m_pData[dX][dY].m_sV1, m_sPivotY + dY + m_pData[dX][dY].m_sV2
 											, 0, m_pData[dX][dY].m_sOwnerType);
-										if (m_pData[dX][dY].m_sV3 >= 20) m_pGame->PlaySound('E', 43, sDist, lPan); // Son "loupé"
+										if (m_pData[dX][dY].m_sV3 >= 20) m_pGame->PlaySound('E', 43, sDist, lPan); // Son "loupï¿½"
 									}
 									if (((m_pData[dX][dY].m_sAppr2 & 0x0FF0) >> 4) == 15) // StormBlade
 									{
@@ -3419,7 +3430,7 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 								}
 								if (m_pData[dX][dY].m_sV1 >= 70) // effet gros sorts autour du caster
 									m_pGame->bAddNewEffect(57, (m_sPivotX + dX) * 32, (m_sPivotY + dY) * 32, 0, 0, 0, 0);
-								if (m_pData[dX][dY].m_sV1 == 82) // lumière si MassMagicMissile autour du caster
+								if (m_pData[dX][dY].m_sV1 == 82) // lumiï¿½re si MassMagicMissile autour du caster
 								{
 									m_pGame->bAddNewEffect(244, (m_sPivotX + dX) * 32, (m_sPivotY + dY) * 32, 0, 0, 0, 0);
 								}
