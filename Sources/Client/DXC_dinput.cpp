@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "DXC_dinput.h"
+#include "GlobalDef.h"
 #include <cstdio>
 
 //////////////////////////////////////////////////////////////////////
@@ -112,9 +113,24 @@ void DXC_dinput::UpdateMouseState(short * pX, short * pY, short * pZ, char * pLB
 	GetCursorPos(&pt);
 	ScreenToClient(m_hWnd, &pt);
 
-	// Set mouse position from window-relative cursor coordinates
-	m_sX = (short)pt.x;
-	m_sY = (short)pt.y;
+	// Map window coordinates to logical render space, respecting letterbox
+	RECT rcClient;
+	GetClientRect(m_hWnd, &rcClient);
+	int winW = rcClient.right - rcClient.left;
+	int winH = rcClient.bottom - rcClient.top;
+	double scale = (double)winW / (double)LOGICAL_WIDTH;
+	double scaleY = (double)winH / (double)LOGICAL_HEIGHT;
+	if (scaleY < scale) scale = scaleY;
+	if (scale <= 0.0) scale = 1.0;
+	int destW = (int)(LOGICAL_WIDTH * scale);
+	int destH = (int)(LOGICAL_HEIGHT * scale);
+	int offsetX = (winW - destW) / 2;
+	int offsetY = (winH - destH) / 2;
+
+	long scaledX = (long)((pt.x - offsetX) / scale);
+	long scaledY = (long)((pt.y - offsetY) / scale);
+	m_sX = (short)scaledX;
+	m_sY = (short)scaledY;
 
 	// Handle mouse wheel from DirectInput
 	if( (short)dims.lZ != 0 ) m_sZ = (short)dims.lZ;
@@ -122,8 +138,8 @@ void DXC_dinput::UpdateMouseState(short * pX, short * pY, short * pZ, char * pLB
 	// Clamp to game bounds
 	if (m_sX < 0) m_sX = 0;
 	if (m_sY < 0) m_sY = 0;
-	if (m_sX > 799) m_sX = 799;
-	if (m_sY > 599) m_sY = 599;
+	if (m_sX > LOGICAL_MAX_X) m_sX = LOGICAL_MAX_X;
+	if (m_sY > LOGICAL_MAX_Y) m_sY = LOGICAL_MAX_Y;
 
 	*pX = m_sX;
 	*pY = m_sY;

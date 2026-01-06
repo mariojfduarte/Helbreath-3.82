@@ -6,6 +6,8 @@
 #include "Game.h"
 #include <cstdio>
 
+extern char G_cTxt[512];
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -708,29 +710,172 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
     // ========================================================================
     if ((pEntity->m_bIsSummoned != true) && (cAttackerType == DEF_OWNERTYPE_PLAYER) &&
         (m_pGame->m_pClientList[sAttackerH] != NULL)) {
+        double dTmp1, dTmp2, dTmp3;
+        DWORD iExp = (pEntity->m_iExp / 3);
 
-        // TODO: Delegate to CGame for complex player reward logic
-        // This includes: XP calculation, quest updates, mob kill counters, rating changes
-        // Will be implemented in CGame integration phase
-        // m_pGame->_ProcessPlayerKillReward(sAttackerH, iEntityHandle, sType);
-#ifdef _DEBUG
-        // printf("[DEBUG] EntityManager::OnEntityKilled: Player reward processing (TODO)\n");
-#endif
+        if (pEntity->m_iNoDieRemainExp > 0) {
+            iExp += pEntity->m_iNoDieRemainExp;
+        }
+
+        if (m_pGame->m_pClientList[sAttackerH]->m_iAddExp != 0) {
+            dTmp1 = (double)m_pGame->m_pClientList[sAttackerH]->m_iAddExp;
+            dTmp2 = (double)iExp;
+            dTmp3 = (dTmp1 / 100.0f) * dTmp2;
+            iExp += (DWORD)dTmp3;
+        }
+
+        if (sType == 81) {
+            for (int i = 1; i < DEF_MAXCLIENTS; i++) {
+                if (m_pGame->m_pClientList[i] != NULL) {
+                    m_pGame->SendNotifyMsg(sAttackerH, i, DEF_NOTIFY_ABADDONKILLED,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                }
+            }
+        }
+
+        if (m_pGame->m_bIsCrusadeMode) {
+            if (iExp > 10) iExp = iExp / 3;
+        }
+
+        m_pGame->GetExp(sAttackerH, iExp, true);
+
+        int iQuestIndex = m_pGame->m_pClientList[sAttackerH]->m_iQuest;
+        if (iQuestIndex != 0 && m_pGame->m_pQuestConfigList[iQuestIndex] != NULL) {
+            switch (m_pGame->m_pQuestConfigList[iQuestIndex]->m_iType) {
+            case DEF_QUESTTYPE_MONSTERHUNT:
+                if (m_pGame->m_pClientList[sAttackerH]->m_bQuestMatchFlag_Loc &&
+                    m_pGame->m_pQuestConfigList[iQuestIndex]->m_iTargetType == sType) {
+                    m_pGame->m_pClientList[sAttackerH]->m_iCurQuestCount++;
+                    char cQuestRemain = (m_pGame->m_pQuestConfigList[iQuestIndex]->m_iMaxCount -
+                        m_pGame->m_pClientList[sAttackerH]->m_iCurQuestCount);
+                    m_pGame->SendNotifyMsg(0, sAttackerH, DEF_NOTIFY_QUESTCOUNTER, cQuestRemain, 0, 0, 0);
+                    m_pGame->_bCheckIsQuestCompleted(sAttackerH);
+                }
+                break;
+            }
+        }
+
+        if (m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType] == 0) {
+            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType] =
+                new class CMobCounter(pEntity->m_cNpcName);
+        }
+
+        m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iKillCount++;
+        if (m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iKillCount >=
+            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iNextCount) {
+            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iLevel++;
+            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iNextCount *= 2;
+        }
+
+        m_pGame->RequestMobKills(sAttackerH);
     }
 
     // ========================================================================
-    // 9. Handle crusade construction points (delegate to CGame)
+    // 9. Rating adjustments (player only)
     // ========================================================================
-    if (m_pGame->m_bIsCrusadeMode) {
-        // TODO: Will be implemented in CGame integration phase
-        // m_pGame->_ProcessCrusadeKillReward(sAttackerH, cAttackerType, iEntityHandle, sType);
-#ifdef _DEBUG
-        // printf("[DEBUG] EntityManager::OnEntityKilled: Crusade reward processing (TODO)\n");
-#endif
+    if (cAttackerType == DEF_OWNERTYPE_PLAYER) {
+        switch (sType) {
+        case 32:
+            m_pGame->m_pClientList[sAttackerH]->m_iRating -= 5;
+            if (m_pGame->m_pClientList[sAttackerH]->m_iRating < -10000)
+                m_pGame->m_pClientList[sAttackerH]->m_iRating = 0;
+            if (m_pGame->m_pClientList[sAttackerH]->m_iRating > 10000)
+                m_pGame->m_pClientList[sAttackerH]->m_iRating = 0;
+            break;
+        case 33:
+            break;
+        }
     }
 
     // ========================================================================
-    // 10. Handle special ability death triggers (explosive NPCs)
+    // 10. Crusade construction points / war contribution
+    // ========================================================================
+    int iConstructionPoint = 0;
+    int iWarContribution = 0;
+    switch (sType) {
+    case 1:  iConstructionPoint = 50; iWarContribution = 100; break;
+    case 2:  iConstructionPoint = 50; iWarContribution = 100; break;
+    case 3:  iConstructionPoint = 50; iWarContribution = 100; break;
+    case 4:  iConstructionPoint = 50; iWarContribution = 100; break;
+    case 5:  iConstructionPoint = 50; iWarContribution = 100; break;
+    case 6:  iConstructionPoint = 50; iWarContribution = 100; break;
+    case 36: iConstructionPoint = 700; iWarContribution = 4000; break;
+    case 37: iConstructionPoint = 700; iWarContribution = 4000; break;
+    case 38: iConstructionPoint = 500; iWarContribution = 2000; break;
+    case 39: iConstructionPoint = 500; iWarContribution = 2000; break;
+    case 40: iConstructionPoint = 1500; iWarContribution = 5000; break;
+    case 41: iConstructionPoint = 5000; iWarContribution = 10000; break;
+    case 43: iConstructionPoint = 500; iWarContribution = 1000; break;
+    case 44: iConstructionPoint = 1000; iWarContribution = 2000; break;
+    case 45: iConstructionPoint = 1500; iWarContribution = 3000; break;
+    case 46: iConstructionPoint = 1000; iWarContribution = 2000; break;
+    case 47: iConstructionPoint = 1500; iWarContribution = 3000; break;
+    case 64:
+        m_pMapList[iMapIndex]->bRemoveCropsTotalSum();
+        break;
+    }
+
+    if (iConstructionPoint != 0) {
+        switch (cAttackerType) {
+        case DEF_OWNERTYPE_PLAYER:
+            if (m_pGame->m_pClientList[sAttackerH]->m_cSide != pEntity->m_cSide) {
+                m_pGame->m_pClientList[sAttackerH]->m_iConstructionPoint += iConstructionPoint;
+                if (m_pGame->m_pClientList[sAttackerH]->m_iConstructionPoint > DEF_MAXCONSTRUCTIONPOINT)
+                    m_pGame->m_pClientList[sAttackerH]->m_iConstructionPoint = DEF_MAXCONSTRUCTIONPOINT;
+
+                m_pGame->m_pClientList[sAttackerH]->m_iWarContribution += iWarContribution;
+                if (m_pGame->m_pClientList[sAttackerH]->m_iWarContribution > DEF_MAXWARCONTRIBUTION)
+                    m_pGame->m_pClientList[sAttackerH]->m_iWarContribution = DEF_MAXWARCONTRIBUTION;
+
+                wsprintf(G_cTxt, "Enemy Npc Killed by player! Construction: +%d WarContribution: +%d",
+                    iConstructionPoint, iWarContribution);
+                PutLogList(G_cTxt);
+
+                m_pGame->SendNotifyMsg(0, sAttackerH, DEF_NOTIFY_CONSTRUCTIONPOINT,
+                    m_pGame->m_pClientList[sAttackerH]->m_iConstructionPoint,
+                    m_pGame->m_pClientList[sAttackerH]->m_iWarContribution, 0, 0);
+            }
+            else {
+                m_pGame->m_pClientList[sAttackerH]->m_iWarContribution -= (iWarContribution * 2);
+                if (m_pGame->m_pClientList[sAttackerH]->m_iWarContribution < 0)
+                    m_pGame->m_pClientList[sAttackerH]->m_iWarContribution = 0;
+
+                wsprintf(G_cTxt, "Friendly Npc Killed by player! WarContribution: -%d", iWarContribution);
+                PutLogList(G_cTxt);
+
+                m_pGame->SendNotifyMsg(0, sAttackerH, DEF_NOTIFY_CONSTRUCTIONPOINT,
+                    m_pGame->m_pClientList[sAttackerH]->m_iConstructionPoint,
+                    m_pGame->m_pClientList[sAttackerH]->m_iWarContribution, 0, 0);
+            }
+            break;
+
+        case DEF_OWNERTYPE_NPC:
+            if (m_pGame->m_pNpcList[sAttackerH]->m_iGuildGUID != 0) {
+                if (m_pGame->m_pNpcList[sAttackerH]->m_cSide != pEntity->m_cSide) {
+                    for (int i = 1; i < DEF_MAXCLIENTS; i++) {
+                        if ((m_pGame->m_pClientList[i] != NULL) &&
+                            (m_pGame->m_pClientList[i]->m_iGuildGUID == m_pGame->m_pNpcList[sAttackerH]->m_iGuildGUID) &&
+                            (m_pGame->m_pClientList[i]->m_iCrusadeDuty == 3)) {
+                            m_pGame->m_pClientList[i]->m_iConstructionPoint += iConstructionPoint;
+                            if (m_pGame->m_pClientList[i]->m_iConstructionPoint > DEF_MAXCONSTRUCTIONPOINT)
+                                m_pGame->m_pClientList[i]->m_iConstructionPoint = DEF_MAXCONSTRUCTIONPOINT;
+
+                            wsprintf(G_cTxt, "Enemy Npc Killed by Npc! Construct point +%d", iConstructionPoint);
+                            PutLogList(G_cTxt);
+                            m_pGame->SendNotifyMsg(0, i, DEF_NOTIFY_CONSTRUCTIONPOINT,
+                                m_pGame->m_pClientList[i]->m_iConstructionPoint,
+                                m_pGame->m_pClientList[i]->m_iWarContribution, 0, 0);
+                            break;
+                        }
+                    }
+                }
+            }
+            break;
+        }
+    }
+
+    // ========================================================================
+    // 11. Handle special ability death triggers (explosive NPCs)
     // ========================================================================
     if (pEntity->m_cSpecialAbility == 7) {
         // Explosive ability - triggers magic on death
@@ -752,16 +897,29 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
     }
 
     // ========================================================================
-    // 11. Handle Heldenian mode tower tracking (delegate to CGame)
+    // 12. Heldenian mode tower tracking
     // ========================================================================
     if (m_pGame->m_bIsHeldenianMode &&
         m_pMapList[iMapIndex]->m_bIsHeldenianMap &&
         m_pGame->m_cHeldenianModeType == 1) {
-        // TODO: Will be implemented in CGame integration phase
-        // m_pGame->_ProcessHeldenianTowerDeath(iEntityHandle, sType);
-#ifdef _DEBUG
-        // printf("[DEBUG] EntityManager::OnEntityKilled: Heldenian tower tracking (TODO)\n");
-#endif
+        int iHeldenMapIndex = pEntity->m_cMapIndex;
+        if (sType == 87 || sType == 89) {
+            if (pEntity->m_cSide == 1) {
+                m_pGame->m_iHeldenianAresdenLeftTower--;
+                wsprintf(G_cTxt, "Aresden Tower Broken, Left TOWER %d", m_pGame->m_iHeldenianAresdenLeftTower);
+            }
+            else if (pEntity->m_cSide == 2) {
+                m_pGame->m_iHeldenianElvineLeftTower--;
+                wsprintf(G_cTxt, "Elvine Tower Broken, Left TOWER %d", m_pGame->m_iHeldenianElvineLeftTower);
+            }
+            PutLogList(G_cTxt);
+            m_pGame->UpdateHeldenianStatus();
+        }
+
+        if ((m_pGame->m_iHeldenianElvineLeftTower == 0) ||
+            (m_pGame->m_iHeldenianAresdenLeftTower == 0)) {
+            m_pGame->GlobalEndHeldenianMode();
+        }
     }
 
 #ifdef _DEBUG

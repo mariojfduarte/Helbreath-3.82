@@ -68,10 +68,10 @@ bool DXC_ddraw::bInit(HWND hWnd)
  DDSURFACEDESC2 ddsd;
  int            iS, iD;
 
-	 res_x = 800;
-	 res_y = 600;
-	 res_x_mid = 400;
-	 res_y_mid = 300;
+	 res_x = LOGICAL_WIDTH;
+	 res_y = LOGICAL_HEIGHT;
+	 res_x_mid = LOGICAL_WIDTH / 2;
+	 res_y_mid = LOGICAL_HEIGHT / 2;
 
 	SetRect(&m_rcClipArea, 0,0, res_x, res_y);
 
@@ -86,7 +86,7 @@ bool DXC_ddraw::bInit(HWND hWnd)
 		ddVal = m_lpDD4->SetCooperativeLevel(hWnd, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN);
 		if (ddVal != DD_OK) return false;
 		ChangeBPP(CHANGE32BPP);
-		ddVal = m_lpDD4->SetDisplayMode(res_x, res_y, 16,0,0);
+		ddVal = m_lpDD4->SetDisplayMode(RESOLUTION_WIDTH, RESOLUTION_HEIGHT, 16, 0, 0);
 		if (ddVal != DD_OK) return false;
 		memset( (VOID *)&ddsd, 0, sizeof(ddsd) );
 		ddsd.dwSize = sizeof( ddsd );
@@ -101,7 +101,7 @@ bool DXC_ddraw::bInit(HWND hWnd)
 		ddscaps.dwCaps = DDSCAPS_BACKBUFFER;
 		ddVal = m_lpFrontB4->GetAttachedSurface(&ddscaps, &m_lpBackB4flip);
 		if (ddVal != DD_OK) return false;
-		SetRect(&m_rcFlipping, 0, 0, res_x, res_y); // our fictitious sprite bitmap is 
+		SetRect(&m_rcFlipping, 0, 0, RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
 	}
 	else
 	{
@@ -124,7 +124,7 @@ bool DXC_ddraw::bInit(HWND hWnd)
 		// then convert to screen coordinates for the Blt call
 		POINT ptZero = {0, 0};
 		ClientToScreen(hWnd, &ptZero);
-		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + res_x, ptZero.y + res_y);
+		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + RESOLUTION_WIDTH, ptZero.y + RESOLUTION_HEIGHT);
 	}
 
 	InitFlipToGDI(hWnd);
@@ -192,17 +192,44 @@ HRESULT DXC_ddraw::iFlip()
 
 	HRESULT ddVal;
 	
+	RECT rcSource;
+	RECT rcDest;
+	SetRect(&rcSource, 0, 0, res_x, res_y);
+
 	if (m_bFullMode)
 	{
-		ddVal = m_lpBackB4flip->BltFast(0, 0, m_lpBackB4, &m_rcFlipping, DDBLTFAST_NOCOLORKEY); // | DDBLTFAST_WAIT);
+		double scale = (double)RESOLUTION_WIDTH / (double)LOGICAL_WIDTH;
+		double scaleY = (double)RESOLUTION_HEIGHT / (double)LOGICAL_HEIGHT;
+		if (scaleY < scale) scale = scaleY;
+		if (scale <= 0.0) scale = 1.0;
+		int destW = (int)(LOGICAL_WIDTH * scale);
+		int destH = (int)(LOGICAL_HEIGHT * scale);
+		int offsetX = (RESOLUTION_WIDTH - destW) / 2;
+		int offsetY = (RESOLUTION_HEIGHT - destH) / 2;
+		SetRect(&rcDest, offsetX, offsetY, offsetX + destW, offsetY + destH);
+		ddVal = m_lpBackB4flip->Blt(&rcDest, m_lpBackB4, &rcSource, DDBLT_WAIT, 0);
 		ddVal = m_lpFrontB4->Flip(m_lpBackB4flip, DDFLIP_WAIT);
 	}
 	else
 	{
-		// Specify source rectangle explicitly - copy entire back buffer (0,0,800,600)
-		RECT rcSource;
-		SetRect(&rcSource, 0, 0, res_x, res_y);
-		ddVal = m_lpFrontB4->Blt(&m_rcFlipping, m_lpBackB4, &rcSource, DDBLT_WAIT, 0);
+		RECT rcClient;
+		GetClientRect(G_hWnd, &rcClient);
+		int winW = rcClient.right - rcClient.left;
+		int winH = rcClient.bottom - rcClient.top;
+		double scale = (double)winW / (double)LOGICAL_WIDTH;
+		double scaleY = (double)winH / (double)LOGICAL_HEIGHT;
+		if (scaleY < scale) scale = scaleY;
+		if (scale <= 0.0) scale = 1.0;
+		int destW = (int)(LOGICAL_WIDTH * scale);
+		int destH = (int)(LOGICAL_HEIGHT * scale);
+		int offsetX = (winW - destW) / 2;
+		int offsetY = (winH - destH) / 2;
+		POINT ptZero = {0, 0};
+		ClientToScreen(G_hWnd, &ptZero);
+		SetRect(&rcDest,
+			ptZero.x + offsetX, ptZero.y + offsetY,
+			ptZero.x + offsetX + destW, ptZero.y + offsetY + destH);
+		ddVal = m_lpFrontB4->Blt(&rcDest, m_lpBackB4, &rcSource, DDBLT_WAIT, 0);
 	}
 
 	if (ddVal == DDERR_SURFACELOST) {
@@ -239,10 +266,10 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		m_lpDD4->RestoreDisplayMode();
 	}
 
-	res_x = 800;
-	res_y = 600;
-	res_x_mid = 400;
-	res_y_mid = 300;
+	res_x = LOGICAL_WIDTH;
+	res_y = LOGICAL_HEIGHT;
+	res_x_mid = LOGICAL_WIDTH / 2;
+	res_y_mid = LOGICAL_HEIGHT / 2;
 
 	SetRect(&m_rcClipArea, 0, 0, res_x, res_y);
 
@@ -266,7 +293,7 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		// then convert to screen coordinates for the Blt call
 		POINT ptZero = {0, 0};
 		ClientToScreen(hWnd, &ptZero);
-		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + res_x, ptZero.y + res_y);
+		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + RESOLUTION_WIDTH, ptZero.y + RESOLUTION_HEIGHT);
 		m_bFullMode = false;
 	}
 	else
@@ -275,7 +302,7 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		ddVal = m_lpDD4->SetCooperativeLevel(hWnd, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN);
 		if (ddVal != DD_OK) return;
 		ChangeBPP(CHANGE32BPP);
-		ddVal = m_lpDD4->SetDisplayMode(res_x, res_y, 16,0,0);
+		ddVal = m_lpDD4->SetDisplayMode(RESOLUTION_WIDTH, RESOLUTION_HEIGHT, 16, 0, 0);
 		if (ddVal != DD_OK) return;
 		memset( (VOID *)&ddsd, 0, sizeof(ddsd) );
 		ddsd.dwSize = sizeof( ddsd );
@@ -290,7 +317,7 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		ddscaps.dwCaps = DDSCAPS_BACKBUFFER;
 		ddVal = m_lpFrontB4->GetAttachedSurface(&ddscaps, &m_lpBackB4flip);
 		if (ddVal != DD_OK) return;
-		SetRect(&m_rcFlipping, 0, 0, res_x, res_y); // our fictitious sprite bitmap is 
+		SetRect(&m_rcFlipping, 0, 0, RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
 		m_bFullMode = true;
 	}
 	InitFlipToGDI(hWnd);
@@ -502,7 +529,7 @@ void DXC_ddraw::ClearBackB4()
 	DDSURFACEDESC2 ddsd2;	
 	ddsd2.dwSize = sizeof(ddsd2);
 	if (m_lpBackB4->Lock(0, &ddsd2, DDLOCK_WAIT, 0) != DD_OK) return;
-	memset((char *)ddsd2.lpSurface, 0, ddsd2.lPitch * 600);
+	memset((char *)ddsd2.lpSurface, 0, ddsd2.lPitch * res_y);
 	m_lpBackB4->Unlock(0);
 }
 
@@ -563,7 +590,7 @@ void DXC_ddraw::PutPixel(short sX, short sY, WORD wR, WORD wG, WORD wB)
 {
  WORD * pDst;
 
-	if ((sX < 0) || (sY < 0) || (sX > 799) || (sY > 599)) return;
+	if ((sX < 0) || (sY < 0) || (sX > (res_x - 1)) || (sY > (res_y - 1))) return;
 
 	pDst = (WORD *)m_pBackB4Addr + sX + ((sY)*m_sBackB4Pitch);
 	
@@ -837,11 +864,14 @@ void DXC_ddraw::DrawItemShadowBox(short sX, short sY, short dX, short dY, int iT
 	if (sY <= 0)
 		sY = 0;
 
-	if (dX >= 799)
-		dX = dX - (dX - 799);
+	int max_x = res_x - 1;
+	int max_y = res_y - 1;
 
-	if (dY >= 599)
-		dY = dY - (dY - 599);
+	if (dX >= max_x)
+		dX = dX - (dX - max_x);
+
+	if (dY >= max_y)
+		dY = dY - (dY - max_y);
 
 	int countx = dX - sX;
 	int county = dY - sY;

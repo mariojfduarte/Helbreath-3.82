@@ -193,8 +193,9 @@ bool InitInstance(HINSTANCE hInstance, int nCmdShow)
 	int cx = GetSystemMetrics(SM_CXFULLSCREEN) / 2;
 	int cy = GetSystemMetrics(SM_CYFULLSCREEN) / 2;
 	if (cy > 340) cy -= 40;
-	G_hWnd = CreateWindowEx(0, szAppClass, "Helbreath", WS_POPUP, cx - 400, cy - 300,
-		800, 600, 0, 0, hInstance, 0);
+	G_hWnd = CreateWindowEx(0, szAppClass, "Helbreath", WS_POPUP,
+		cx - (RESOLUTION_WIDTH / 2), cy - (RESOLUTION_HEIGHT / 2),
+		RESOLUTION_WIDTH, RESOLUTION_HEIGHT, 0, 0, hInstance, 0);
 	if (!G_hWnd) return false;
 	G_hInstance = hInstance;
 	ShowWindow(G_hWnd, SW_SHOWDEFAULT);

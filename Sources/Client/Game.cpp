@@ -319,7 +319,7 @@ CGame::CGame()
 	m_stDialogBoxInfo[8].sSizeY = 346;
 
 	//Guide Map Dialog
-	m_stDialogBoxInfo[9].sX = 799 - 128;
+	m_stDialogBoxInfo[9].sX = LOGICAL_MAX_X - 128;
 	m_stDialogBoxInfo[9].sY = 0;
 	m_stDialogBoxInfo[9].sSizeX = 128;
 	m_stDialogBoxInfo[9].sSizeY = 128;
@@ -441,15 +441,15 @@ CGame::CGame()
 
 	//Gauge Pannel
 	m_stDialogBoxInfo[29].sX = 0;
-	m_stDialogBoxInfo[29].sY = 434;
+	m_stDialogBoxInfo[29].sY = LOGICAL_HEIGHT - 53;
 	m_stDialogBoxInfo[29].sSizeX = 157;
 	m_stDialogBoxInfo[29].sSizeY = 53;
 
 	//Icon Pannel
 	m_stDialogBoxInfo[30].sX = 0;
-	m_stDialogBoxInfo[30].sY = 548;
-	m_stDialogBoxInfo[30].sSizeX = 799;
-	m_stDialogBoxInfo[30].sSizeY = 52;//47;
+	m_stDialogBoxInfo[30].sY = LOGICAL_HEIGHT - ICON_PANEL_HEIGHT;
+	m_stDialogBoxInfo[30].sSizeX = ICON_PANEL_WIDTH;
+	m_stDialogBoxInfo[30].sSizeY = ICON_PANEL_HEIGHT;//47;
 
 	//Sell List Dialog
 	m_stDialogBoxInfo[31].sX = 170 + SCREENX;
@@ -2011,9 +2011,9 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 	int iItemSelectedx, iItemSelectedy;
 	short sItemID, sItemSelectedID = -1;
 
-	int res_x = 799;
-	int res_y = 599;
-	int res_msy = 551;
+	int res_x = LOGICAL_MAX_X;
+	int res_y = LOGICAL_MAX_Y;
+	int res_msy = LOGICAL_HEIGHT - 49;
 
 	if (sDivY < 0 || sDivX < 0) return;
 	m_sMCX = 0;
@@ -2273,8 +2273,8 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 					{
 						if (m_bIsObserverMode == false)
 						{
-							m_sViewDstX = (indexX * 32) - 288 - 32 - 32 - 32 - 16;
-							m_sViewDstY = (indexY * 32) - 224 - 32 - 32 - 16;
+							m_sViewDstX = (indexX - VIEW_CENTER_TILE_X) * 32;
+							m_sViewDstY = (indexY - (VIEW_CENTER_TILE_Y + 1)) * 32;
 						}
 						SetRect(&m_rcPlayerRect, m_rcBodyRect.left, m_rcBodyRect.top, m_rcBodyRect.right, m_rcBodyRect.bottom);
 						bIsPlayerDrawed = true;
@@ -3586,11 +3586,11 @@ void CGame::UpdateScreen_OnLoading(bool bActive)
 			CloseHandle(m_hPakFile);
 		}
 
-		m_hPakFile = CreateFile("sprites\\GameDialog2.pak", GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-		if (m_hPakFile != INVALID_HANDLE_VALUE) {
-			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2] = new class CSprite(m_hPakFile, &m_DDraw, "GameDialog2", 6, false);
-			CloseHandle(m_hPakFile);
-		}
+		//m_hPakFile = CreateFile("sprites\\GameDialog2.pak", GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
+		//if (m_hPakFile != INVALID_HANDLE_VALUE) {
+		//	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2] = new class CSprite(m_hPakFile, &m_DDraw, "GameDialog2", 6, false);
+		//	CloseHandle(m_hPakFile);
+		//}
 
 		m_hPakFile = CreateFile("sprites\\PartySprite.pak", GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
 		if (m_hPakFile != INVALID_HANDLE_VALUE) {
@@ -4742,9 +4742,9 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 					tX = msX - 117;
 					tY = msY - 50;
 					if (tX < 0) tX = 0;
-					if ((tX + 235) > 799) tX = 799 - 235;
+					if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 					if (tY < 0) tY = 0;
-					if ((tY + 100) > 599) tY = 599 - 100;
+					if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 					m_stDialogBoxInfo[20].sX = tX;
 					m_stDialogBoxInfo[20].sY = tY;
 
@@ -4763,9 +4763,9 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 					tX = msX - 117;
 					tY = msY - 50;
 					if (tX < 0) tX = 0;
-					if ((tX + 235) > 799) tX = 799 - 235;
+					if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 					if (tY < 0) tY = 0;
-					if ((tY + 100) > 599) tY = 599 - 100;
+					if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 					m_stDialogBoxInfo[20].sX = tX;
 					m_stDialogBoxInfo[20].sY = tY;
 
@@ -4785,9 +4785,9 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 					tX = msX - 117;
 					tY = msY - 50;
 					if (tX < 0) tX = 0;
-					if ((tX + 235) > 799) tX = 799 - 235;
+					if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 					if (tY < 0) tY = 0;
-					if ((tY + 100) > 599) tY = 599 - 100;
+					if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 					m_stDialogBoxInfo[20].sX = tX;
 					m_stDialogBoxInfo[20].sY = tY;
 
@@ -4984,6 +4984,10 @@ void CGame::InitGameSettings()
 	//Snoopy: 58 because 2 last ones alreaddy defined
 	for (i = 0; i < 58; i++)
 		m_cDialogBoxOrder[i] = 0;
+	m_cDialogBoxOrder[60] = 29;
+	m_cDialogBoxOrder[59] = 30;
+	m_bIsDialogEnabled[29] = true;
+	m_bIsDialogEnabled[30] = true;
 
 	for (i = 0; i < DEF_MAXEFFECTS; i++) {
 		if (m_pEffectList[i] != 0) delete m_pEffectList[i];
@@ -5876,15 +5880,15 @@ void CGame::bAddNewEffect(short sType, int sX, int sY, int dX, int dY, char cSta
 		}
 	}
 	if (m_bIsProgramActive == false) return;
-	int x = 400;
-	int y = 300;
-	int fixx = 12;
-	int fixy = 9;
+	int x = LOGICAL_WIDTH / 2;
+	int y = LOGICAL_HEIGHT / 2;
+	int fixx = VIEW_CENTER_TILE_X;
+	int fixy = VIEW_CENTER_TILE_Y;
 	sAbsX = abs(((m_sViewPointX / 32) + fixx) - dX);
 	sAbsY = abs(((m_sViewPointY / 32) + fixy) - dY);
 	if (sAbsX > sAbsY) sDist = sAbsX; else sDist = sAbsY;
 	short fixdist = sDist;
-	int fixpan = 800;
+	int fixpan = LOGICAL_WIDTH;
 
 	for (i = 0; i < DEF_MAXEFFECTS; i++)
 		if (m_pEffectList[i] == 0)
@@ -7567,13 +7571,13 @@ void CGame::DrawEffects()
 				break;
 
 			case 143: // Lightning
-				_DrawThunderEffect(m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY - 800,
+				_DrawThunderEffect(m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY - LOGICAL_WIDTH,
 					m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY,
 					m_pEffectList[i]->m_rX, m_pEffectList[i]->m_rY, 1);
-				_DrawThunderEffect(m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY - 800,
+				_DrawThunderEffect(m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY - LOGICAL_WIDTH,
 					m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY,
 					m_pEffectList[i]->m_rX + 4, m_pEffectList[i]->m_rY + 2, 2);
-				_DrawThunderEffect(m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY - 800,
+				_DrawThunderEffect(m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY - LOGICAL_WIDTH,
 					m_pEffectList[i]->m_dX * 32 - m_sViewPointX, m_pEffectList[i]->m_dY * 32 - m_sViewPointY,
 					m_pEffectList[i]->m_rX - 2, m_pEffectList[i]->m_rY - 2, 2);
 				break;
@@ -15581,12 +15585,12 @@ void CGame::DrawBackground(short sDivX, short sModX, short sDivY, short sModY)
 		m_bIsRedrawPDBGS = false;
 		m_iPDBGSdivX = sDivX;
 		m_iPDBGSdivY = sDivY;
-		SetRect(&m_DDraw.m_rcClipArea, 0, 0, 800 + 32, 600 + 32);
+		SetRect(&m_DDraw.m_rcClipArea, 0, 0, LOGICAL_WIDTH + 32, LOGICAL_HEIGHT + 32);
 		indexY = sDivY + m_pMapData->m_sPivotY;
-		for (iy = -sModY; iy < 599 + 48; iy += 32) // 600 
+		for (iy = -sModY; iy < LOGICAL_MAX_Y + 48; iy += 32) // LOGICAL_HEIGHT 
 		{
 			indexX = sDivX + m_pMapData->m_sPivotX;
-			for (ix = -sModX; ix < 799 + 48; ix += 32)
+			for (ix = -sModX; ix < LOGICAL_MAX_X + 48; ix += 32)
 			{
 				sSpr = m_pMapData->m_tile[indexX][indexY].m_sTileSprite;
 				sSprFrame = m_pMapData->m_tile[indexX][indexY].m_sTileSpriteFrame;
@@ -15595,20 +15599,13 @@ void CGame::DrawBackground(short sDivX, short sModX, short sDivY, short sModY)
 			}
 			indexY++;
 		}
-		SetRect(&m_DDraw.m_rcClipArea, 0, 0, 800, 600);
+		SetRect(&m_DDraw.m_rcClipArea, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 	}
 	RECT rcRect;
-	SetRect(&rcRect, sModX, sModY, 800 + sModX, 600 + sModY); // our fictitious sprite bitmap is
+	SetRect(&rcRect, sModX, sModY, LOGICAL_WIDTH + sModX, LOGICAL_HEIGHT + sModY); // our fictitious sprite bitmap is
 	m_DDraw.m_lpBackB4->BltFast(0, 0, m_DDraw.m_lpPDBGS, &rcRect, DDBLTFAST_NOCOLORKEY | DDBLTFAST_WAIT);
 
-	for (iy = -sModY; iy < 599 - 5; iy += 32)
-	{
-		for (ix = -sModX; ix < 799 + 48; ix += 32)
-		{
-			DrawLine(ix - 16, iy - 16, ix + 16, iy - 16, 5, 5, 5);
-			DrawLine(ix - 16, iy - 16, ix - 16, iy + 16, 5, 5, 5);
-		}
-	}
+	// Grid overlay removed.
 
 	if (m_bIsCrusadeMode)
 	{
@@ -16186,7 +16183,7 @@ bool CGame::bEffectFrameCounter()
 					bAddNewEffect(110, m_pEffectList[i]->m_sX, m_pEffectList[i]->m_sY,
 						m_pEffectList[i]->m_dX + 1, m_pEffectList[i]->m_dY + 1, 0);
 					bAddNewEffect(8, m_pEffectList[i]->m_mX + (rand() % 20) - 10, m_pEffectList[i]->m_mY + (rand() % 20) - 10, 0, 0, -1 * (rand() % 4));
-					lPan = -(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX) * 800;
+					lPan = -(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX) * LOGICAL_WIDTH;
 					PlaySound('E', 1, sDist, lPan);
 					bAddNewEffect(7, m_pEffectList[i]->m_dX * 32, m_pEffectList[i]->m_dY * 32, 0, 0, 0);
 					delete m_pEffectList[i];
@@ -16203,11 +16200,11 @@ bool CGame::bEffectFrameCounter()
 					{
 						bAddNewEffect(137, m_pEffectList[i]->m_sX, m_pEffectList[i]->m_sY,
 							m_pEffectList[i]->m_dX, m_pEffectList[i]->m_dY, 0);
-						sAbsX = abs(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
-						sAbsY = abs(((m_sViewPointY / 32) + 9) - m_pEffectList[i]->m_dY);
+						sAbsX = abs(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
+						sAbsY = abs(((m_sViewPointY / 32) + VIEW_CENTER_TILE_Y) - m_pEffectList[i]->m_dY);
 						if (sAbsX > sAbsY) sDist = sAbsX;
 						else sDist = sAbsY;
-						lPan = -(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX) * 800;
+						lPan = -(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX) * LOGICAL_WIDTH;
 						PlaySound('E', 1, sDist, lPan);
 					}
 					break;
@@ -16236,11 +16233,11 @@ bool CGame::bEffectFrameCounter()
 					{
 						bAddNewEffect(16, m_pEffectList[i]->m_sX, m_pEffectList[i]->m_sY,
 							m_pEffectList[i]->m_dX * 32 + 50 - (rand() % 100), m_pEffectList[i]->m_dY * 32 + 50 - (rand() % 100), 0);
-						sAbsX = abs(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
-						sAbsY = abs(((m_sViewPointY / 32) + 9) - m_pEffectList[i]->m_dY);
+						sAbsX = abs(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
+						sAbsY = abs(((m_sViewPointY / 32) + VIEW_CENTER_TILE_Y) - m_pEffectList[i]->m_dY);
 						if (sAbsX > sAbsY) sDist = sAbsX;
 						else sDist = sAbsY;
-						lPan = -(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
+						lPan = -(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
 						PlaySound('E', 1, sDist, lPan);
 					}
 					break;
@@ -16294,11 +16291,11 @@ bool CGame::bEffectFrameCounter()
 					{
 						bAddNewEffect(34, m_pEffectList[i]->m_sX, m_pEffectList[i]->m_sY,
 							m_pEffectList[i]->m_dX * 32 + 30 - (rand() % 60), m_pEffectList[i]->m_dY * 32 + 30 - (rand() % 60), 0);
-						sAbsX = abs(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
-						sAbsY = abs(((m_sViewPointY / 32) + 9) - m_pEffectList[i]->m_dY);
+						sAbsX = abs(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
+						sAbsY = abs(((m_sViewPointY / 32) + VIEW_CENTER_TILE_Y) - m_pEffectList[i]->m_dY);
 						if (sAbsX > sAbsY) sDist = sAbsX;
 						else sDist = sAbsY;
-						lPan = -(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
+						lPan = -(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
 						PlaySound('E', 1, sDist, lPan);
 					}
 					break;
@@ -16335,11 +16332,11 @@ bool CGame::bEffectFrameCounter()
 					{
 						bAddNewEffect(151, m_pEffectList[i]->m_sX, m_pEffectList[i]->m_sY,
 							m_pEffectList[i]->m_dX + (rand() % 3) - 1, m_pEffectList[i]->m_dY + (rand() % 3) - 1, 0);
-						sAbsX = abs(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
-						sAbsY = abs(((m_sViewPointY / 32) + 9) - m_pEffectList[i]->m_dY);
+						sAbsX = abs(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
+						sAbsY = abs(((m_sViewPointY / 32) + VIEW_CENTER_TILE_Y) - m_pEffectList[i]->m_dY);
 						if (sAbsX > sAbsY) sDist = sAbsX;
 						else sDist = sAbsY;
-						lPan = -(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
+						lPan = -(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
 						PlaySound('E', 1, sDist, lPan);
 					}
 					break;
@@ -16379,11 +16376,11 @@ bool CGame::bEffectFrameCounter()
 					{
 						bAddNewEffect(71, m_pEffectList[i]->m_sX, m_pEffectList[i]->m_sY,
 							m_pEffectList[i]->m_dX * 32 + (rand() % 120) - 60, m_pEffectList[i]->m_dY * 32 + (rand() % 120) - 60, 0);
-						sAbsX = abs(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
-						sAbsY = abs(((m_sViewPointY / 32) + 9) - m_pEffectList[i]->m_dY);
+						sAbsX = abs(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
+						sAbsY = abs(((m_sViewPointY / 32) + VIEW_CENTER_TILE_Y) - m_pEffectList[i]->m_dY);
 						if (sAbsX > sAbsY) sDist = sAbsX;
 						else sDist = sAbsY;
-						lPan = -(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
+						lPan = -(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
 						PlaySound('E', 1, sDist, lPan);
 					}
 					break;
@@ -16406,11 +16403,11 @@ bool CGame::bEffectFrameCounter()
 					}
 					else
 					{
-						sAbsX = abs(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
-						sAbsY = abs(((m_sViewPointY / 32) + 9) - m_pEffectList[i]->m_dY);
+						sAbsX = abs(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
+						sAbsY = abs(((m_sViewPointY / 32) + VIEW_CENTER_TILE_Y) - m_pEffectList[i]->m_dY);
 						if (sAbsX > sAbsY) sDist = sAbsX - 10;
 						else sDist = sAbsY - 10;
-						lPan = -(((m_sViewPointX / 32) + 12) - m_pEffectList[i]->m_dX);
+						lPan = -(((m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - m_pEffectList[i]->m_dX);
 						PlaySound('E', 1, sDist, lPan);
 					}
 					break;
@@ -17725,7 +17722,7 @@ void CGame::DrawDialogBox_GuideMap(short msX, short msY, char cLB)
 	szY = m_stDialogBoxInfo[9].sSizeY;
 	if (sX < 20) sX = 0;
 	if (sY < 20) sY = 0;
-	if (sX > 800 - 128 - 20) sX = 800 - 128;
+	if (sX > LOGICAL_WIDTH - 128 - 20) sX = LOGICAL_WIDTH - 128;
 	if (sY > 547 - 128 - 20) sY = 547 - 128;
 	for (shX = -2; shX < 130; shX++)
 	{
@@ -17876,6 +17873,7 @@ void CGame::DrawDialogBoxs(short msX, short msY, short msZ, char cLB)
 	if (m_bIsObserverMode == true) return;
 	m_DInput.m_sZ = 0;
 	//Snoopy: 41->61
+	bool bIconPanelDrawn = false;
 	for (i = 0; i < 61; i++)
 		if (m_cDialogBoxOrder[i] != 0)
 		{
@@ -17970,6 +17968,7 @@ void CGame::DrawDialogBoxs(short msX, short msY, short msZ, char cLB)
 				break;
 			case 30:
 				DrawDialogBox_IconPannel(msX, msY); //@@@
+				bIconPanelDrawn = true;
 				break;
 			case 31:
 				DrawDialogBox_SellList(msX, msY); //@@@
@@ -18018,16 +18017,22 @@ void CGame::DrawDialogBoxs(short msX, short msY, short msZ, char cLB)
 				break;
 			}
 		}
-	int resy = 120;
-	int resx = 80;
+	if (bIconPanelDrawn == false)
+	{
+		DrawDialogBox_IconPannel(msX, msY);
+	}
+	int resy = 0;
+	int resx = 0;
+	short iconX = m_stDialogBoxInfo[30].sX;
+	short iconY = m_stDialogBoxInfo[30].sY;
 	if (m_cSkillMastery[_iGetWeaponSkillType()] == 100)
 	{
 		if (m_iSuperAttackLeft > 0)
 		{
 			if (GetAsyncKeyState(VK_MENU) >> 15)
-				m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutTransSprite(368 + resx + 7, 440 + resy, 3, m_dwCurTime);
+				m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutTransSprite(iconX + 368 + resx + 7, iconY + 440 + resy, 3, m_dwCurTime);
 			wsprintf(G_cTxt, "%d", m_iSuperAttackLeft);
-			PutString_SprFont2(380 + resx + 10 - 5, 454 + resy, G_cTxt, 255, 255, 255);
+			PutString_SprFont2(iconX + 380 + resx + 10 - 5, iconY + 454 + resy, G_cTxt, 255, 255, 255);
 		}
 	}
 	else
@@ -18035,7 +18040,7 @@ void CGame::DrawDialogBoxs(short msX, short msY, short msZ, char cLB)
 		if (m_iSuperAttackLeft > 0)
 		{
 			wsprintf(G_cTxt, "%d", m_iSuperAttackLeft);
-			PutString_SprFont(380 + resx + 10 - 5, 454 + resy, G_cTxt, 10, 10, 10);
+			PutString_SprFont(iconX + 380 + resx + 10 - 5, iconY + 454 + resy, G_cTxt, 10, 10, 10);
 		}
 	}
 }
@@ -18718,9 +18723,9 @@ void CGame::DlgBoxClick_IconPannel(short msX, short msY)
 	short sX, sY;
 	sX = m_stDialogBoxInfo[30].sX;
 	sY = m_stDialogBoxInfo[30].sY;
-	int resi = 120;
-	int resx = 80;
-	int addx = 10;
+	int resi = 0;
+	int resx = 0;
+	int addx = 0;
 	// CLEROTH - LU
 /*	if ((msX > 322)	&& (msX < 355) && (434 < msY) && (475 > msY))
 	{	if (m_iLU_Point <= 0) return;
@@ -19863,10 +19868,10 @@ void CGame::SetTopMsg(char* pString, unsigned char iLastSec)
 void CGame::DrawTopMsg()
 {
 	if (strlen(m_cTopMsg) == 0) return;
-	m_DDraw.DrawShadowBox(0, 0, 799, 30);
+	m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, 30);
 
 	if ((((G_dwGlobalTime - m_dwTopMsgTime) / 250) % 2) == 0)
-		PutAlignedString(0, 799, 10, m_cTopMsg, 255, 255, 0);
+		PutAlignedString(0, LOGICAL_MAX_X, 10, m_cTopMsg, 255, 255, 0);
 
 	if (G_dwGlobalTime > (m_iTopMsgLastSec * 1000 + m_dwTopMsgTime)) {
 		ZeroMemory(m_cTopMsg, sizeof(m_cTopMsg));
@@ -19880,49 +19885,51 @@ void CGame::DrawDialogBox_IconPannel(short msX, short msY)
 	DWORD dwTime = m_dwCurTime;
 	int resy, resx;
 
-	resy = 120;
-	resx = 80;
-	int addx = 10;
+	resy = 0;
+	resx = 0;
+	int addx = 0;
 
-	sX = m_stDialogBoxInfo[30].sX;
-	sY = m_stDialogBoxInfo[30].sY;
+	short panelX = m_stDialogBoxInfo[30].sX;
+	short panelY = m_stDialogBoxInfo[30].sY;
+	sX = 0;
+	sY = 0;
+	short rawMsX = msX;
+	short rawMsY = msY;
 
-	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(sX, sY, 14, dwTime); // Icon Pannel Background
+	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(panelX, panelY, 14, dwTime); // Icon Pannel Background
 
 	if (m_iHP > 0) {
 		if ((m_iLU_Point > 0) && (m_bIsDialogEnabled[12] == false)) // Level-Up button
-			PutString_SprFont2(720 + 5, 510, "Level Up!", (timeGetTime() / 3) % 255, (timeGetTime() / 3) % 255, 0);
-
-
+			PutString_SprFont2(LEVELUP_TEXT_X, LEVELUP_TEXT_Y, "Level Up!", (timeGetTime() / 3) % 255, (timeGetTime() / 3) % 255, 0);
 	}
 	else
 	{
 		if (m_cRestartCount == -1)
-			PutString_SprFont2(720 + 5, 510, "Restart", (timeGetTime() / 3) % 255, (timeGetTime() / 3) % 255, 0);
+			PutString_SprFont2(LEVELUP_TEXT_X, LEVELUP_TEXT_Y, "Restart", (timeGetTime() / 3) % 255, (timeGetTime() / 3) % 255, 0);
 	}
 
-	if (m_bIsSafeAttackMode) m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(368 + resx + addx - 2, 440 + resy, 4, dwTime); // Safe Attack Icon
-	else if (m_bIsCombatMode) m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(368 + resx + addx - 1, 440 + resy, 5, dwTime); // Combat Mode Icon
+	if (m_bIsSafeAttackMode) m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 368 + resx + addx, sY + 440 + resy, 4, dwTime); // Safe Attack Icon
+	else if (m_bIsCombatMode) m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 368 + resx + addx, sY + 440 + resy, 5, dwTime); // Combat Mode Icon
 	if ((362 + resx + addx < msX) && (404 + resx + addx > msX) && (434 + resy < msY) && (475 + resy > msY)) { // Combat Mode Icon
-		m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(362 + resx + addx - 1, 434 + resy, 16, dwTime);
+		m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 362 + resx + addx, sY + 434 + resy, 16, dwTime);
 		if (m_bIsCombatMode) {
 			if (m_bIsSafeAttackMode) wsprintf(G_cTxt, "Safe Attack");
 			else wsprintf(G_cTxt, "Attack");
 		}
 		else wsprintf(G_cTxt, "Peace");
-		PutString(msX - 10, msY - 20, G_cTxt, RGB(250, 250, 220));
+		PutString(rawMsX - 10, rawMsY - 20, G_cTxt, RGB(250, 250, 220));
 	}
 
 	if ((m_bIsCrusadeMode) && (m_iCrusadeDuty != 0)) { // Crusade Icon
 		if (m_bAresden == true) {
 			if ((322 + resx + addx <= msX) && (355 + resx + addx >= msX) && (434 + resy < msY) && (475 + resy > msY))
-				m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(322 + resx + addx + 1, 434 + resy, 1, dwTime);
-			else m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(322 + resx + addx, 434 + resy, 2, dwTime);
+				m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 322 + resx + addx + 1, sY + 434 + resy, 1, dwTime);
+			else m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 322 + resx + addx, sY + 434 + resy, 2, dwTime);
 		}
 		else if (m_bAresden == false) {
 			if ((322 + resx + addx <= msX) && (355 + resx + addx >= msX) && (434 + resy < msY) && (475 + resy > msY))
-				m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(322 + resx + addx, 434 + resy, 0, dwTime);
-			else m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(322 + resx + addx, 434 + resy, 15, dwTime);
+				m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 322 + resx + addx, sY + 434 + resy, 0, dwTime);
+			else m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 322 + resx + addx, sY + 434 + resy, 15, dwTime);
 		}
 	}
 
@@ -19942,47 +19949,44 @@ void CGame::DrawDialogBox_IconPannel(short msX, short msY)
 	{
 		wsprintf(G_cTxt, "%s (%d,%d)", m_cMapMessage, m_sPlayerX, m_sPlayerY);// Map Message (Center Pannel)
 	}
-	PutAlignedString(140 + resx + 1, 323 + resx + 1, 456 + resy + 1, G_cTxt, 0, 0, 0);
-	PutAlignedString(140 + resx, 323 + resx, 456 + resy, G_cTxt, 200, 200, 120);
+	PutAlignedString(sX + 140 + resx + 1, sX + 323 + resx + 1, sY + 456 + resy + 1, G_cTxt, 0, 0, 0);
+	PutAlignedString(sX + 140 + resx, sX + 323 + resx, sY + 456 + resy, G_cTxt, 200, 200, 120);
 
 	if ((msY > 436 + resy) && (msY < 478 + resy)) // Menu Icons
 	{
 		if ((msX > 410 + resx + addx) && (msX < 447 + resx + addx)) { // Character    
-			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(410 + resx + addx + 2, 434 + resy, 6, dwTime);
+			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 410 + resx + addx + 2, sY + 434 + resy, 6, dwTime);
 			wsprintf(G_cTxt, "Character");
-			PutString(msX - 10, msY - 20, G_cTxt, RGB(250, 250, 220));
+			PutString(rawMsX - 10, rawMsY - 20, G_cTxt, RGB(250, 250, 220));
 		}
 		if ((msX > 447 + resx + addx) && (msX < 484 + resx + addx)) { // Inventory
-			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(447 + resx + addx + 1, 434 + resy, 7, dwTime);
+			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 447 + resx + addx + 2, sY + 434 + resy, 7, dwTime);
 			wsprintf(G_cTxt, "Inventory");
-			PutString(msX - 10, msY - 20, G_cTxt, RGB(250, 250, 220));
+			PutString(rawMsX - 10, rawMsY - 20, G_cTxt, RGB(250, 250, 220));
 		}
 		if ((msX > 484 + resx + addx) && (msX < 521 + resx + addx)) { // Magic
-			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(484 + resx + addx, 434 + resy, 8, dwTime);
+			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 484 + resx + addx + 2, sY + 434 + resy, 8, dwTime);
 			wsprintf(G_cTxt, "Magics");
-			PutString(msX - 10, msY - 20, G_cTxt, RGB(250, 250, 220));
+			PutString(rawMsX - 10, rawMsY - 20, G_cTxt, RGB(250, 250, 220));
 		}
 		if ((msX > 521 + resx + addx) && (msX < 558 + resx + addx)) { // Skill
-			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(521 + resx + addx + 1, 434 + resy, 9, dwTime);
+			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 521 + resx + addx + 2, sY + 434 + resy, 9, dwTime);
 			wsprintf(G_cTxt, "Skills");
-			PutString(msX - 10, msY - 20, G_cTxt, RGB(250, 250, 220));
+			PutString(rawMsX - 10, rawMsY - 20, G_cTxt, RGB(250, 250, 220));
 		}
 		if ((msX > 558 + resx + addx) && (msX < 595 + resx + addx)) { // History
-			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(558 + resx + addx, 434 + resy, 10, dwTime);
+			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 558 + resx + addx + 2, sY + 434 + resy, 10, dwTime);
 			wsprintf(G_cTxt, "Chat Log");
-			PutString(msX - 10, msY - 20, G_cTxt, RGB(250, 250, 220));
+			PutString(rawMsX - 10, rawMsY - 20, G_cTxt, RGB(250, 250, 220));
 		}
 		if ((msX > 595 + resx + addx) && (msX < 631 + resx + addx)) { // System Menu
-			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFast(595 + resx + addx + 1, 434 + resy, 11, dwTime);
+			m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 595 + resx + addx + 2, sY + 434 + resy, 11, dwTime);
 			wsprintf(G_cTxt, "System Menu");
-			PutString(msX - 20, msY - 20, G_cTxt, RGB(250, 250, 220));
+			PutString(rawMsX - 20, rawMsY - 20, G_cTxt, RGB(250, 250, 220));
 		}
 	}
 
-	if ((msX > 400) && (msX < 410) && (msY > 432 + resy)) { // Hunger Status Bar
-		wsprintf(G_cTxt, "Hunger (%d%%)", 100 - m_iHungerStatus);
-		PutString(msX - 20, msY - 20, G_cTxt, RGB(250, 250, 220));
-	}
+	// Hunger bar omitted for 640x480 icon panel variant.
 
 
 }
@@ -19990,25 +19994,27 @@ void CGame::DrawDialogBox_IconPannel(short msX, short msY)
 void CGame::DrawDialogBox_GaugePannel()
 {
 	int iMaxPoint, iBarWidth;
-	int resy = 120;
-	int resx = 80;
+	int resy = 0;
+	int resx = 0;
+	short baseX = 0;
+	short baseY = 0;
 	// HP bar
 	iMaxPoint = m_iVit * 3 + m_iLevel * 2 + (m_iStr + m_iAngelicStr) / 2;
 	if (m_iHP > iMaxPoint) m_iHP = iMaxPoint;
 	iBarWidth = 101 - (m_iHP * 101) / iMaxPoint;
 	if (iBarWidth < 0) iBarWidth = 0;
 	if (iBarWidth > 101) iBarWidth = 101;
-	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFastWidth(23 + resx, 437 + resy, 12, iBarWidth, m_dwCurTime);
+	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFastWidth(baseX + 23 + resx, baseY + 437 + resy, 12, iBarWidth, m_dwCurTime);
 
 	wsprintf(G_cTxt, "%d", (short)m_iHP);
 	if (m_bIsPoisoned) {
-		PutString_SprNum(85 + resx, 441 + resy, G_cTxt, m_wR[5] * 11, m_wG[5] * 11, m_wB[5] * 11);
-		PutString_SprFont3(35 + resx, 439 + resy, "Poisoned", m_wR[5] * 8, m_wG[5] * 8, m_wB[5] * 8, true, 2);
+		PutString_SprNum(baseX + 85 + resx, baseY + 441 + resy, G_cTxt, m_wR[5] * 11, m_wG[5] * 11, m_wB[5] * 11);
+		PutString_SprFont3(baseX + 35 + resx, baseY + 439 + resy, "Poisoned", m_wR[5] * 8, m_wG[5] * 8, m_wB[5] * 8, true, 2);
 	}
 	else
 	{
-		PutString_SprNum(80 + resx + 1, 441 + resy + 1, G_cTxt, 0, 0, 0);
-		PutString_SprNum(80 + resx, 441 + resy, G_cTxt, 255, 255, 255);
+		PutString_SprNum(baseX + 80 + resx + 1, baseY + 441 + resy + 1, G_cTxt, 0, 0, 0);
+		PutString_SprNum(baseX + 80 + resx, baseY + 441 + resy, G_cTxt, 255, 255, 255);
 	}
 
 	//MP bar
@@ -20017,10 +20023,10 @@ void CGame::DrawDialogBox_GaugePannel()
 	iBarWidth = 101 - (m_iMP * 101) / iMaxPoint;
 	if (iBarWidth < 0) iBarWidth = 0;
 	if (iBarWidth > 101) iBarWidth = 101;
-	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFastWidth(23 + resx, 459 + resy, 12, iBarWidth, m_dwCurTime);
+	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFastWidth(baseX + 23 + resx, baseY + 459 + resy, 12, iBarWidth, m_dwCurTime);
 	wsprintf(G_cTxt, "%d", (short)m_iMP);
-	PutString_SprNum(80 + resx + 1, 463 + resy + 1, G_cTxt, 0, 0, 0);
-	PutString_SprNum(80 + resx, 463 + resy, G_cTxt, 255, 255, 255);
+	PutString_SprNum(baseX + 80 + resx + 1, baseY + 463 + resy + 1, G_cTxt, 0, 0, 0);
+	PutString_SprNum(baseX + 80 + resx, baseY + 463 + resy, G_cTxt, 255, 255, 255);
 
 	// SP bar
 	iMaxPoint = m_iLevel * 2 + (m_iStr + m_iAngelicStr) * 2;
@@ -20028,28 +20034,23 @@ void CGame::DrawDialogBox_GaugePannel()
 	iBarWidth = 167 - (m_iSP * 167) / iMaxPoint;
 	if (iBarWidth < 0) iBarWidth = 0;
 	if (iBarWidth > 167) iBarWidth = 167;
-	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFastWidth(147 + resx, 434 + resy, 13, iBarWidth, m_dwCurTime);
+	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFastWidth(baseX + 147 + resx, baseY + 434 + resy, 13, iBarWidth, m_dwCurTime);
 	wsprintf(G_cTxt, "%d", (short)m_iSP);
-	PutString_SprNum(228 + resx + 1, 435 + resy + 1, G_cTxt, 0, 0, 0);
-	PutString_SprNum(228 + resx, 435 + resy, G_cTxt, 255, 255, 255);
+	PutString_SprNum(baseX + 228 + resx + 1, baseY + 435 + resy + 1, G_cTxt, 0, 0, 0);
+	PutString_SprNum(baseX + 228 + resx, baseY + 435 + resy, G_cTxt, 255, 255, 255);
 
 	// Experience Gauge - MORLA - arreglada para que vaya de izquierda a derecha
 
 	DWORD iMaxPoint3 = iGetLevelExp(m_iLevel + 1) - iGetLevelExp(m_iLevel);
 
 	DWORD uTemp = m_iExp - iGetLevelExp(m_iLevel);
-	iBarWidth = (uTemp * 799) / iMaxPoint3;
+	iBarWidth = (uTemp * ICON_PANEL_WIDTH) / iMaxPoint3;
 	if (iBarWidth < 0) iBarWidth = 0;
-	if (iBarWidth > 799) iBarWidth = 799;
-	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFastWidth(0, 427 + resy + 2, 18, iBarWidth, m_dwCurTime);
+	if (iBarWidth > ICON_PANEL_WIDTH) iBarWidth = ICON_PANEL_WIDTH;
+	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFastWidth(baseX + 0, baseY + 427 + resy + 2, 18, iBarWidth, m_dwCurTime);
 	uTemp = uTemp - iMaxPoint3;
 
-	// MORLA2 - Hunger Status
-	iMaxPoint = 100;
-	iBarWidth = 35 - (m_iHungerStatus * 35) / 100;
-	if (iBarWidth < 0) iBarWidth = 0;
-	if (iBarWidth > 35) iBarWidth = 35;
-	m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL2]->PutSpriteFastWidth(401, 558, 17, iBarWidth, m_dwCurTime, true);
+	// Hunger bar omitted for 640x480 icon panel variant.
 }
 
 void CGame::DrawDialogBox_Text(short msX, short msY, short msZ, char cLB)
@@ -22929,7 +22930,7 @@ void CGame::WhetherObjectFrameCounter()
 				else
 				{
 					m_stWhetherObject[i].sX = (m_pMapData->m_sPivotX * 32) + ((rand() % 940) - 200) + 300;
-					m_stWhetherObject[i].sY = (m_pMapData->m_sPivotY * 32) + ((rand() % 800) - 600) + 240;
+					m_stWhetherObject[i].sY = (m_pMapData->m_sPivotY * 32) + ((rand() % LOGICAL_WIDTH) - LOGICAL_HEIGHT) + 240;
 					m_stWhetherObject[i].cStep = -1 * (rand() % 10);
 				}
 			}
@@ -22976,7 +22977,7 @@ void CGame::WhetherObjectFrameCounter()
 				else
 				{
 					m_stWhetherObject[i].sX = (m_pMapData->m_sPivotX * 32) + ((rand() % 940) - 200) + 300;
-					m_stWhetherObject[i].sY = (m_pMapData->m_sPivotY * 32) + ((rand() % 800) - 600) + 600;
+					m_stWhetherObject[i].sY = (m_pMapData->m_sPivotY * 32) + ((rand() % LOGICAL_WIDTH) - LOGICAL_HEIGHT) + LOGICAL_HEIGHT;
 					m_stWhetherObject[i].cStep = -1 * (rand() % 10);
 					m_stWhetherObject[i].sBX = 0;
 				}
@@ -23069,7 +23070,7 @@ void CGame::DrawLine(int x0, int y0, int x1, int y1, int iR, int iG, int iB)
 				iResultY += y_inc;
 			}
 			iResultX += x_inc;
-			if ((iResultX >= 0) && (iResultX < 799) && (iResultY >= 0) && (iResultY < 599)) {
+			if ((iResultX >= 0) && (iResultX < LOGICAL_MAX_X) && (iResultY >= 0) && (iResultY < LOGICAL_MAX_Y)) {
 				pDst = (WORD*)m_DDraw.m_pBackB4Addr + iResultX + ((iResultY)*m_DDraw.m_sBackB4Pitch);
 				switch (m_DDraw.m_cPixelFormat) {
 				case 1:
@@ -23100,7 +23101,7 @@ void CGame::DrawLine(int x0, int y0, int x1, int y1, int iR, int iG, int iB)
 				iResultX += x_inc;
 			}
 			iResultY += y_inc;
-			if ((iResultX >= 0) && (iResultX < 799) && (iResultY >= 0) && (iResultY < 599)) {
+			if ((iResultX >= 0) && (iResultX < LOGICAL_MAX_X) && (iResultY >= 0) && (iResultY < LOGICAL_MAX_Y)) {
 				pDst = (WORD*)m_DDraw.m_pBackB4Addr + iResultX + ((iResultY)*m_DDraw.m_sBackB4Pitch);
 				switch (m_DDraw.m_cPixelFormat) {
 				case 1:
@@ -23164,7 +23165,7 @@ void CGame::DrawLine2(int x0, int y0, int x1, int y1, int iR, int iG, int iB)
 				iResultY += y_inc;
 			}
 			iResultX += x_inc;
-			if ((iResultX >= 0) && (iResultX < 799) && (iResultY >= 0) && (iResultY < 599)) {
+			if ((iResultX >= 0) && (iResultX < LOGICAL_MAX_X) && (iResultY >= 0) && (iResultY < LOGICAL_MAX_Y)) {
 				pDst = (WORD*)m_DDraw.m_pBackB4Addr + iResultX + ((iResultY)*m_DDraw.m_sBackB4Pitch);
 				switch (m_DDraw.m_cPixelFormat) {
 				case 1:
@@ -23195,7 +23196,7 @@ void CGame::DrawLine2(int x0, int y0, int x1, int y1, int iR, int iG, int iB)
 				iResultX += x_inc;
 			}
 			iResultY += y_inc;
-			if ((iResultX >= 0) && (iResultX < 799) && (iResultY >= 0) && (iResultY < 599)) {
+			if ((iResultX >= 0) && (iResultX < LOGICAL_MAX_X) && (iResultY >= 0) && (iResultY < LOGICAL_MAX_Y)) {
 				pDst = (WORD*)m_DDraw.m_pBackB4Addr + iResultX + ((iResultY)*m_DDraw.m_sBackB4Pitch);
 				switch (m_DDraw.m_cPixelFormat) {
 				case 1:
@@ -25203,7 +25204,7 @@ void CGame::CreateScreenShot()
 	PutString_SprFont3(500 + SCREENX, 390 + SCREENY, " Client coded by", 20, 20, 0, true, 2);
 	PutString_SprFont3(500 + SCREENX, 405 + SCREENY, "Diuuude & Snoopy81", 0, 20, 20, true, 2);
 
-	PutAlignedString(500 + SCREENX, 600 + SCREENY, 15, MSG_WORLDNAME1, 255, 255, 255);//"ABADDON Server"
+	PutAlignedString(500 + SCREENX, LOGICAL_HEIGHT + SCREENY, 15, MSG_WORLDNAME1, 255, 255, 255);//"ABADDON Server"
 
 	for (i = 0; i < 1000; i++)
 	{
@@ -25313,7 +25314,7 @@ void CGame::UpdateScreen_OnConnecting()
 	}
 	m_bIsHideLocalCursor = false;
 
-	m_DDraw.DrawShadowBox(0, 0, 799, 599);
+	m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME4, 162 + SCREENX, 125 + SCREENY, 2);
 	wsprintf(G_cTxt, "Connecting to Server... %3dSec", (dwTime - m_dwTime) / 1000);
 	PutString_SprFont(172 + 35 + SCREENX, 190 + SCREENY, G_cTxt, 7, 0, 0);
@@ -27072,7 +27073,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 		{
 			ZeroMemory(m_cChatMsg, sizeof(m_cChatMsg));
 			strcpy(m_cChatMsg, "/enableadmincommand 147258 ");
-			StartInputString(10, 414, sizeof(m_cChatMsg), m_cChatMsg);
+			StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 			//ClearInputString();
 		}
 		break;
@@ -27167,7 +27168,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 			{
 				EndInputString();
 				wsprintf(m_cChatMsg, "/to ");
-				StartInputString(10, 532, sizeof(m_cChatMsg), m_cChatMsg);
+				StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 			}
 		}
 		break;
@@ -27263,7 +27264,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 		{
 			ZeroMemory(m_cChatMsg, sizeof(m_cChatMsg));
 			strcpy(m_cChatMsg, m_cBackupChatMsg);
-			StartInputString(10, 532, sizeof(m_cChatMsg), m_cChatMsg);
+			StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 		}
 		break;
 
@@ -27346,7 +27347,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 			if (m_pWhisperMsg[m_cWhisperIndex] != 0) {
 				EndInputString();
 				wsprintf(m_cChatMsg, "/to %s", m_pWhisperMsg[m_cWhisperIndex]->m_pMsg);
-				StartInputString(10, 532, sizeof(m_cChatMsg), m_cChatMsg);
+				StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 			}
 		}
 		break;
@@ -27374,7 +27375,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 			if (m_pWhisperMsg[m_cWhisperIndex] != 0) {
 				EndInputString();
 				wsprintf(m_cChatMsg, "/to %s", m_pWhisperMsg[m_cWhisperIndex]->m_pMsg);
-				StartInputString(10, 532, sizeof(m_cChatMsg), m_cChatMsg);
+				StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 			}
 		}
 		break;
@@ -27557,7 +27558,7 @@ void CGame::OnKeyDown(WPARAM wParam)
 			}
 			else if ((m_bInputStatus == false) && (GetAsyncKeyState(VK_MENU) >> 15 == false))
 			{
-				StartInputString(10, 532, sizeof(m_cChatMsg), m_cChatMsg);
+				StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 				ClearInputString();
 			}
 		}
@@ -27590,7 +27591,7 @@ void CGame::UpdateScreen_OnQuit()
 		m_bEscPressed = false;
 		m_bEnterPressed = false;
 		pMI = new class CMouseInterface;
-		pMI->AddRect(0, 0, 800, 600);
+		pMI->AddRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 		m_bEnterPressed = false;
 	}
 
@@ -27671,11 +27672,11 @@ void CGame::UpdateScreen_OnQueryForceLogin()
 	m_DInput.UpdateMouseState(&msX, &msY, &msZ, &cLB, &cRB);
 	UpdateScreen_OnSelectCharacter(0, 0, 0, 0);
 	if ((m_cGameModeCount >= 0) && (m_cGameModeCount < 6)) {
-		m_DDraw.DrawShadowBox(0, 0, 799, 599);
+		m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 	}
 	else if (m_cGameModeCount >= 6) {
-		m_DDraw.DrawShadowBox(0, 0, 799, 599);
-		m_DDraw.DrawShadowBox(0, 0, 799, 599);
+		m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
+		m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 	}
 
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME4, 162 + SCREENX, 130 + SCREENY, 2);
@@ -28035,7 +28036,7 @@ void CGame::UpdateScreen_OnWaitingResponse()
 	}
 	m_bIsHideLocalCursor = false;
 
-	m_DDraw.DrawShadowBox(0, 0, 799, 599);
+	m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME4, 162 + SCREENX, 125 + SCREENY, 2);
 	PutString_SprFont(172 + 44 - 17 + SCREENX, 190 + SCREENY, "Connected. Waiting for response...", 7, 0, 0);
 
@@ -28093,12 +28094,12 @@ void CGame::UpdateScreen_OnQueryDeleteCharacter()
 	UpdateScreen_OnSelectCharacter(0, 0, 500, 70);
 	if ((m_cGameModeCount >= 0) && (m_cGameModeCount < 6))
 	{
-		m_DDraw.DrawShadowBox(0, 0, 799, 599);
+		m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 	}
 	else if (m_cGameModeCount >= 6)
 	{
-		m_DDraw.DrawShadowBox(0, 0, 799, 599);
-		m_DDraw.DrawShadowBox(0, 0, 799, 599);
+		m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
+		m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 	}
 
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME4, 162 + SCREENX, 125 + SCREENY, 2);
@@ -29014,7 +29015,7 @@ void CGame::NotifyMsgHandler(char* pData)
 	case DEF_NOTIFY_METEORSTRIKEHIT:
 		SetTopMsg(m_pGameMsgList[17]->m_pMsg, 5);
 		//StartMeteorStrikeEffect
-		for (i = 0; i < 36; i++) bAddNewEffect(60, m_sViewPointX + (rand() % 799), m_sViewPointY + (rand() % 599), 0, 0, -(rand() % 80));
+		for (i = 0; i < 36; i++) bAddNewEffect(60, m_sViewPointX + (rand() % LOGICAL_MAX_X), m_sViewPointY + (rand() % LOGICAL_MAX_Y), 0, 0, -(rand() % 80));
 		break;
 
 	case DEF_NOTIFY_MAPSTATUSNEXT:
@@ -29067,7 +29068,7 @@ void CGame::NotifyMsgHandler(char* pData)
 				if (m_iCrusadeDuty != 0)
 					EnableDialogBox(33, 2, iV2, 0);
 				else EnableDialogBox(33, 1, 0, 0);
-				if (m_bCitizen == false) EnableDialogBox(18, 800, 0, 0);
+				if (m_bCitizen == false) EnableDialogBox(18, LOGICAL_WIDTH, 0, 0);
 				else if (m_bAresden == true) EnableDialogBox(18, 801, 0, 0);
 				else if (m_bAresden == false) EnableDialogBox(18, 802, 0, 0);
 				if (m_bCitizen == false) SetTopMsg(NOTIFY_MSG_CRUSADESTART_NONE, 10);
@@ -30094,7 +30095,7 @@ void CGame::UpdateScreen_OnLogResMsg()
 		break;
 	}
 
-	m_DDraw.DrawShadowBox(0, 0, 799, 599);
+	m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME4, 162 + SCREENX, 125 + SCREENY, 2);
 
@@ -30672,7 +30673,7 @@ void CGame::DlbBoxDoubleClick_GuideMap(short msX, short msY)
 	szY = m_stDialogBoxInfo[9].sSizeY;
 	if (sX < 20) sX = 0;
 	if (sY < 20) sY = 0;
-	if (sX > 799 - 128 - 20) sX = 799 - 128;
+	if (sX > LOGICAL_MAX_X - 128 - 20) sX = LOGICAL_MAX_X - 128;
 	if (sY > 547 - 128 - 20) sY = 547 - 128;
 	if (m_bZoomMap)
 	{
@@ -31093,7 +31094,7 @@ void CGame::UpdateScreen_OnChangePassword()
 	m_DDraw.ClearBackB4();
 
 	UpdateScreen_OnSelectCharacter(0, 0, 0, 0, true);
-	m_DDraw.DrawShadowBox(0, 0, 799, 599);//SelectCharacter
+	m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);//SelectCharacter
 
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME4, 153 + SCREENX, 112 + SCREENY, 0);
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, 153 + SCREENX, 112 + SCREENY, 13);
@@ -31655,7 +31656,7 @@ void CGame::UpdateScreen_OnVersionNotMatch()
 			m_pGSock = 0;
 		}
 		pMI = new class CMouseInterface;
-		pMI->AddRect(0, 0, 800, 600);
+		pMI->AddRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 		m_bEnterPressed = false;
 	}
 	m_cGameModeCount++;
@@ -33039,9 +33040,9 @@ void CGame::UpdateScreen_OnGame()
 								tX = msX - 117;
 								tY = msY - 50;
 								if (tX < 0) tX = 0;
-								if ((tX + 235) > 799) tX = 799 - 235;
+								if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 								if (tY < 0) tY = 0;
-								if ((tY + 100) > 599) tY = 599 - 100;
+								if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 
@@ -33059,9 +33060,9 @@ void CGame::UpdateScreen_OnGame()
 								tX = msX - 117;
 								tY = msY - 50;
 								if (tX < 0) tX = 0;
-								if ((tX + 235) > 799) tX = 799 - 235;
+								if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 								if (tY < 0) tY = 0;
-								if ((tY + 100) > 599) tY = 599 - 100;
+								if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
@@ -33079,9 +33080,9 @@ void CGame::UpdateScreen_OnGame()
 								tX = msX - 117;
 								tY = msY - 50;
 								if (tX < 0) tX = 0;
-								if ((tX + 235) > 799) tX = 799 - 235;
+								if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 								if (tY < 0) tY = 0;
-								if ((tY + 100) > 599) tY = 599 - 100;
+								if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 
@@ -33161,10 +33162,10 @@ void CGame::UpdateScreen_OnGame()
 				case '^':
 					ZeroMemory(m_cChatMsg, sizeof(m_cChatMsg));
 					m_cChatMsg[0] = m_cBackupChatMsg[0];
-					StartInputString(10, 532, sizeof(m_cChatMsg), m_cChatMsg);
+					StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 					break;
 				default:
-					StartInputString(10, 532, sizeof(m_cChatMsg), m_cChatMsg);
+					StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 					ClearInputString();
 					break;
 				}
@@ -33226,7 +33227,7 @@ void CGame::UpdateScreen_OnGame()
 	{
 		DrawEffects();
 		DrawWhetherEffects();
-		DrawChatMsgs(-100, 0, 800, 600);
+		DrawChatMsgs(-100, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 		WhetherObjectFrameCounter();
 	}
 
@@ -33246,8 +33247,8 @@ void CGame::UpdateScreen_OnGame()
 		m_pEffectSpr[89]->PutTransSprite(1648 - m_sViewPointX, 3913 - m_sViewPointY, _tmp_iEffectFrame % 12, 0);
 	}
 	//Snoopy: Add Apocalypse Gate and apocalypse map effects (if no Gate, m_iGatePositX will be -1...
-	if ((m_iGatePositX >= m_sViewPointX / 32) && (m_iGatePositX <= m_sViewPointX / 32 + 20)
-		&& (m_iGatePositY >= m_sViewPointY / 32) && (m_iGatePositY <= m_sViewPointY / 32 + 15))
+	if ((m_iGatePositX >= m_sViewPointX / 32) && (m_iGatePositX <= m_sViewPointX / 32 + VIEW_TILE_WIDTH)
+		&& (m_iGatePositY >= m_sViewPointY / 32) && (m_iGatePositY <= m_sViewPointY / 32 + VIEW_TILE_HEIGHT))
 	{
 		m_pEffectSpr[101]->PutTransSprite(m_iGatePositX * 32 - m_sViewPointX - 96, m_iGatePositY * 32 - m_sViewPointY - 69, _tmp_iEffectFrame % 30, dwTime);
 	}
@@ -33260,7 +33261,7 @@ void CGame::UpdateScreen_OnGame()
 			((m_bIsDialogEnabled[17] == true) && (m_stDialogBoxInfo[17].cMode == 1)))
 		{
 		}
-		else m_DDraw.DrawShadowBox(0, 531, 799, 549);
+		else m_DDraw.DrawShadowBox(0, LOGICAL_HEIGHT - 69, LOGICAL_MAX_X, LOGICAL_HEIGHT - 51);
 		ShowReceivedString();
 	}
 
@@ -33356,7 +33357,7 @@ void CGame::UpdateScreen_OnGame()
 	//Snoopy: Add Apocalypse map effect (druncncity bubbles)
 	if (m_cMapIndex == 25)
 	{
-		bAddNewEffect(13, m_sViewPointX + rand() % 799, m_sViewPointY + rand() % 599, 0, 0, -1 * (rand() % 80), 1);
+		bAddNewEffect(13, m_sViewPointX + rand() % LOGICAL_MAX_X, m_sViewPointY + rand() % LOGICAL_MAX_Y, 0, 0, -1 * (rand() % 80), 1);
 		//DrawDruncncity();
 	}
 
@@ -33376,7 +33377,7 @@ void CGame::UpdateScreen_OnGame()
 	DrawTopMsg();
 
 #ifdef _DEBUG
-	wsprintf(G_cTxt, "M(%d,%d) T(%d,%d)", msX, msY, (m_sViewPointX + msX) / 32, (m_sViewPointY + msY) / 32);
+	wsprintf(G_cTxt, "M(%d,%d) T(%d,%d)", msX, msY, (m_sViewPointX + msX + 16) / 32, (m_sViewPointY + msY + 16) / 32);
 	PutString(msX, msY + 30, G_cTxt, RGB(255, 255, 255));
 #endif
 
@@ -33432,8 +33433,8 @@ void CGame::UpdateScreen_OnGame()
 	//Snoopy: Added diag "LEVEL UP" right down
 	//if (m_iLU_Point >0) PutString_SprFont(560, 390, "Level Up", 250, 250, 0);
 
-	if (m_cGameModeCount < 6) m_DDraw.DrawShadowBox(0, 0, 799, 599);
-	if (m_cGameModeCount < 2) m_DDraw.DrawShadowBox(0, 0, 799, 599);
+	if (m_cGameModeCount < 6) m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
+	if (m_cGameModeCount < 2) m_DDraw.DrawShadowBox(0, 0, LOGICAL_MAX_X, LOGICAL_MAX_Y);
 
 	if (m_bIsObserverMode == true)
 	{
@@ -33609,8 +33610,8 @@ void CGame::MotionResponseHandler(char* pData)
 			DEF_OBJECTSTOP, 0, 0, 0);
 		m_cCommandCount = 0;
 		m_bIsGetPointingMode = false;
-		m_sViewDstX = m_sViewPointX = (m_sPlayerX - 13) * 32;
-		m_sViewDstY = m_sViewPointY = (m_sPlayerY - 9) * 32;
+		m_sViewDstX = m_sViewPointX = (m_sPlayerX - VIEW_CENTER_TILE_X) * 32;
+		m_sViewDstY = m_sViewPointY = (m_sPlayerY - (VIEW_CENTER_TILE_Y + 1)) * 32;
 
 		m_bIsRedrawPDBGS = true;
 		break;
@@ -33707,8 +33708,8 @@ void CGame::MotionResponseHandler(char* pData)
 			0, 7);
 		m_cCommandCount = 0;
 		m_bIsGetPointingMode = false;
-		m_sViewDstX = m_sViewPointX = (m_sPlayerX - 13) * 32;
-		m_sViewDstY = m_sViewPointY = (m_sPlayerY - 9) * 32;
+		m_sViewDstX = m_sViewPointX = (m_sPlayerX - VIEW_CENTER_TILE_X) * 32;
+		m_sViewDstY = m_sViewPointY = (m_sPlayerY - (VIEW_CENTER_TILE_Y + 1)) * 32;
 		m_bIsPrevMoveBlocked = true;
 		switch (m_sPlayerType) {
 		case 1:
@@ -33747,21 +33748,21 @@ void CGame::CommandProcessor(short msX, short msY, short indexX, short indexY, c
 	// Fixed by Snoopy
 	if ((m_bIsObserverCommanded == false) && (m_bIsObserverMode == true))
 	{
-		if ((msX == 0) && (msY == 0) && (m_sViewDstX > 32 * 26) && (m_sViewDstY > 32 * 20))
+		if ((msX == 0) && (msY == 0) && (m_sViewDstX > 32 * VIEW_TILE_WIDTH) && (m_sViewDstY > 32 * VIEW_TILE_HEIGHT))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 8, 0, 0, 0, 0);
-		else if ((msX == 799) && (msY == 0) && (m_sViewDstX < 32 * m_pMapData->m_sMapSizeX - 32 * 26) && (m_sViewDstY > 32 * 20))
+		else if ((msX == LOGICAL_MAX_X) && (msY == 0) && (m_sViewDstX < 32 * m_pMapData->m_sMapSizeX - 32 * VIEW_TILE_WIDTH) && (m_sViewDstY > 32 * VIEW_TILE_HEIGHT))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 2, 0, 0, 0, 0);
-		else if ((msX == 799) && (msY == 599) && (m_sViewDstX < 32 * m_pMapData->m_sMapSizeX - 32 * 26) && (m_sViewDstY < 32 * m_pMapData->m_sMapSizeY - 32 * 20))
+		else if ((msX == LOGICAL_MAX_X) && (msY == LOGICAL_MAX_Y) && (m_sViewDstX < 32 * m_pMapData->m_sMapSizeX - 32 * VIEW_TILE_WIDTH) && (m_sViewDstY < 32 * m_pMapData->m_sMapSizeY - 32 * VIEW_TILE_HEIGHT))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 4, 0, 0, 0, 0);
-		else if ((msX == 0) && (msY == 599))
+		else if ((msX == 0) && (msY == LOGICAL_MAX_Y))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 6, 0, 0, 0, 0);
-		else if ((msX == 0) && (m_sViewDstX > 32 * 26))
+		else if ((msX == 0) && (m_sViewDstX > 32 * VIEW_TILE_WIDTH))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 7, 0, 0, 0, 0);
-		else if ((msX == 799) && (m_sViewDstX < 32 * m_pMapData->m_sMapSizeX - 32 * 26))
+		else if ((msX == LOGICAL_MAX_X) && (m_sViewDstX < 32 * m_pMapData->m_sMapSizeX - 32 * VIEW_TILE_WIDTH))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 3, 0, 0, 0, 0);
-		else if ((msY == 0) && (m_sViewDstY > 32 * 20))
+		else if ((msY == 0) && (m_sViewDstY > 32 * VIEW_TILE_HEIGHT))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 1, 0, 0, 0, 0);
-		else if ((msY == 599) && (m_sViewDstY < 32 * m_pMapData->m_sMapSizeY - 32 * 20))
+		else if ((msY == LOGICAL_MAX_Y) && (m_sViewDstY < 32 * m_pMapData->m_sMapSizeY - 32 * VIEW_TILE_HEIGHT))
 			bSendCommand(MSGID_REQUEST_PANNING, 0, 5, 0, 0, 0, 0);
 		else return;
 
@@ -33790,7 +33791,7 @@ void CGame::CommandProcessor(short msX, short msY, short indexX, short indexY, c
 			{
 				m_stMCursor.cPrevStatus = DEF_CURSORSTATUS_PRESSED;
 				// Snoopy: Added Golden LevelUp
-				if ((msX > 720 + 5) && (msX < 780 + 5) && (msY > 510) && (msY < 525))
+				if ((msX > LEVELUP_TEXT_X) && (msX < (LEVELUP_TEXT_X)+75) && (msY > LEVELUP_TEXT_Y) && (msY < (LEVELUP_TEXT_Y)+21))
 				{
 					if (m_iHP > 0)
 					{
@@ -33798,12 +33799,10 @@ void CGame::CommandProcessor(short msX, short msY, short indexX, short indexY, c
 						{
 							EnableDialogBox(12, 0, 0, 0);
 							PlaySound('E', 14, 5);
-
 						}
 					}
 					else // Centuu : restart
 					{
-
 						if (m_cRestartCount == -1)
 						{
 							m_cRestartCount = 5;
@@ -33813,8 +33812,6 @@ void CGame::CommandProcessor(short msX, short msY, short indexX, short indexY, c
 							PlaySound('E', 14, 5);
 
 						}
-
-
 					}
 					m_stMCursor.cPrevStatus = DEF_CURSORSTATUS_NULL;
 					return;
@@ -33953,7 +33950,7 @@ void CGame::CommandProcessor(short msX, short msY, short indexX, short indexY, c
 						}
 						else
 						{
-							m_stDialogBoxInfo[9].sX = 799 - m_stDialogBoxInfo[9].sSizeX;
+							m_stDialogBoxInfo[9].sX = LOGICAL_MAX_X - m_stDialogBoxInfo[9].sSizeX;
 						}
 
 						if (msY < 273)
@@ -34371,9 +34368,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							tX = msX - 117;
 							tY = msY - 50;
 							if (tX < 0) tX = 0;
-							if ((tX + 235) > 799) tX = 799 - 235;
+							if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 							if (tY < 0) tY = 0;
-							if ((tY + 100) > 599) tY = 599 - 100;
+							if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 							m_stDialogBoxInfo[20].sX = tX;
 							m_stDialogBoxInfo[20].sY = tY;
 							m_stDialogBoxInfo[20].sV3 = 15;
@@ -34388,9 +34385,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							tX = msX - 117;
 							tY = msY - 50;
 							if (tX < 0) tX = 0;
-							if ((tX + 235) > 799) tX = 799 - 235;
+							if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 							if (tY < 0) tY = 0;
-							if ((tY + 100) > 599) tY = 599 - 100;
+							if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 							m_stDialogBoxInfo[20].sX = tX;
 							m_stDialogBoxInfo[20].sY = tY;
 							m_stDialogBoxInfo[20].sV3 = 19;
@@ -34405,9 +34402,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							tX = msX - 117;
 							tY = msY - 50;
 							if (tX < 0) tX = 0;
-							if ((tX + 235) > 799) tX = 799 - 235;
+							if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 							if (tY < 0) tY = 0;
-							if ((tY + 100) > 599) tY = 599 - 100;
+							if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 							m_stDialogBoxInfo[20].sX = tX;
 							m_stDialogBoxInfo[20].sY = tY;
 							m_stDialogBoxInfo[20].sV3 = 20;
@@ -34426,9 +34423,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							tX = msX - 117;
 							tY = msY - 50;
 							if (tX < 0) tX = 0;
-							if ((tX + 235) > 799) tX = 799 - 235;
+							if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 							if (tY < 0) tY = 0;
-							if ((tY + 100) > 599) tY = 599 - 100;
+							if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 							m_stDialogBoxInfo[20].sX = tX;
 							m_stDialogBoxInfo[20].sY = tY;
 							m_stDialogBoxInfo[20].sV3 = 24;
@@ -34447,9 +34444,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							tX = msX - 117;
 							tY = msY - 50;
 							if (tX < 0) tX = 0;
-							if ((tX + 235) > 799) tX = 799 - 235;
+							if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 							if (tY < 0) tY = 0;
-							if ((tY + 100) > 599) tY = 599 - 100;
+							if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 							m_stDialogBoxInfo[20].sX = tX;
 							m_stDialogBoxInfo[20].sY = tY;
 							m_stDialogBoxInfo[20].sV3 = 25;
@@ -34464,9 +34461,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							tX = msX - 117;
 							tY = msY - 50;
 							if (tX < 0) tX = 0;
-							if ((tX + 235) > 799) tX = 799 - 235;
+							if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 							if (tY < 0) tY = 0;
-							if ((tY + 100) > 599) tY = 599 - 100;
+							if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 							m_stDialogBoxInfo[20].sX = tX;
 							m_stDialogBoxInfo[20].sY = tY;
 							m_stDialogBoxInfo[20].sV3 = 26;
@@ -34481,9 +34478,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 								tX = msX - 117;
 								tY = msY - 50;
 								if (tX < 0) tX = 0;
-								if ((tX + 235) > 799) tX = 799 - 235;
+								if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 								if (tY < 0) tY = 0;
-								if ((tY + 100) > 599) tY = 599 - 100;
+								if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 								m_stDialogBoxInfo[20].sV3 = 21;
@@ -34498,9 +34495,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 								tX = msX - 117;
 								tY = msY - 50;
 								if (tX < 0) tX = 0;
-								if ((tX + 235) > 799) tX = 799 - 235;
+								if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 								if (tY < 0) tY = 0;
-								if ((tY + 100) > 599) tY = 599 - 100;
+								if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 								m_stDialogBoxInfo[20].sV3 = sObjectType;
@@ -34514,9 +34511,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 								tX = msX - 117;
 								tY = msY - 50;
 								if (tX < 0) tX = 0;
-								if ((tX + 235) > 799) tX = 799 - 235;
+								if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 								if (tY < 0) tY = 0;
-								if ((tY + 100) > 599) tY = 599 - 100;
+								if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 								m_stDialogBoxInfo[20].sV3 = 32;
@@ -34530,9 +34527,9 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							tX = msX - 117;
 							tY = msY - 50;
 							if (tX < 0) tX = 0;
-							if ((tX + 235) > 799) tX = 799 - 235;
+							if ((tX + 235) > LOGICAL_MAX_X) tX = LOGICAL_MAX_X - 235;
 							if (tY < 0) tY = 0;
-							if ((tY + 100) > 599) tY = 599 - 100;
+							if ((tY + 100) > LOGICAL_MAX_Y) tY = LOGICAL_MAX_Y - 100;
 							m_stDialogBoxInfo[20].sX = tX;
 							m_stDialogBoxInfo[20].sY = tY;
 							m_stDialogBoxInfo[20].sV3 = 90;
@@ -43441,7 +43438,7 @@ void CGame::_Draw_OnLogin(char* pAccount, char* pPassword, int msX, int msY, int
 void CGame::ShowEventList(DWORD dwTime)
 {
 	int i;
-	int resi = 120;
+	int baseY = EVENTLIST2_BASE_Y;
 	m_DDraw._GetBackBufferDC();
 	for (i = 0; i < 6; i++)
 		if ((dwTime - m_stEventHistory[i].dwTime) < 5000)
@@ -43476,25 +43473,25 @@ void CGame::ShowEventList(DWORD dwTime)
 		{
 			switch (m_stEventHistory2[i].cColor) {
 			case 0:
-				PutString(10, 322 + i * 15 + resi, m_stEventHistory2[i].cTxt, RGB(225, 225, 225), false, 1, true);
+				PutString(10, baseY + i * 15, m_stEventHistory2[i].cTxt, RGB(225, 225, 225), false, 1, true);
 				break;
 			case 1:
-				PutString(10, 322 + i * 15 + resi, m_stEventHistory2[i].cTxt, RGB(130, 255, 130), false, 1, true);
+				PutString(10, baseY + i * 15, m_stEventHistory2[i].cTxt, RGB(130, 255, 130), false, 1, true);
 				break;
 			case 2:
-				PutString(10, 322 + i * 15 + resi, m_stEventHistory2[i].cTxt, RGB(255, 130, 130), false, 1, true);
+				PutString(10, baseY + i * 15, m_stEventHistory2[i].cTxt, RGB(255, 130, 130), false, 1, true);
 				break;
 			case 3:
-				PutString(10, 322 + i * 15 + resi, m_stEventHistory2[i].cTxt, RGB(130, 130, 255), false, 1, true);
+				PutString(10, baseY + i * 15, m_stEventHistory2[i].cTxt, RGB(130, 130, 255), false, 1, true);
 				break;
 			case 4:
-				PutString(10, 322 + i * 15 + resi, m_stEventHistory2[i].cTxt, RGB(230, 230, 130), false, 1, true);
+				PutString(10, baseY + i * 15, m_stEventHistory2[i].cTxt, RGB(230, 230, 130), false, 1, true);
 				break;
 			case 10:
-				PutString(10, 322 + i * 15 + resi, m_stEventHistory2[i].cTxt, RGB(180, 255, 180), false, 1, true);
+				PutString(10, baseY + i * 15, m_stEventHistory2[i].cTxt, RGB(180, 255, 180), false, 1, true);
 				break;
 			case 20:
-				PutString(10, 322 + i * 15 + resi, m_stEventHistory2[i].cTxt, RGB(150, 150, 170), false, 1, true);
+				PutString(10, baseY + i * 15, m_stEventHistory2[i].cTxt, RGB(150, 150, 170), false, 1, true);
 				break;
 			}
 		}
@@ -43740,9 +43737,9 @@ void CGame::InitDataResponseHandler(char* pData)
 			DEF_OBJECTSTOP, 0, 0, 0);
 	}
 
-	m_sViewDstX = m_sViewPointX = (sX + 7) * 32 - 16;
-	m_sViewDstY = m_sViewPointY = (sY + 8) * 32 - 16;
-	_ReadMapData(sX + 7, sY + 8, cp);
+	m_sViewDstX = m_sViewPointX = (sX + VIEW_CENTER_TILE_X) * 32 - 16;
+m_sViewDstY = m_sViewPointY = (sY + VIEW_CENTER_TILE_Y + 1) * 32 - 16;
+	_ReadMapData(sX + VIEW_CENTER_TILE_X, sY + VIEW_CENTER_TILE_Y, cp);
 	m_bIsRedrawPDBGS = true;
 	// ------------------------------------------------------------------------+
 	wsprintf(cTxt, INITDATA_RESPONSE_HANDLER1, m_cMapMessage);

@@ -24,120 +24,103 @@ extern void PutPvPLogFileList(char* cStr);
 extern FILE* pLogFile;
 extern HWND	G_hWnd;
 
-// Move lock para 800 x 600
-int _tmp_iMoveLocX[9][46] = {
+// Move lock para 640 x 480
+int _tmp_iMoveLocX[9][38] = {
 	// 0
 	{0,0,0,0,0,0,0,0,0,0,
 	 0,0,0,0,0,0,0,0,0,0,
 	 0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,-1},
+	// 1
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,16,17,18,19,
+	 20,-1,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0},
+	// 2
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,16,17,18,19,
+	 20,20,20,20,20,20,20,20,20,20,
+	 20,20,20,20,20,20,-1,0},
+	// 3
+	{20,20,20,20,20,20,20,20,20,20,
+	 20,20,20,20,20,20,-1,0,0,0,
 	 0,0,0,0,0,0,0,0,0,0,
-	 0,0,0,0,0,0},
-	 // 1
-	 {0,1,2,3,4,5,6,7,8,9,
-	  10,11,12,13,14,15,16,17,18,19,
-	  20,21,22,23,24,25,-1,0,0,0,
-	  0,0,0,0,0,0,0,0,0,0,
-	  0,0,0,0,0,0},
-	  // 2
-	  {0,1,2,3,4,5,6,7,8,9,
-	   10,11,12,13,14,15,16,17,18,19,
-	   20,21,22,23,24,25,25,25,25,25,
-	   25,25,25,25,25,25,25,25,25,25,
-	   25,25,25,25,25,-1},
-	   // 3
-	   {25,25,25,25,25,25,25,25,25,25,
-		25,25,25,25,25,25,25,25,25,25,
-		-1,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0},
-		// 4
-		{25,25,25,25,25,25,25,25,25,25,
-		 25,25,25,25,25,25,25,25,25,25,
-		 24,23,22,21,20,19,18,17,16,15,
-		 14,13,12,11,10, 9, 8, 7, 6, 5,
-		 4, 3, 2, 1, 0, -1},
-		 // 5
-		 {0,1,2,3,4,5,6,7,8,9,
-		  10,11,12,13,14,15,16,17,18,19,
-		  20,21,22,23,24,25,-1,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0},
-		  // 6
-		  {0,0,0,0,0,0,0,0,0,0,
-		   0,0,0,0,0,0,0,0,0,0,
-		   1,2,3,4,5,6,7,8,9,10,
-		   11,12,13,14,15,16,17,18,19,20,
-		   21,22,23,24,25,-1},
-		   // 7
-		   {0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,0,
-			-1,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0},
-			// 8
-			{0,1,2,3,4,5,6,7,8,9,
-			 10,11,12,13,14,15,16,17,18,19,
-			 20,21,22,23,24,25,0,0,0,0,
-			 0,0,0,0,0,0,0,0,0,0,
-			 0,0,0,0,0,-1}
+	 0,0,0,0,0,0,0,0},
+	// 4
+	{20,20,20,20,20,20,20,20,20,20,
+	 20,20,20,20,20,20,19,18,17,16,
+	 15,14,13,12,11,10,9,8,7,6,
+	 5,4,3,2,1,0,-1,0},
+	// 5
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,16,17,18,19,
+	 20,-1,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0},
+	// 6
+	{0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,1,2,3,4,
+	 5,6,7,8,9,10,11,12,13,14,
+	 15,16,17,18,19,20,-1,0},
+	// 7
+	{0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,-1,0,0,0,
+	 0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0},
+	// 8
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,16,17,18,19,
+	 20,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,-1,0}
 };
 
-int _tmp_iMoveLocY[9][46] = {
+int _tmp_iMoveLocY[9][38] = {
 	// 0
 	{0,0,0,0,0,0,0,0,0,0,
 	 0,0,0,0,0,0,0,0,0,0,
 	 0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,-1},
+	// 1
+	{0,0,0,0,0,0,0,0,0,0,
 	 0,0,0,0,0,0,0,0,0,0,
-	 0,0,0,0,0,0},
-	 // 1
-	 {0,0,0,0,0,0,0,0,0,0,
-	  0,0,0,0,0,0,0,0,0,0,
-	  0,0,0,0,0,0,-1,0,0,0,
-	  0,0,0,0,0,0,0,0,0,0,
-	  0,0,0,0,0,0},
-	  // 2
-	  {0,0,0,0,0,0,0,0,0,0,
-	   0,0,0,0,0,0,0,0,0,0,
-	   0,0,0,0,0,0,1,2,3,4,
-	   5,6,7,8,9,10,11,12,13,14,
-	   15,16,17,18,19,-1},
-	   // 3
-	   {0,1,2,3,4,5,6,7,8,9,
-		10,11,12,13,14,15,16,17,18,19,
-		-1,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0},
-		// 4
-		{0,1,2,3,4,5,6,7,8,9,
-		 10,11,12,13,14,15,16,17,18,19,
-		 19,19,19,19,19,19,19,19,19,19,
-		 19,19,19,19,19,19,19,19,19,19,
-		 19,19,19,19,19,-1},
-		 // 5
-		 {19,19,19,19,19,19,19,19,19,19,
-		  19,19,19,19,19,19,19,19,19,19,
-		  19,19,19,19,19,19,-1,0,0,0,
-		  0,0,0,0,0,0,0,0,0,0,
-		  0,0,0,0,0,0},
-		  // 6
-		  {0,1,2,3,4,5,6,7,8,9,
-		   10,11,12,13,14,15,16,17,18,19,
-		   19,19,19,19,19,19,19,19,19,19,
-		   19,19,19,19,19,19,19,19,19,19,
-		   19,19,19,19,19,-1},
-		   // 7
-		   {0,1,2,3,4,5,6,7,8,9,
-			10,11,12,13,14,15,16,17,18,19,
-			-1,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0,0,0,0,0,
-			0,0,0,0,0,0},
-			// 8
-			{0,0,0,0,0,0,0,0,0,0,
-			 0,0,0,0,0,0,0,0,0,0,
-			 0,0,0,0,0,0,1,2,3,4,
-			 5,6,7,8,9,10,11,12,13,14,
-			 15,16,17,18,19,-1}
+	 0,-1,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0},
+	// 2
+	{0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0,0,0,
+	 0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,-1,0},
+	// 3
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,-1,0,0,0,
+	 0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0},
+	// 4
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,15,15,15,15,
+	 15,15,15,15,15,15,15,15,15,15,
+	 15,15,15,15,15,15,-1,0},
+	// 5
+	{15,15,15,15,15,15,15,15,15,15,
+	 15,15,15,15,15,15,15,15,15,15,
+	 15,-1,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0},
+	// 6
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,15,15,15,15,
+	 15,15,15,15,15,15,15,15,15,15,
+	 15,15,15,15,15,15,-1,0},
+	// 7
+	{0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,-1,0,0,0,
+	 0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0},
+	// 8
+	{0,0,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0,0,0,
+	 0,1,2,3,4,5,6,7,8,9,
+	 10,11,12,13,14,15,-1,0}
 };
+
 
 char _tmp_cTmpDirX[9] = { 0,0,1,1,1,0,-1,-1,-1 };
 char _tmp_cTmpDirY[9] = { 0,-1,-1,0,1,1,1,0,-1 };
@@ -2988,10 +2971,10 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 
 		if (bClientValid &&
 			(m_pClientList[i]->m_cMapIndex == cOwnerMapIndex) &&
-			(m_pClientList[i]->m_sX >= sOwnerX - 12 - sRange) &&
-			(m_pClientList[i]->m_sX <= sOwnerX + 12 + sRange) &&
-			(m_pClientList[i]->m_sY >= sOwnerY - 10 - sRange) &&
-			(m_pClientList[i]->m_sY <= sOwnerY + 10 + sRange)) {
+			(m_pClientList[i]->m_sX >= sOwnerX - DEF_VIEWRANGE_X - sRange) &&
+			(m_pClientList[i]->m_sX <= sOwnerX + DEF_VIEWRANGE_X + sRange) &&
+			(m_pClientList[i]->m_sY >= sOwnerY - DEF_VIEWRANGE_Y - sRange) &&
+			(m_pClientList[i]->m_sY <= sOwnerY + DEF_VIEWRANGE_Y + sRange)) {
 			bHasNearbyClients = true;
 			break;
 		}
@@ -3014,7 +2997,7 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 					m_pClientList[iFirstClient]->m_cMapIndex,
 					m_pClientList[iFirstClient]->m_sX,
 					m_pClientList[iFirstClient]->m_sY,
-					12 + sRange, iSkipCount);
+					DEF_VIEWRANGE_X + sRange, iSkipCount);
 			}
 			else {
 				wsprintf(G_cTxt, "[DEBUG] SendEventToNearClient_TypeA: No nearby clients for entity (Type:%d MsgType:0x%X), skipped %d broadcasts in last 5s",
@@ -3185,10 +3168,10 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 			if ((bFlag) && (m_pClientList[i] != 0) && (m_pClientList[i]->m_bIsInitComplete))
 
 				if ((m_pClientList[i]->m_cMapIndex == m_pClientList[sOwnerH]->m_cMapIndex) &&
-					(m_pClientList[i]->m_sX >= m_pClientList[sOwnerH]->m_sX - 12 - sRange) &&
-					(m_pClientList[i]->m_sX <= m_pClientList[sOwnerH]->m_sX + 12 + sRange) &&
-					(m_pClientList[i]->m_sY >= m_pClientList[sOwnerH]->m_sY - 10 - sRange) &&
-					(m_pClientList[i]->m_sY <= m_pClientList[sOwnerH]->m_sY + 10 + sRange)) {
+					(m_pClientList[i]->m_sX >= m_pClientList[sOwnerH]->m_sX - DEF_VIEWRANGE_X - sRange) &&
+					(m_pClientList[i]->m_sX <= m_pClientList[sOwnerH]->m_sX + DEF_VIEWRANGE_X + sRange) &&
+					(m_pClientList[i]->m_sY >= m_pClientList[sOwnerH]->m_sY - DEF_VIEWRANGE_Y - sRange) &&
+					(m_pClientList[i]->m_sY <= m_pClientList[sOwnerH]->m_sY + DEF_VIEWRANGE_Y + sRange)) {
 
 					/*//If player not same side and is invied (Beholder Hack)
 					if (m_pClientList[sOwnerH] != 0 && i != sOwnerH)
@@ -3436,10 +3419,10 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, DWORD dw
 			if ((bFlag) && (m_pClientList[i] != 0))
 
 				if ((m_pClientList[i]->m_cMapIndex == m_pNpcList[sOwnerH]->m_cMapIndex) &&
-					(m_pClientList[i]->m_sX >= m_pNpcList[sOwnerH]->m_sX - 12 - sRange) &&
-					(m_pClientList[i]->m_sX <= m_pNpcList[sOwnerH]->m_sX + 12 + sRange) &&
-					(m_pClientList[i]->m_sY >= m_pNpcList[sOwnerH]->m_sY - 10 - sRange) &&
-					(m_pClientList[i]->m_sY <= m_pNpcList[sOwnerH]->m_sY + 10 + sRange)) {
+					(m_pClientList[i]->m_sX >= m_pNpcList[sOwnerH]->m_sX - DEF_VIEWRANGE_X - sRange) &&
+					(m_pClientList[i]->m_sX <= m_pNpcList[sOwnerH]->m_sX + DEF_VIEWRANGE_X + sRange) &&
+					(m_pClientList[i]->m_sY >= m_pNpcList[sOwnerH]->m_sY - DEF_VIEWRANGE_Y - sRange) &&
+					(m_pClientList[i]->m_sY <= m_pNpcList[sOwnerH]->m_sY + DEF_VIEWRANGE_Y + sRange)) {
 
 					iTemp = *ipStatus;
 					iTemp = 0x0FFFFFFF & iTemp;
@@ -10974,267 +10957,9 @@ void CGame::RemoveFromTarget(short sTargetH, char cTargetType, int iCode)
 
 void CGame::NpcKilledHandler(short sAttackerH, char cAttackerType, int iNpcH, short sDamage)
 {
-	short  sAttackerWeapon, sType;
-	int* ip, i, iQuestIndex, iConstructionPoint, iWarContribution, iMapIndex;
-	double dTmp1, dTmp2, dTmp3;
-	char* cp, cData[120], cQuestRemain;
-	DWORD iExp;
-
-	if (m_pNpcList[iNpcH] == 0) return;
-	if (m_pNpcList[iNpcH]->m_bIsKilled) return;
-
-#ifdef _DEBUG
-	printf("[DEBUG] NpcKilledHandler: NPC[%d] '%s' killed - iSpotMobIndex=%d\n",
-		iNpcH, m_pNpcList[iNpcH]->m_cName, m_pNpcList[iNpcH]->m_iSpotMobIndex);
-#endif
-
-	m_pNpcList[iNpcH]->m_bIsKilled = true;
-	m_pNpcList[iNpcH]->m_iHP = 0;
-	m_pNpcList[iNpcH]->m_iLastDamage = sDamage;
-
-	sType = m_pNpcList[iNpcH]->m_sType;
-
-	m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_iTotalAliveObject--;
-
-	RemoveFromTarget(iNpcH, DEF_OWNERTYPE_NPC);
-
-	ReleaseFollowMode(iNpcH, DEF_OWNERTYPE_NPC);
-
-	m_pNpcList[iNpcH]->m_iTargetIndex = 0;
-	m_pNpcList[iNpcH]->m_cTargetType = 0;
-	if (cAttackerType == DEF_OWNERTYPE_PLAYER) {
-		sAttackerWeapon = ((m_pClientList[sAttackerH]->m_sAppr2 & 0x0FF0) >> 4);
-	}
-	else sAttackerWeapon = 1;
-	SendEventToNearClient_TypeA(iNpcH, DEF_OWNERTYPE_NPC, MSGID_EVENT_MOTION, DEF_OBJECTDYING, sDamage, sAttackerWeapon, 0);
-	m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->ClearOwner(10, iNpcH, DEF_OWNERTYPE_NPC, m_pNpcList[iNpcH]->m_sX, m_pNpcList[iNpcH]->m_sY);
-	m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->SetDeadOwner(iNpcH, DEF_OWNERTYPE_NPC, m_pNpcList[iNpcH]->m_sX, m_pNpcList[iNpcH]->m_sY);
-	m_pNpcList[iNpcH]->m_cBehavior = DEF_BEHAVIOR_DEAD;
-
-	m_pNpcList[iNpcH]->m_sBehaviorTurnCount = 0;
-	m_pNpcList[iNpcH]->m_dwDeadTime = timeGetTime();
-
-	if (m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_cType == DEF_MAPTYPE_NOPENALTY_NOREWARD) return;
-
-	NpcDeadItemGenerator(iNpcH, sAttackerH, cAttackerType);
-
-	if ((m_pNpcList[iNpcH]->m_bIsSummoned != true) && (cAttackerType == DEF_OWNERTYPE_PLAYER) &&
-		(m_pClientList[sAttackerH] != 0)) {
-		iExp = (m_pNpcList[iNpcH]->m_iExp / 3);
-		if (m_pNpcList[iNpcH]->m_iNoDieRemainExp > 0)
-			iExp += m_pNpcList[iNpcH]->m_iNoDieRemainExp;
-
-		if (m_pClientList[sAttackerH]->m_iAddExp != 0) {
-			dTmp1 = (double)m_pClientList[sAttackerH]->m_iAddExp;
-			dTmp2 = (double)iExp;
-			dTmp3 = (dTmp1 / 100.0f) * dTmp2;
-			iExp += (DWORD)dTmp3;
-		}
-
-		if (sType == 81) {
-			for (i = 1; i < DEF_MAXCLIENTS; i++) {
-				if (m_pClientList[i] != 0) {
-					SendNotifyMsg(sAttackerH, i, DEF_NOTIFY_ABADDONKILLED, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-				}
-			}
-		}
-
-		if (m_bIsCrusadeMode) {
-			if (iExp > 10) iExp = iExp / 3;
-		}
-
-		// New 09/05/2004
-		//m_pClientList[sAttackerH]->m_iExpStock += iExp;
-		GetExp(sAttackerH, iExp, true);
-
-		// Quest
-		iQuestIndex = m_pClientList[sAttackerH]->m_iQuest;
-		if (iQuestIndex != 0) {
-			if (m_pQuestConfigList[iQuestIndex] != 0) {
-				switch (m_pQuestConfigList[iQuestIndex]->m_iType) {
-				case DEF_QUESTTYPE_MONSTERHUNT:
-					if ((m_pClientList[sAttackerH]->m_bQuestMatchFlag_Loc) &&
-						(m_pQuestConfigList[iQuestIndex]->m_iTargetType == sType)) {
-						m_pClientList[sAttackerH]->m_iCurQuestCount++;
-						cQuestRemain = (m_pQuestConfigList[m_pClientList[sAttackerH]->m_iQuest]->m_iMaxCount - m_pClientList[sAttackerH]->m_iCurQuestCount);
-						SendNotifyMsg(0, sAttackerH, DEF_NOTIFY_QUESTCOUNTER, cQuestRemain, 0, 0, 0);
-						_bCheckIsQuestCompleted(sAttackerH);
-					}
-					break;
-				}
-			}
-		}
-
-		// Centuu - mob kill's counter
-		if (m_pClientList[sAttackerH]->m_pMobKillCount[sType] == 0)
-		{
-			m_pClientList[sAttackerH]->m_pMobKillCount[sType] = new class CMobCounter(m_pNpcList[iNpcH]->m_cNpcName);
-		}
-
-		m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iKillCount++;
-		if (m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iKillCount >= m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iNextCount)
-		{
-			m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iLevel++;
-			m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iNextCount *= 2;
-		}
-
-		RequestMobKills(sAttackerH); // refresh
-	}
-
-	// v1.41
-	if (cAttackerType == DEF_OWNERTYPE_PLAYER) {
-		switch (sType) {
-		case 32:
-			m_pClientList[sAttackerH]->m_iRating -= 5;
-			if (m_pClientList[sAttackerH]->m_iRating < -10000) m_pClientList[sAttackerH]->m_iRating = 0;
-			if (m_pClientList[sAttackerH]->m_iRating > 10000) m_pClientList[sAttackerH]->m_iRating = 0;
-			break;
-
-		case 33:
-			break;
-		}
-	}
-
-	// Crusade
-	iConstructionPoint = 0;
-	switch (sType) {
-	case 1:  iConstructionPoint = 50; iWarContribution = 100; break;
-	case 2:  iConstructionPoint = 50; iWarContribution = 100; break;
-	case 3:  iConstructionPoint = 50; iWarContribution = 100; break;
-	case 4:  iConstructionPoint = 50; iWarContribution = 100; break;
-	case 5:  iConstructionPoint = 50; iWarContribution = 100; break;
-	case 6:  iConstructionPoint = 50; iWarContribution = 100; break;
-	case 36: iConstructionPoint = 700; iWarContribution = 4000; break;
-	case 37: iConstructionPoint = 700; iWarContribution = 4000; break;
-	case 38: iConstructionPoint = 500; iWarContribution = 2000; break;
-	case 39: iConstructionPoint = 500; iWarContribution = 2000; break;
-	case 40: iConstructionPoint = 1500; iWarContribution = 5000; break;
-	case 41: iConstructionPoint = 5000; iWarContribution = 10000; break;
-	case 43: iConstructionPoint = 500; iWarContribution = 1000; break;
-	case 44: iConstructionPoint = 1000; iWarContribution = 2000; break;
-	case 45: iConstructionPoint = 1500; iWarContribution = 3000; break;
-	case 46: iConstructionPoint = 1000; iWarContribution = 2000; break;
-	case 47: iConstructionPoint = 1500; iWarContribution = 3000; break;
-	case 64: m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->bRemoveCropsTotalSum(); break;
-
-	}
-
-	// Crusade
-	if (iConstructionPoint != 0) {
-		switch (cAttackerType) {
-		case DEF_OWNERTYPE_PLAYER:
-			if (m_pClientList[sAttackerH]->m_cSide != m_pNpcList[iNpcH]->m_cSide) {
-				m_pClientList[sAttackerH]->m_iConstructionPoint += iConstructionPoint;
-
-				if (m_pClientList[sAttackerH]->m_iConstructionPoint > DEF_MAXCONSTRUCTIONPOINT)
-					m_pClientList[sAttackerH]->m_iConstructionPoint = DEF_MAXCONSTRUCTIONPOINT;
-
-				m_pClientList[sAttackerH]->m_iWarContribution += iWarContribution;
-				if (m_pClientList[sAttackerH]->m_iWarContribution > DEF_MAXWARCONTRIBUTION)
-					m_pClientList[sAttackerH]->m_iWarContribution = DEF_MAXWARCONTRIBUTION;
-
-				//testcode
-				wsprintf(G_cTxt, "Enemy Npc Killed by player! Construction: +%d WarContribution: +%d", iConstructionPoint, iWarContribution);
-				PutLogList(G_cTxt);
-
-				SendNotifyMsg(0, sAttackerH, DEF_NOTIFY_CONSTRUCTIONPOINT, m_pClientList[sAttackerH]->m_iConstructionPoint, m_pClientList[sAttackerH]->m_iWarContribution, 0, 0);
-			}
-			else {
-				m_pClientList[sAttackerH]->m_iWarContribution -= (iWarContribution * 2);
-				if (m_pClientList[sAttackerH]->m_iWarContribution < 0)
-					m_pClientList[sAttackerH]->m_iWarContribution = 0;
-
-				//testcode
-				wsprintf(G_cTxt, "Friendly Npc Killed by player! WarContribution: -%d", iWarContribution);
-				PutLogList(G_cTxt);
-
-				SendNotifyMsg(0, sAttackerH, DEF_NOTIFY_CONSTRUCTIONPOINT, m_pClientList[sAttackerH]->m_iConstructionPoint, m_pClientList[sAttackerH]->m_iWarContribution, 0, 0);
-			}
-			break;
-
-		case DEF_OWNERTYPE_NPC:
-			if (m_pNpcList[sAttackerH]->m_iGuildGUID != 0) {
-				if (m_pNpcList[sAttackerH]->m_cSide != m_pNpcList[iNpcH]->m_cSide) {
-					for (i = 1; i < DEF_MAXCLIENTS; i++)
-						if ((m_pClientList[i] != 0) && (m_pClientList[i]->m_iGuildGUID == m_pNpcList[sAttackerH]->m_iGuildGUID) &&
-							(m_pClientList[i]->m_iCrusadeDuty == 3)) {
-
-							m_pClientList[i]->m_iConstructionPoint += iConstructionPoint;
-							if (m_pClientList[i]->m_iConstructionPoint > DEF_MAXCONSTRUCTIONPOINT)
-								m_pClientList[i]->m_iConstructionPoint = DEF_MAXCONSTRUCTIONPOINT;
-
-							//testcode
-							wsprintf(G_cTxt, "Enemy Npc Killed by Npc! Construct point +%d", iConstructionPoint);
-							PutLogList(G_cTxt);
-							SendNotifyMsg(0, i, DEF_NOTIFY_CONSTRUCTIONPOINT, m_pClientList[i]->m_iConstructionPoint, m_pClientList[i]->m_iWarContribution, 0, 0);
-							goto NKH_GOTOPOINT1;
-						}
-
-					/*ZeroMemory(cData, sizeof(cData));
-					cp = (char *)cData;
-					*cp = GSM_CONSTRUCTIONPOINT;
-					cp++;
-					ip = (int*)cp;
-					*ip = m_pNpcList[sAttackerH]->m_iGuildGUID;
-					cp += 4;
-					ip = (int*)cp;
-					*ip = iConstructionPoint;
-					cp += 4;
-					bStockMsgToGateServer(cData, 9);*/
-				}
-			}
-			break;
-		}
-	}
-
-NKH_GOTOPOINT1:
-
-	// v1.411 Explosive
-	if (m_pNpcList[iNpcH]->m_cSpecialAbility == 7) {
-		m_pNpcList[iNpcH]->m_iMana = 100;
-		m_pNpcList[iNpcH]->m_iMagicHitRatio = 100;
-		NpcMagicHandler(iNpcH, m_pNpcList[iNpcH]->m_sX, m_pNpcList[iNpcH]->m_sY, 30);
-	}
-	else if (m_pNpcList[iNpcH]->m_cSpecialAbility == 8) {
-		m_pNpcList[iNpcH]->m_iMana = 100;
-		m_pNpcList[iNpcH]->m_iMagicHitRatio = 100;
-		NpcMagicHandler(iNpcH, m_pNpcList[iNpcH]->m_sX, m_pNpcList[iNpcH]->m_sY, 61);
-	}
-
-	/*if (m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_iTotalAliveObject == 0) && (m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_iApocalypseMobGenType  == 2) {
-		//sub_428CD0
-	}
-
-	if (m_pNpcList[]->m_bIsApocalypseBoss ) {
-		for (i = 1; i < DEF_MAXCLIENTS; i++)
-		var_BC = m_pNpcList[iNpcH]->m_cMapIndex;
-		if (m_pClientList[i] != 0) && (m_pClientList[i]->m_bIsInitComplete ) && (var_BC >= 0) && (var_BC < DEF_MAXMAPS) {
-			if ((m_pMapList[var_BC] != 0) && (m_pMapList[var_BC]->m_bRecallImpossible )) {
-				m_pClientList[]->m_iTimeLeft_ForceRecall = 200;
-				m_pClientList[i]->m_bIsImpossibleZone = true;
-				SendNotifyMsg(0, iClientH, DEF_NOTIFY_FORCERECALLTIME,  m_pClientList[iClientH]->m_iTimeLeft_ForceRecall , 0, 0, 0);
-			}
-		}
-	}*/
-
-	if ((m_bIsHeldenianMode) && (m_pMapList[m_pNpcList[iNpcH]->m_cMapIndex]->m_bIsHeldenianMap) && (m_cHeldenianModeType == 1)) {
-		iMapIndex = 0;
-		iMapIndex = m_pNpcList[m_pNpcList[iNpcH]->m_cMapIndex]->m_cMapIndex;
-		if (sType == 87 || sType == 89) {
-			if (m_pNpcList[m_pNpcList[iNpcH]->m_cMapIndex]->m_cSide == 1) {
-				m_iHeldenianAresdenLeftTower--;
-				wsprintf(G_cTxt, "Aresden Tower Broken, Left TOWER %d", m_iHeldenianAresdenLeftTower);
-			}
-			else if (m_pNpcList[m_pNpcList[iNpcH]->m_cMapIndex]->m_cSide == 2) {
-				m_iHeldenianElvineLeftTower--;
-				wsprintf(G_cTxt, "Elvine Tower Broken, Left TOWER %d", m_iHeldenianElvineLeftTower);
-			}
-			PutLogList(G_cTxt);
-			UpdateHeldenianStatus();
-		}
-		if ((m_iHeldenianElvineLeftTower == 0) || (m_iHeldenianAresdenLeftTower == 0)) {
-			GlobalEndHeldenianMode();
-		}
+	if (m_pEntityManager != NULL) {
+		m_pEntityManager->OnEntityKilled(iNpcH, sAttackerH, cAttackerType, sDamage);
+		return;
 	}
 }
 

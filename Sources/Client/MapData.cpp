@@ -1708,9 +1708,9 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 		m_dwFrameTime = dwTime;
 
 	sVal = sViewPointX - (m_sPivotX * 32);
-	sCenterX = (sVal / 32) + 12;
+	sCenterX = (sVal / 32) + VIEW_CENTER_TILE_X;
 	sVal = sViewPointY - (m_sPivotY * 32);
-	sCenterY = (sVal / 32) + 10;
+	sCenterY = (sVal / 32) + VIEW_CENTER_TILE_Y;
 	m_sRectX = m_pGame->m_sVDL_X - m_sPivotX;
 	m_sRectY = m_pGame->m_sVDL_Y - m_sPivotY;
 
@@ -1718,19 +1718,27 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 	bAutoUpdate = (dwTime - S_dwUpdateTime) > 40;
 
 	// PERFORMANCE OPTIMIZATION: Only process tiles near player's view
-	// Screen is ~800x600 pixels = ~25x19 tiles, add buffer for effects
+	// Screen is ~LOGICAL_WIDTHxLOGICAL_HEIGHT pixels = ~20x15 tiles, add buffer for effects
 	// OLD: Processed all 60x55 = 3300 tiles every frame
 	// NEW: Process only ~35x30 = 1050 tiles (68% reduction)
-	int startX = (sCenterX - 17 < 0) ? 0 : sCenterX - 17;
-	int endX = (sCenterX + 18 > MAPDATASIZEX) ? MAPDATASIZEX : sCenterX + 18;
-	int startY = (sCenterY - 15 < 0) ? 0 : sCenterY - 15;
-	int endY = (sCenterY + 15 > MAPDATASIZEY) ? MAPDATASIZEY : sCenterY + 15;
+	int halfViewX = VIEW_TILE_WIDTH / 2;
+	int halfViewY = VIEW_TILE_HEIGHT / 2;
+	int bufferX = 5;
+	int bufferY = 6;
+	int startX = sCenterX - (halfViewX + bufferX);
+	int endX = sCenterX + (halfViewX + bufferX + 1);
+	int startY = sCenterY - (halfViewY + bufferY);
+	int endY = sCenterY + (halfViewY + bufferY);
+	if (startX < 0) startX = 0;
+	if (startY < 0) startY = 0;
+	if (endX > MAPDATASIZEX) endX = MAPDATASIZEX;
+	if (endY > MAPDATASIZEY) endY = MAPDATASIZEY;
 
 	for (dX = startX; dX < endX; dX++)
 		for (dY = startY; dY < endY; dY++)
 		{
 			sDist = (abs(sCenterX - dX) + abs(sCenterY - dY)) / 2;
-			lPan = -(sCenterX - dX) * 800;
+			lPan = -(sCenterX - dX) * LOGICAL_WIDTH;
 
 			// Dynamic Object
 			if (dynObjsNeedUpdate)//00496B99  JBE 00496F43
@@ -3874,7 +3882,7 @@ bool CMapData::bSetItem(short sX, short sY, short sIDnum, char cItemColor, DWORD
 	m_pData[dX][dY].m_dwItemAttr = dwItemAttr;
 	m_pData[dX][dY].m_cItemColor = cItemColor;
 
-	sAbsX = abs(((m_pGame->m_sViewPointX / 32) + 12) - sX);
+	sAbsX = abs(((m_pGame->m_sViewPointX / 32) + VIEW_CENTER_TILE_X) - sX);
 	sAbsY = abs(((m_pGame->m_sViewPointY / 32) + 9) - sY);
 
 	if (sAbsX > sAbsY) sDist = sAbsX;
