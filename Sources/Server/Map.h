@@ -214,7 +214,7 @@ public:
 		int iMonth;
 		int iDay;
 		int iTotalNum;
-	} m_stItemEventList[DEF_MAXITEMEVENTS];
+	} m_stItemEventList[DEF_MAXITEMEVENTS]{};
 
 	struct {
 		char  cDir;

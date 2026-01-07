@@ -143,6 +143,7 @@
     <ClInclude Include="EntityManager.h" />
     <ClInclude Include="Fish.h" />
     <ClInclude Include="Game.h" />
+    <ClInclude Include="GameConfigSqliteStore.h" />
     <ClInclude Include="GlobalDef.h" />
     <ClInclude Include="GuildsMan.h" />
     <ClInclude Include="Item.h" />
@@ -175,6 +176,7 @@
     <ClCompile Include="CommonTypes.cpp" />
     <ClCompile Include="EntityManager.cpp" />
     <ClCompile Include="Game.cpp" />
+    <ClCompile Include="GameConfigSqliteStore.cpp" />
     <ClCompile Include="LoginServer.cpp" />
     <ClCompile Include="Map.cpp" />
     <ClCompile Include="NetworkMsg.cpp" />

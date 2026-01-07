@@ -301,7 +301,7 @@ public:
 	void RequestMobKills(int client);
 
 	void RequestNoticementHandler(int iClientH);
-	bool bSendClientConfig(int iClientH, char* cFile);
+	bool bSendClientItemConfigs(int iClientH);
 
 	LoginClient* _lclients[DEF_MAXCLIENTLOGINSOCK];
 
@@ -765,7 +765,7 @@ public:
 	bool _bReadMapInfoFiles(int iMapIndex);
 	
 	bool _bGetIsStringIsNumber(char * pStr);
-	bool _bInitItemAttr(class CItem * pItem, char * pItemName);
+	bool _bInitItemAttr(class CItem * pItem, const char * pItemName);
 	bool bReadProgramConfigFile(char * cFn, bool ismaps);
 	void GameProcess();
 	void InitPlayerData(int iClientH, char * pData, uint32_t dwSize);
@@ -864,8 +864,9 @@ public:
 
 //private:
 	bool _bDecodeItemConfigFileContents(char * pData, uint32_t dwMsgSize);
-	int _iComposePlayerDataFileContents(int iClientH, char * pData);
-	bool _bDecodePlayerDatafileContents(int iClientH, char * pData, uint32_t dwSize);
+	bool LoadPlayerDataFromDb(int iClientH);
+	bool _bLoadItemConfigsFromDb();
+	void _ClearItemConfigList();
 	bool _bRegisterMap(char * pName);
 
 	class CClient * m_pClientList[DEF_MAXCLIENTS];

@@ -9,6 +9,9 @@
 #endif
 #include "LoginServer.h"
 #include "EntityManager.h"
+#include "AccountSqliteStore.h"
+#include "GameConfigSqliteStore.h"
+#include "sqlite3.h"
 
 class CDebugWindow* DbgWnd;
 
@@ -919,9 +922,7 @@ bool CGame::bInit()
 	m_iHeldenianElvineDead = 0;
 
 	int dwMsgSize = 0;
-	m_bIsItemAvailable = _bDecodeItemConfigFileContents("GameConfigs\\Item.cfg", dwMsgSize);
-	m_bIsItemAvailable = _bDecodeItemConfigFileContents("GameConfigs\\Item2.cfg", dwMsgSize);
-	m_bIsItemAvailable = _bDecodeItemConfigFileContents("GameConfigs\\Item3.cfg", dwMsgSize);
+	m_bIsItemAvailable = _bLoadItemConfigsFromDb();
 	m_bIsBuildItemAvailable = _bDecodeBuildItemConfigFileContents("GameConfigs\\builditem.cfg", dwMsgSize);
 	m_bIsNpcAvailable = _bDecodeNpcConfigFileContents("GameConfigs\\NPC.cfg", dwMsgSize);
 	m_bIsMagicAvailable = _bDecodeMagicConfigFileContents("GameConfigs\\Magic.cfg", dwMsgSize);
@@ -1504,6 +1505,11 @@ void CGame::RequestInitPlayerHandler(int iClientH, char* pData, char cKey)
 	bIsObserverMode = (bool)*cp;
 	cp++;
 
+	std::snprintf(G_cTxt, sizeof(G_cTxt),
+		"InitPlayer request: Client(%d) Char(%s) Account(%s) Observer(%d)",
+		iClientH, cCharName, cAccountName, bIsObserverMode ? 1 : 0);
+	PutLogList(G_cTxt);
+
 	for (i = 1; i < DEF_MAXCLIENTS; i++)
 		if ((m_pClientList[i] != 0) && (iClientH != i) && (memcmp(m_pClientList[i]->m_cAccountName, cAccountName, 10) == 0)) {
 			if (memcmp(m_pClientList[i]->m_cAccountPassword, cAccountPassword, 10) == 0) {
@@ -1577,6 +1583,10 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 	memcpy(cPlayerName, cTxt, 10);
 
 	if (memcmp(m_pClientList[iClientH]->m_cCharName, cPlayerName, 10) != 0) {
+		std::snprintf(G_cTxt, sizeof(G_cTxt),
+			"InitData name mismatch: Client(%d) Expected(%s) Got(%s)",
+			iClientH, m_pClientList[iClientH]->m_cCharName, cPlayerName);
+		PutLogList(G_cTxt);
 		DeleteClient(iClientH, false, true);
 		return;
 	}
@@ -1730,6 +1740,11 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 		return;
 	}
 
+	std::snprintf(G_cTxt, sizeof(G_cTxt),
+		"Sent MSGID_PLAYERCHARACTERCONTENTS to Client(%d)",
+		iClientH);
+	PutLogList(G_cTxt);
+
 	dwp = (uint32_t*)(pBuffer + DEF_INDEX4_MSGID);
 	*dwp = MSGID_PLAYERITEMLISTCONTENTS;
 	wp = (uint16_t*)(pBuffer + DEF_INDEX2_MSGTYPE);
@@ -1873,6 +1888,11 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 		return;
 	}
 
+	std::snprintf(G_cTxt, sizeof(G_cTxt),
+		"Sent MSGID_PLAYERITEMLISTCONTENTS to Client(%d) Items(%d) BankItems(%d)",
+		iClientH, iTotalItemA, iTotalItemB);
+	PutLogList(G_cTxt);
+
 	dwp = (uint32_t*)(pBuffer + DEF_INDEX4_MSGID);
 	*dwp = MSGID_RESPONSE_INITDATA;
 	wp = (uint16_t*)(pBuffer + DEF_INDEX2_MSGTYPE);
@@ -1987,6 +2007,11 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 		if (pBuffer != 0) delete[] pBuffer;
 		return;
 	}
+
+	std::snprintf(G_cTxt, sizeof(G_cTxt),
+		"Sent MSGID_RESPONSE_INITDATA to Client(%d)",
+		iClientH);
+	PutLogList(G_cTxt);
 
 	if (pBuffer != 0) delete[] pBuffer;
 
@@ -2202,9 +2227,7 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 
 	RequestNoticementHandler(iClientH); // send noticement when log in
 
-	bSendClientConfig(iClientH, "GameConfigs\\Item.cfg");
-	bSendClientConfig(iClientH, "GameConfigs\\Item2.cfg");
-	bSendClientConfig(iClientH, "GameConfigs\\Item3.cfg");
+	bSendClientItemConfigs(iClientH);
 
 	RequestMobKills(iClientH);
 }
@@ -2258,55 +2281,118 @@ void CGame::RequestMobKills(int client)
 	player->m_pXSock->iSendMsg(G_cData50000, cp - G_cData50000);//mandarle la data a p que es el cliente
 }
 
-bool CGame::bSendClientConfig(int iClientH, char* cFile)
+bool CGame::bSendClientItemConfigs(int iClientH)
 {
-	uint32_t* dwp;
-	DWORD lpNumberOfBytesRead;
-	uint16_t* wp;
-	int iRet;
-
-	HANDLE hFile = CreateFile(cFile, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	uint32_t dwFileSize = GetFileSize(hFile, 0);
-	if (dwFileSize == -1) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "(X) CRITICAL ERROR! Cannot open configuration file(%s)!", cFile);
-		PutLogList(cFile);
+	if (m_pClientList[iClientH] == 0) {
 		return false;
 	}
 
-	std::memset(G_cData50000, 0, sizeof(G_cData50000));
+	const size_t maxPayload = 29992; // Client buffer is 30000; leave room for 8-byte header.
+	const char* header = "[CONFIG]\n\n\n[ITEMS]\n\n";
+	const char* footer = "\n[ENDITEMLIST]\n";
+	const size_t headerLen = std::strlen(header);
+	const size_t footerLen = std::strlen(footer);
 
-	//std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Reading %s configuration file...", cFile);
-	//PutLogList(G_cTxt);
-	SetFilePointer(hFile, 0, 0, FILE_BEGIN);
+	int chunkCount = 0;
+	auto sendPayload = [&](const char* payload, size_t payloadLen) -> bool {
+		uint32_t* dwp = (uint32_t*)(G_cData50000);
+		uint16_t* wp = (uint16_t*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
+		std::memset(G_cData50000, 0, sizeof(G_cData50000));
+		*dwp = MSGID_ITEMCONFIGURATIONCONTENTS;
+		*wp = DEF_MSGTYPE_CONFIRM;
+		if (payloadLen > maxPayload) {
+			return false;
+		}
+		std::memcpy(G_cData50000 + 6, payload, payloadLen);
+		int iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(G_cData50000, static_cast<int>(payloadLen + 8));
+		switch (iRet) {
+		case DEF_XSOCKEVENT_QUENEFULL:
+		case DEF_XSOCKEVENT_SOCKETERROR:
+		case DEF_XSOCKEVENT_CRITICALERROR:
+		case DEF_XSOCKEVENT_SOCKETCLOSED:
+			std::snprintf(G_cTxt, sizeof(G_cTxt),
+				"Failed to send item configs: Client(%d) Payload(%zu)",
+				iClientH, payloadLen);
+			PutLogList(G_cTxt);
+			DeleteClient(iClientH, true, true);
+			delete m_pClientList[iClientH];
+			m_pClientList[iClientH] = 0;
+			return false;
+		default:
+			chunkCount++;
+			return true;
+		}
+	};
 
-	ReadFile(hFile, G_cData50000 + 6, dwFileSize, &lpNumberOfBytesRead, 0);
-	CloseHandle(hFile);
+	std::string chunk;
+	chunk.reserve(maxPayload);
+	chunk.append(header);
 
-	dwp = (uint32_t*)(G_cData50000);
-	*dwp = MSGID_ITEMCONFIGURATIONCONTENTS;
+	char line[256] = {};
+	int itemCount = 0;
+	for (int i = 0; i < DEF_MAXITEMTYPES; i++) {
+		if (m_pItemConfigList[i] == 0) {
+			continue;
+		}
+		itemCount++;
+		const class CItem* item = m_pItemConfigList[i];
+		int price = static_cast<int>(item->m_wPrice);
+		if (!item->m_bIsForSale) {
+			price = -price;
+		}
 
-	wp = (uint16_t*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_MSGTYPE_CONFIRM;
+		std::snprintf(line, sizeof(line),
+			"Item = %d %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+			item->m_sIDnum,
+			item->m_cName,
+			item->m_cItemType,
+			item->m_cEquipPos,
+			item->m_sItemEffectType,
+			item->m_sItemEffectValue1,
+			item->m_sItemEffectValue2,
+			item->m_sItemEffectValue3,
+			item->m_sItemEffectValue4,
+			item->m_sItemEffectValue5,
+			item->m_sItemEffectValue6,
+			item->m_wMaxLifeSpan,
+			item->m_sSpecialEffect,
+			item->m_sSprite,
+			item->m_sSpriteFrame,
+			price,
+			item->m_wWeight,
+			item->m_cApprValue,
+			item->m_cSpeed,
+			item->m_sLevelLimit,
+			item->m_cGenderLimit,
+			item->m_sSpecialEffectValue1,
+			item->m_sSpecialEffectValue2,
+			item->m_sRelatedSkill,
+			item->m_cCategory,
+			item->m_cItemColor);
 
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(G_cData50000, dwFileSize + 8);
-
-	switch (iRet) {
-	case DEF_XSOCKEVENT_QUENEFULL:
-	case DEF_XSOCKEVENT_SOCKETERROR:
-	case DEF_XSOCKEVENT_CRITICALERROR:
-	case DEF_XSOCKEVENT_SOCKETCLOSED:
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "(X) Cannot send configuration file(%s) contents to Client(%d)", cFile, iClientH);
-		PutLogList(G_cTxt);
-		DeleteClient(iClientH, true, true);
-		delete m_pClientList[iClientH];
-		m_pClientList[iClientH] = 0;
-		return false;
-
-	default:
-		//std::snprintf(G_cTxt, sizeof(G_cTxt), "(O) Send configuration file(%s) contents to Client(%d)", cFile, iClientH);
-		//PutLogList(G_cTxt);
-		break;
+		size_t lineLen = std::strlen(line);
+		if (chunk.size() + lineLen + footerLen > maxPayload) {
+			chunk.append(footer);
+			if (!sendPayload(chunk.c_str(), chunk.size())) {
+				return false;
+			}
+			chunk.clear();
+			chunk.append(header);
+		}
+		chunk.append(line, lineLen);
 	}
+
+	if (chunk.size() > headerLen) {
+		chunk.append(footer);
+		if (!sendPayload(chunk.c_str(), chunk.size())) {
+			return false;
+		}
+	}
+
+	std::snprintf(G_cTxt, sizeof(G_cTxt),
+		"Sent item configs: Client(%d) Items(%d) Chunks(%d)",
+		iClientH, itemCount, chunkCount);
+	PutLogList(G_cTxt);
 
 	return true;
 }
@@ -4560,7 +4646,6 @@ bool CGame::bSendMsgToLS(uint32_t dwMsg, int iClientH, bool bFlag, char* pData)
 		//	*cp = (char)bFlag;
 		//	cp++;
 		//	
-		//	iSize = _iComposePlayerDataFileContents(iClientH, cp);
 		//	
 		//	iRet = m_pSubLogSock[m_iCurSubLogSockIndex]->iSendMsg(G_cData50000, 37 + iSize);
 		//	iSendSize = 37 + iSize;
@@ -4842,6 +4927,356 @@ void CGame::ResponsePlayerDataHandler(char* pData, uint32_t dwSize)
 	PutLogList(cTxt);
 }
 
+bool CGame::LoadPlayerDataFromDb(int iClientH)
+{
+	if (m_pClientList[iClientH] == 0) return false;
+
+	sqlite3* db = nullptr;
+	std::string dbPath;
+	if (!EnsureAccountDatabase(m_pClientList[iClientH]->m_cAccountName, &db, dbPath)) {
+		return false;
+	}
+
+	AccountDbCharacterState state = {};
+	if (!LoadCharacterState(db, m_pClientList[iClientH]->m_cCharName, state)) {
+		CloseAccountDatabase(db);
+		return false;
+	}
+
+	std::memset(m_pClientList[iClientH]->m_cProfile, 0, sizeof(m_pClientList[iClientH]->m_cProfile));
+	std::snprintf(m_pClientList[iClientH]->m_cProfile, sizeof(m_pClientList[iClientH]->m_cProfile), "%s", state.profile);
+
+	std::memset(m_pClientList[iClientH]->m_cLocation, 0, sizeof(m_pClientList[iClientH]->m_cLocation));
+	std::snprintf(m_pClientList[iClientH]->m_cLocation, sizeof(m_pClientList[iClientH]->m_cLocation), "%s", state.location);
+
+	std::memset(m_pClientList[iClientH]->m_cGuildName, 0, sizeof(m_pClientList[iClientH]->m_cGuildName));
+	std::snprintf(m_pClientList[iClientH]->m_cGuildName, sizeof(m_pClientList[iClientH]->m_cGuildName), "%s", state.guildName);
+	m_pClientList[iClientH]->m_iGuildGUID = state.guildGuid;
+	m_pClientList[iClientH]->m_iGuildRank = state.guildRank;
+
+	std::memset(m_pClientList[iClientH]->m_cMapName, 0, sizeof(m_pClientList[iClientH]->m_cMapName));
+	std::snprintf(m_pClientList[iClientH]->m_cMapName, sizeof(m_pClientList[iClientH]->m_cMapName), "%s", state.mapName);
+	m_pClientList[iClientH]->m_cMapIndex = -1;
+	for (int i = 0; i < DEF_MAXMAPS; i++) {
+		if ((m_pMapList[i] != 0) && (memcmp(m_pMapList[i]->m_cName, m_pClientList[iClientH]->m_cMapName, 10) == 0)) {
+			m_pClientList[iClientH]->m_cMapIndex = (char)i;
+			break;
+		}
+	}
+	if (m_pClientList[iClientH]->m_cMapIndex == -1) {
+		std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Player(%s) tries to enter unknown map : %s", m_pClientList[iClientH]->m_cCharName, m_pClientList[iClientH]->m_cMapName);
+		PutLogList(G_cTxt);
+		CloseAccountDatabase(db);
+		return false;
+	}
+
+	m_pClientList[iClientH]->m_sX = (short)state.mapX;
+	m_pClientList[iClientH]->m_sY = (short)state.mapY;
+	m_pClientList[iClientH]->m_iHP = state.hp;
+	m_pClientList[iClientH]->m_iMP = state.mp;
+	m_pClientList[iClientH]->m_iSP = state.sp;
+	m_pClientList[iClientH]->m_iLevel = state.level;
+	m_pClientList[iClientH]->m_iRating = state.rating;
+	m_pClientList[iClientH]->m_iStr = state.str;
+	m_pClientList[iClientH]->m_iInt = state.intl;
+	m_pClientList[iClientH]->m_iVit = state.vit;
+	m_pClientList[iClientH]->m_iDex = state.dex;
+	m_pClientList[iClientH]->m_iMag = state.mag;
+	m_pClientList[iClientH]->m_iCharisma = state.chr;
+	m_pClientList[iClientH]->m_iLuck = state.luck;
+	m_pClientList[iClientH]->m_iExp = state.exp;
+	m_pClientList[iClientH]->m_iLU_Pool = state.luPool;
+	m_pClientList[iClientH]->m_iEnemyKillCount = state.enemyKillCount;
+	m_pClientList[iClientH]->m_iPKCount = state.pkCount;
+	m_pClientList[iClientH]->m_iRewardGold = state.rewardGold;
+	m_pClientList[iClientH]->m_iDownSkillIndex = state.downSkillIndex;
+	m_pClientList[iClientH]->m_sCharIDnum1 = (short)state.idnum1;
+	m_pClientList[iClientH]->m_sCharIDnum2 = (short)state.idnum2;
+	m_pClientList[iClientH]->m_sCharIDnum3 = (short)state.idnum3;
+	m_pClientList[iClientH]->m_cSex = (char)state.sex;
+	m_pClientList[iClientH]->m_cSkin = (char)state.skin;
+	m_pClientList[iClientH]->m_cHairStyle = (char)state.hairStyle;
+	m_pClientList[iClientH]->m_cHairColor = (char)state.hairColor;
+	m_pClientList[iClientH]->m_cUnderwear = (char)state.underwear;
+	m_pClientList[iClientH]->m_iHungerStatus = state.hungerStatus;
+	m_pClientList[iClientH]->m_iTimeLeft_ShutUp = state.timeleftShutup;
+	m_pClientList[iClientH]->m_iTimeLeft_Rating = state.timeleftRating;
+	m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = state.timeleftForceRecall;
+	m_pClientList[iClientH]->m_iTimeLeft_FirmStaminar = state.timeleftFirmStaminar;
+	m_pClientList[iClientH]->m_iAdminUserLevel = state.adminUserLevel;
+	m_pClientList[iClientH]->m_iPenaltyBlockYear = state.penaltyBlockYear;
+	m_pClientList[iClientH]->m_iPenaltyBlockMonth = state.penaltyBlockMonth;
+	m_pClientList[iClientH]->m_iPenaltyBlockDay = state.penaltyBlockDay;
+	m_pClientList[iClientH]->m_iQuest = state.questNumber;
+	m_pClientList[iClientH]->m_iQuestID = state.questId;
+	m_pClientList[iClientH]->m_iCurQuestCount = state.currentQuestCount;
+	m_pClientList[iClientH]->m_iQuestRewardType = state.questRewardType;
+	m_pClientList[iClientH]->m_iQuestRewardAmount = state.questRewardAmount;
+	m_pClientList[iClientH]->m_iContribution = state.contribution;
+	m_pClientList[iClientH]->m_iWarContribution = state.warContribution;
+	m_pClientList[iClientH]->m_bIsQuestCompleted = (state.questCompleted != 0);
+	m_pClientList[iClientH]->m_iSpecialEventID = state.specialEventId;
+	m_pClientList[iClientH]->m_iSuperAttackLeft = state.superAttackLeft;
+	m_pClientList[iClientH]->m_iFightzoneNumber = state.fightzoneNumber;
+	m_pClientList[iClientH]->m_iReserveTime = state.reserveTime;
+	m_pClientList[iClientH]->m_iFightZoneTicketNumber = state.fightzoneTicketNumber;
+	m_pClientList[iClientH]->m_iSpecialAbilityTime = state.specialAbilityTime;
+	std::memset(m_pClientList[iClientH]->m_cLockedMapName, 0, sizeof(m_pClientList[iClientH]->m_cLockedMapName));
+	std::snprintf(m_pClientList[iClientH]->m_cLockedMapName, sizeof(m_pClientList[iClientH]->m_cLockedMapName), "%s", state.lockedMapName);
+	m_pClientList[iClientH]->m_iLockedMapTime = state.lockedMapTime;
+	m_pClientList[iClientH]->m_iCrusadeDuty = state.crusadeJob;
+	m_pClientList[iClientH]->m_dwCrusadeGUID = state.crusadeGuid;
+	m_pClientList[iClientH]->m_iConstructionPoint = state.constructPoint;
+	m_pClientList[iClientH]->m_iDeadPenaltyTime = state.deadPenaltyTime;
+	m_pClientList[iClientH]->m_iPartyID = state.partyId;
+	m_pClientList[iClientH]->m_iGizonItemUpgradeLeft = state.gizonItemUpgradeLeft;
+	m_pClientList[iClientH]->m_sAppr1 = state.appr1;
+	m_pClientList[iClientH]->m_sAppr2 = state.appr2;
+	m_pClientList[iClientH]->m_sAppr3 = state.appr3;
+	m_pClientList[iClientH]->m_sAppr4 = state.appr4;
+	m_pClientList[iClientH]->m_iApprColor = state.apprColor;
+
+	for (int i = 0; i < DEF_MAXITEMS; i++) {
+		if (m_pClientList[iClientH]->m_pItemList[i] != 0) {
+			delete m_pClientList[iClientH]->m_pItemList[i];
+			m_pClientList[iClientH]->m_pItemList[i] = 0;
+		}
+		m_pClientList[iClientH]->m_ItemPosList[i].x = 40;
+		m_pClientList[iClientH]->m_ItemPosList[i].y = 30;
+		m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
+	}
+
+	for (int i = 0; i < DEF_MAXBANKITEMS; i++) {
+		if (m_pClientList[iClientH]->m_pItemInBankList[i] != 0) {
+			delete m_pClientList[iClientH]->m_pItemInBankList[i];
+			m_pClientList[iClientH]->m_pItemInBankList[i] = 0;
+		}
+	}
+
+	std::vector<AccountDbIndexedValue> positionsX;
+	std::vector<AccountDbIndexedValue> positionsY;
+	LoadCharacterItemPositions(db, m_pClientList[iClientH]->m_cCharName, positionsX, positionsY);
+	for (size_t i = 0; i < positionsX.size(); i++) {
+		int slot = positionsX[i].index;
+		if (slot >= 0 && slot < DEF_MAXITEMS) {
+			m_pClientList[iClientH]->m_ItemPosList[slot].x = positionsX[i].value;
+			m_pClientList[iClientH]->m_ItemPosList[slot].y = positionsY[i].value;
+		}
+	}
+
+	std::vector<AccountDbItemRow> items;
+	LoadCharacterItems(db, m_pClientList[iClientH]->m_cCharName, items);
+	for (const auto& item : items) {
+		if (item.slot < 0 || item.slot >= DEF_MAXITEMS) {
+			continue;
+		}
+		if (m_pClientList[iClientH]->m_pItemList[item.slot] != 0) {
+			delete m_pClientList[iClientH]->m_pItemList[item.slot];
+		}
+		m_pClientList[iClientH]->m_pItemList[item.slot] = new class CItem;
+		if (_bInitItemAttr(m_pClientList[iClientH]->m_pItemList[item.slot], item.itemName) == false) {
+			delete m_pClientList[iClientH]->m_pItemList[item.slot];
+			m_pClientList[iClientH]->m_pItemList[item.slot] = 0;
+			continue;
+		}
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_dwCount = item.count;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_sTouchEffectType = item.touchEffectType;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_sTouchEffectValue1 = item.touchEffectValue1;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_sTouchEffectValue2 = item.touchEffectValue2;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_sTouchEffectValue3 = item.touchEffectValue3;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_cItemColor = item.itemColor;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_sItemSpecEffectValue1 = item.specEffectValue1;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_sItemSpecEffectValue2 = item.specEffectValue2;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_sItemSpecEffectValue3 = item.specEffectValue3;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_wCurLifeSpan = (short)item.curLifeSpan;
+		m_pClientList[iClientH]->m_pItemList[item.slot]->m_dwAttribute = item.attribute;
+
+		if ((m_pClientList[iClientH]->m_pItemList[item.slot]->m_dwAttribute & 0x00000001) != 0) {
+			m_pClientList[iClientH]->m_pItemList[item.slot]->m_wMaxLifeSpan = m_pClientList[iClientH]->m_pItemList[item.slot]->m_sItemSpecEffectValue1;
+		}
+		_AdjustRareItemValue(m_pClientList[iClientH]->m_pItemList[item.slot]);
+		if (m_pClientList[iClientH]->m_pItemList[item.slot]->m_wCurLifeSpan > m_pClientList[iClientH]->m_pItemList[item.slot]->m_wMaxLifeSpan) {
+			m_pClientList[iClientH]->m_pItemList[item.slot]->m_wCurLifeSpan = m_pClientList[iClientH]->m_pItemList[item.slot]->m_wMaxLifeSpan;
+		}
+		bCheckAndConvertPlusWeaponItem(iClientH, item.slot);
+	}
+
+	std::vector<AccountDbBankItemRow> bankItems;
+	LoadCharacterBankItems(db, m_pClientList[iClientH]->m_cCharName, bankItems);
+	for (const auto& item : bankItems) {
+		if (item.slot < 0 || item.slot >= DEF_MAXBANKITEMS) {
+			continue;
+		}
+		if (m_pClientList[iClientH]->m_pItemInBankList[item.slot] != 0) {
+			delete m_pClientList[iClientH]->m_pItemInBankList[item.slot];
+		}
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot] = new class CItem;
+		if (_bInitItemAttr(m_pClientList[iClientH]->m_pItemInBankList[item.slot], item.itemName) == false) {
+			delete m_pClientList[iClientH]->m_pItemInBankList[item.slot];
+			m_pClientList[iClientH]->m_pItemInBankList[item.slot] = 0;
+			continue;
+		}
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_dwCount = item.count;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sTouchEffectType = item.touchEffectType;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sTouchEffectValue1 = item.touchEffectValue1;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sTouchEffectValue2 = item.touchEffectValue2;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sTouchEffectValue3 = item.touchEffectValue3;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_cItemColor = item.itemColor;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sItemSpecEffectValue1 = item.specEffectValue1;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sItemSpecEffectValue2 = item.specEffectValue2;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sItemSpecEffectValue3 = item.specEffectValue3;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_wCurLifeSpan = (short)item.curLifeSpan;
+		m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_dwAttribute = item.attribute;
+		if ((m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_dwAttribute & 0x00000001) != 0) {
+			m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_wMaxLifeSpan = m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_sItemSpecEffectValue1;
+		}
+		_AdjustRareItemValue(m_pClientList[iClientH]->m_pItemInBankList[item.slot]);
+		if (m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_wCurLifeSpan > m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_wMaxLifeSpan) {
+			m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_wCurLifeSpan = m_pClientList[iClientH]->m_pItemInBankList[item.slot]->m_wMaxLifeSpan;
+		}
+	}
+
+	std::vector<AccountDbIndexedValue> equips;
+	LoadCharacterItemEquips(db, m_pClientList[iClientH]->m_cCharName, equips);
+	for (const auto& equip : equips) {
+		if (equip.index >= 0 && equip.index < DEF_MAXITEMS) {
+			m_pClientList[iClientH]->m_bIsItemEquipped[equip.index] = (equip.value != 0);
+		}
+	}
+
+	int packedIndex = 0;
+	for (int i = 0; i < DEF_MAXITEMS; i++) {
+		if (m_pClientList[iClientH]->m_pItemList[i] == 0) {
+			continue;
+		}
+		if (i != packedIndex) {
+			m_pClientList[iClientH]->m_pItemList[packedIndex] = m_pClientList[iClientH]->m_pItemList[i];
+			m_pClientList[iClientH]->m_pItemList[i] = 0;
+			m_pClientList[iClientH]->m_ItemPosList[packedIndex] = m_pClientList[iClientH]->m_ItemPosList[i];
+			m_pClientList[iClientH]->m_bIsItemEquipped[packedIndex] = m_pClientList[iClientH]->m_bIsItemEquipped[i];
+		}
+		packedIndex++;
+	}
+	for (int i = packedIndex; i < DEF_MAXITEMS; i++) {
+		m_pClientList[iClientH]->m_ItemPosList[i].x = 40;
+		m_pClientList[iClientH]->m_ItemPosList[i].y = 30;
+		m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
+	}
+
+	packedIndex = 0;
+	for (int i = 0; i < DEF_MAXBANKITEMS; i++) {
+		if (m_pClientList[iClientH]->m_pItemInBankList[i] == 0) {
+			continue;
+		}
+		if (i != packedIndex) {
+			m_pClientList[iClientH]->m_pItemInBankList[packedIndex] = m_pClientList[iClientH]->m_pItemInBankList[i];
+			m_pClientList[iClientH]->m_pItemInBankList[i] = 0;
+		}
+		packedIndex++;
+	}
+	for (int i = packedIndex; i < DEF_MAXBANKITEMS; i++) {
+		m_pClientList[iClientH]->m_pItemInBankList[i] = 0;
+	}
+
+	for (int i = 0; i < DEF_MAXITEMEQUIPPOS; i++) {
+		m_pClientList[iClientH]->m_sItemEquipmentStatus[i] = -1;
+	}
+
+	for (int i = 0; i < DEF_MAXITEMS; i++) {
+		if ((m_pClientList[iClientH]->m_pItemList[i] != 0) && m_pClientList[iClientH]->m_bIsItemEquipped[i]) {
+			if (m_pClientList[iClientH]->m_pItemList[i]->m_cItemType == DEF_ITEMTYPE_EQUIP) {
+				if (bEquipItemHandler(iClientH, i) == false) {
+					m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
+				}
+			}
+			else {
+				m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
+			}
+		}
+	}
+
+	for (int i = 0; i < DEF_MAXMAGICTYPE; i++) {
+		m_pClientList[iClientH]->m_cMagicMastery[i] = 0;
+	}
+	std::vector<AccountDbIndexedValue> magicMastery;
+	LoadCharacterMagicMastery(db, m_pClientList[iClientH]->m_cCharName, magicMastery);
+	for (const auto& entry : magicMastery) {
+		if (entry.index >= 0 && entry.index < DEF_MAXMAGICTYPE) {
+			m_pClientList[iClientH]->m_cMagicMastery[entry.index] = (char)entry.value;
+		}
+	}
+
+	for (int i = 0; i < DEF_MAXSKILLTYPE; i++) {
+		m_pClientList[iClientH]->m_cSkillMastery[i] = 0;
+		m_pClientList[iClientH]->m_iSkillSSN[i] = 0;
+	}
+	std::vector<AccountDbIndexedValue> skillMastery;
+	LoadCharacterSkillMastery(db, m_pClientList[iClientH]->m_cCharName, skillMastery);
+	for (const auto& entry : skillMastery) {
+		if (entry.index >= 0 && entry.index < DEF_MAXSKILLTYPE) {
+			m_pClientList[iClientH]->m_cSkillMastery[entry.index] = (unsigned char)entry.value;
+		}
+	}
+
+	std::vector<AccountDbIndexedValue> skillSsn;
+	LoadCharacterSkillSSN(db, m_pClientList[iClientH]->m_cCharName, skillSsn);
+	for (const auto& entry : skillSsn) {
+		if (entry.index >= 0 && entry.index < DEF_MAXSKILLTYPE) {
+			m_pClientList[iClientH]->m_iSkillSSN[entry.index] = entry.value;
+		}
+	}
+
+	if (m_pClientList[iClientH]->m_iAdminUserLevel < 0) {
+		m_pClientList[iClientH]->m_iAdminUserLevel = 0;
+	}
+
+	short sTmpType = 0;
+	if (m_pClientList[iClientH]->m_cSex == 1) {
+		sTmpType = 1;
+	}
+	else if (m_pClientList[iClientH]->m_cSex == 2) {
+		sTmpType = 4;
+	}
+	switch (m_pClientList[iClientH]->m_cSkin) {
+	case 1:
+		break;
+	case 2:
+		sTmpType += 1;
+		break;
+	case 3:
+		sTmpType += 2;
+		break;
+	}
+	if (m_pClientList[iClientH]->m_iAdminUserLevel >= 10) {
+		sTmpType = (short)m_pClientList[iClientH]->m_iAdminUserLevel;
+	}
+	short sTmpAppr1 = (short)((m_pClientList[iClientH]->m_cHairStyle << 8) |
+		(m_pClientList[iClientH]->m_cHairColor << 4) |
+		(m_pClientList[iClientH]->m_cUnderwear));
+	m_pClientList[iClientH]->m_sType = sTmpType;
+	m_pClientList[iClientH]->m_sAppr1 = sTmpAppr1;
+
+	if (m_pClientList[iClientH]->m_sCharIDnum1 == 0) {
+		int temp1 = 1;
+		int temp2 = 1;
+		for (int i = 0; i < 10; i++) {
+			temp1 += m_pClientList[iClientH]->m_cCharName[i];
+			temp2 += abs(m_pClientList[iClientH]->m_cCharName[i] ^ m_pClientList[iClientH]->m_cCharName[i]);
+		}
+		m_pClientList[iClientH]->m_sCharIDnum1 = (short)GameClock::GetTimeMS();
+		m_pClientList[iClientH]->m_sCharIDnum2 = (short)temp1;
+		m_pClientList[iClientH]->m_sCharIDnum3 = (short)temp2;
+	}
+
+	m_pClientList[iClientH]->m_iSpeedHackCheckExp = m_pClientList[iClientH]->m_iExp;
+	if (memcmp(m_pClientList[iClientH]->m_cLocation, "NONE", 4) == 0) {
+		m_pClientList[iClientH]->m_bIsNeutral = true;
+	}
+
+	CloseAccountDatabase(db);
+	return true;
+}
+
 void CGame::InitPlayerData(int iClientH, char* pData, uint32_t dwSize)
 {
 	char cData[256], cTxt[256], cQuestRemain;
@@ -4870,19 +5305,7 @@ void CGame::InitPlayerData(int iClientH, char* pData, uint32_t dwSize)
 	m_pClientList[iClientH]->m_iDefenseRatio = 0;
 	m_pClientList[iClientH]->m_cSide = 0;
 
-	char cFileName[112] = {};
-	char cDir[112] = {};
-	strcat(cFileName, "Characters");
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	std::snprintf(cDir, sizeof(cDir), "AscII%d", m_pClientList[iClientH]->m_cCharName[0]);
-	strcat(cFileName, cDir);
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	strcat(cFileName, m_pClientList[iClientH]->m_cCharName);
-	strcat(cFileName, ".txt");
-
-	bRet = _bDecodePlayerDatafileContents(iClientH, cFileName, 0); //_bDecodePlayerDatafileContents(iClientH, cp, dwSize - 19);
+	bRet = LoadPlayerDataFromDb(iClientH);
 	if (bRet == false) {
 		std::snprintf(G_cTxt, sizeof(G_cTxt), "(HACK?) Character(%s) data error!", m_pClientList[iClientH]->m_cCharName);
 		DeleteClient(iClientH, false, true); //!!!
@@ -4994,6 +5417,9 @@ void CGame::InitPlayerData(int iClientH, char* pData, uint32_t dwSize)
 		DeleteClient(iClientH, false, true); //!!!!!
 		return;
 	}
+
+	std::snprintf(cTxt, sizeof(cTxt), "<%d> Sent MSGID_RESPONSE_INITPLAYER.", iClientH);
+	PutLogList(cTxt);
 
 	m_pClientList[iClientH]->m_bIsInitComplete = true;
 
@@ -5658,2420 +6084,6 @@ bool CGame::bReadCrusadeStructureConfigFile(char* cFn)
 	return true;
 }
 
-bool CGame::_bDecodePlayerDatafileContents(int iClientH, char* pData, uint32_t dwSize)
-{
-	char* pContents, * token, * pOriginContents, cTmpName[11], cTxt[120];
-	char   seps[] = "= \t\r\n";
-	char   cReadModeA, cReadModeB;
-	int    i, iItemIndex, iItemInBankIndex;
-	short  sTmpType, sTmpAppr1;
-	bool   bRet;
-	int    iTemp;
-	SYSTEMTIME SysTime;
-	__int64 iDateSum1, iDateSum2;
-	bool   bIsNotUsedItemFound = false;
-	uint32_t iTotalGold, iNotUsedItemPrice;
-
-	if (m_pClientList[iClientH] == 0) return false;
-
-	iTotalGold = 0;
-	iItemIndex = 0;
-	iItemInBankIndex = 0;
-	iNotUsedItemPrice = 0;
-
-	cReadModeA = 0;
-	cReadModeB = 0;
-
-	/*pContents = new char[dwSize+2];
-	std::memset(pContents, 0, dwSize+2);
-	memcpy(pContents, pData, dwSize);*/
-
-	char cData[30000];
-	DWORD lpNumberOfBytesRead;
-	HANDLE hFile = CreateFile(pData, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	uint32_t dwFileSize = GetFileSize(hFile, 0);
-	if (dwFileSize == -1) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "(X) CRITICAL ERROR! Cannot open character file(%s)!", pData);
-		PutLogList(pData);
-		return false;
-	}
-
-	SetFilePointer(hFile, 0, 0, FILE_BEGIN);
-
-	ReadFile(hFile, cData, dwFileSize, &lpNumberOfBytesRead, 0);
-	CloseHandle(hFile);
-
-	pContents = new char[dwFileSize + 1];
-	std::memset(pContents, 0, dwFileSize + 1);
-	memcpy(pContents, cData, dwFileSize);
-
-	pOriginContents = pContents;
-
-	token = strtok(pContents, seps);
-
-	while (token != 0) {
-		if (cReadModeA != 0) {
-			switch (cReadModeA) {
-			case 1:
-				std::memset(m_pClientList[iClientH]->m_cMapName, 0, sizeof(m_pClientList[iClientH]->m_cMapName));
-				strcpy(m_pClientList[iClientH]->m_cMapName, token);
-				std::memset(cTmpName, 0, sizeof(cTmpName));
-				strcpy(cTmpName, token);
-				for (i = 0; i < DEF_MAXMAPS; i++)
-					if ((m_pMapList[i] != 0) && (memcmp(m_pMapList[i]->m_cName, cTmpName, 10) == 0)) {
-						m_pClientList[iClientH]->m_cMapIndex = (char)i;
-					}
-
-				if (m_pClientList[iClientH]->m_cMapIndex == -1) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!) Player(%s) tries to enter unknown map : %s", m_pClientList[iClientH]->m_cCharName, cTmpName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				cReadModeA = 0;
-				break;
-
-			case 2:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_sX = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 3:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_sY = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 4:
-				/*
-				if (_bGetIsStringIsNumber(token) == false) {
-				std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-				PutLogList(cTxt);
-				delete[] pContents;
-							return false;
-				}
-				m_pClientList[iClientH]->m_cAccountStatus = atoi(token);
-				*/
-				cReadModeA = 0;
-				break;
-
-			case 5:
-				switch (cReadModeB) {
-				case 1:
-					// New 07/05/2004
-					// v2.12
-					if (iItemIndex >= DEF_MAXITEMS) {
-						delete[] pContents;
-						return false;
-					}
-
-					// token
-					if (_bInitItemAttr(m_pClientList[iClientH]->m_pItemList[iItemIndex], token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Client(%s)-Item(%s) is not existing Item! Conection closed.", m_pClientList[iClientH]->m_cCharName, token);
-						PutLogList(cTxt);
-
-						// Debug code @@@@@@@@@@@@@@@
-						HANDLE hFile;
-						DWORD nWrite;
-						hFile = CreateFile("Error.Log", GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-						WriteFile(hFile, (char*)pContents, dwSize + 2, &nWrite, 0);
-						CloseHandle(hFile);
-
-						delete[] pContents;
-						return false;
-					}
-					cReadModeB = 2;
-					break;
-
-				case 2:
-					// m_dwCount
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-
-					iTemp = atoi(token);
-					if (iTemp < 0) iTemp = 1;
-					if (iGetItemWeight(m_pClientList[iClientH]->m_pItemList[iItemIndex], iTemp) > _iCalcMaxLoad(iClientH)) {
-						iTemp = 1;
-						std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Player�(%s) Item (%s) too heavy for player to carry", m_pClientList[iClientH]->m_cCharName, m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_cName);
-						PutLogFileList(G_cTxt);
-						PutLogList(G_cTxt);
-					}
-
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_dwCount = (uint32_t)iTemp;
-					cReadModeB = 3;
-
-					// v1.3
-					if (memcmp(m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_cName, "Gold", 4) == 0)
-						iTotalGold += iTemp;
-					break;
-
-				case 3:
-					// m_sTouchEffectType
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectType = atoi(token);
-					cReadModeB = 4;
-					break;
-
-				case 4:
-					// m_sTouchEffectValue1
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue1 = atoi(token);
-					cReadModeB = 5;
-					break;
-
-				case 5:
-					// m_sTouchEffectValue2
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue2 = atoi(token);
-					cReadModeB = 6;
-					break;
-
-				case 6:
-					// m_sTouchEffectValue3
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue3 = atoi(token);
-					cReadModeB = 7;
-					break;
-
-				case 7:
-					// m_cItemColor
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_cItemColor = atoi(token);
-					cReadModeB = 8;
-					break;
-
-				case 8:
-					// m_sItemSpecEffectValue1
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sItemSpecEffectValue1 = atoi(token);
-					cReadModeB = 9;
-					break;
-
-				case 9:
-					// m_sItemSpecEffectValue2
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sItemSpecEffectValue2 = atoi(token);
-					cReadModeB = 10;
-					break;
-
-				case 10:
-					// m_sItemSpecEffectValue3
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sItemSpecEffectValue3 = atoi(token);
-					cReadModeB = 11;
-					break;
-
-				case 11:
-					// m_wCurLifeSpan
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wCurLifeSpan = atoi(token);
-
-					cReadModeB = 12;
-					break;
-
-				case 12:
-					// m_dwAttribute
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_dwAttribute = atoi(token);
-
-					// v1.4
-					if (m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectType == DEF_ITET_UNIQUE_OWNER) {
-						if ((m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue1 != m_pClientList[iClientH]->m_sCharIDnum1) ||
-							(m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue2 != m_pClientList[iClientH]->m_sCharIDnum2) ||
-							(m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue3 != m_pClientList[iClientH]->m_sCharIDnum3)) {
-							std::snprintf(cTxt, sizeof(cTxt), "(!) ´Ù¸¥ »ç¶÷ÀÇ ¾ÆÀÌÅÛ ¼ÒÁö: Player(%s) Item(%s) %d %d %d - %d %d %d", m_pClientList[iClientH]->m_cCharName, m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_cName,
-								m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue1,
-								m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue2,
-								m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sTouchEffectValue3,
-								m_pClientList[iClientH]->m_sCharIDnum1,
-								m_pClientList[iClientH]->m_sCharIDnum2,
-								m_pClientList[iClientH]->m_sCharIDnum3);
-							PutLogList(cTxt);
-							//PutLogFileList(cTxt);
-						}
-					}
-
-					cReadModeA = 0;
-					cReadModeB = 0;
-
-					// v1.41
-					if ((m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_dwAttribute & 0x00000001) != 0) {
-						m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wMaxLifeSpan = m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sItemSpecEffectValue1;
-					}
-
-					// v1.42
-					_AdjustRareItemValue(m_pClientList[iClientH]->m_pItemList[iItemIndex]);
-
-					// v1.41
-					if (m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wCurLifeSpan > m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wMaxLifeSpan)
-						m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wCurLifeSpan = m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wMaxLifeSpan;
-
-					// v1.433
-					if ((m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wCurLifeSpan == 0) &&
-						(m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_sItemEffectType == DEF_ITEMEFFECTTYPE_ALTERITEMDROP)) {
-						std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Ä³¸¯ÅÍ(%s) ¼ö¸í 0Â¥¸® Èñ»ý¼® ¼ÒÁö!", m_pClientList[iClientH]->m_cCharName);
-						PutLogFileList(G_cTxt);
-						m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wCurLifeSpan = 1;
-					}
-
-					// v2.05
-					bCheckAndConvertPlusWeaponItem(iClientH, iItemIndex);
-
-					// v1.4
-					if (m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_cItemType == DEF_ITEMTYPE_NOTUSED) {
-						iNotUsedItemPrice += m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wPrice;
-						delete m_pClientList[iClientH]->m_pItemList[iItemIndex];
-						m_pClientList[iClientH]->m_pItemList[iItemIndex] = 0;
-
-						// v1.41
-						bIsNotUsedItemFound = true;
-					}
-					else
-						if (_bCheckDupItemID(m_pClientList[iClientH]->m_pItemList[iItemIndex])) {
-							// v1.42
-							_bItemLog(DEF_ITEMLOG_DUPITEMID, iClientH, 0, m_pClientList[iClientH]->m_pItemList[iItemIndex]);
-
-							iNotUsedItemPrice += m_pClientList[iClientH]->m_pItemList[iItemIndex]->m_wPrice;
-							delete m_pClientList[iClientH]->m_pItemList[iItemIndex];
-							m_pClientList[iClientH]->m_pItemList[iItemIndex] = 0;
-						}
-						else iItemIndex++;
-					break;
-				}
-				break;
-
-			case 6:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_cSex = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 7:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_cSkin = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 8:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_cHairStyle = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 9:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_cHairColor = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 10:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_cUnderwear = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 11:
-				for (i = 0; i < DEF_MAXITEMEQUIPPOS; i++)
-					m_pClientList[iClientH]->m_sItemEquipmentStatus[i] = -1;
-
-				for (i = 0; i < DEF_MAXITEMS; i++)
-					m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
-
-				// v1.41
-				if (bIsNotUsedItemFound == false) {
-					for (i = 0; i < DEF_MAXITEMS; i++) {
-						std::snprintf(cTxt, sizeof(cTxt), "%d", token[i]);
-						if ((token[i] == '1') && (m_pClientList[iClientH]->m_pItemList[i] != 0)) {
-							if (m_pClientList[iClientH]->m_pItemList[i]->m_cItemType == DEF_ITEMTYPE_EQUIP)
-								m_pClientList[iClientH]->m_bIsItemEquipped[i] = true;
-							else m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
-						}
-						else m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
-
-						if ((m_pClientList[iClientH] != 0) && (m_pClientList[iClientH]->m_bIsItemEquipped[i])) {
-							if (bEquipItemHandler(iClientH, i) == false) // false
-								m_pClientList[iClientH]->m_bIsItemEquipped[i] = false; // ¸¸¾à Æ¯¼ºÄ¡ º¯µ¿À¸·Î ÀåÂøµÈ ¾ÆÀÌÅÛÀÌ ÀåÂøµÇÁö ¾Ê¾Æ¾ß ÇÑ´Ù¸é ÀåÂø ¾ÈÇÑ°ÍÀ» Ç¥½Ã 
-						}
-					}
-				}
-
-				cReadModeA = 0;
-				break;
-
-			case 12:
-				std::memset(m_pClientList[iClientH]->m_cGuildName, 0, sizeof(m_pClientList[iClientH]->m_cGuildName));
-				strcpy(m_pClientList[iClientH]->m_cGuildName, token);
-				cReadModeA = 0;
-				break;
-
-			case 13:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iGuildRank = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 14:
-				// HP 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iHP = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 15:
-				// DefenseRatio
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				//m_pClientList[iClientH]->m_iOriginDefenseRatio = atoi(token);
-				//m_pClientList[iClientH]->m_iCurDefenseRatio = m_pClientList[iClientH]->m_iOriginDefenseRatio;
-				cReadModeA = 0;
-				break;
-
-			case 16:
-				// HitRatio
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				//m_pClientList[iClientH]->m_iOriginHitRatio = atoi(token);
-				//m_pClientList[iClientH]->m_iCurHitRatio = m_pClientList[iClientH]->m_iOriginHitRatio;
-				cReadModeA = 0;
-				break;
-
-			case 17:
-				// Level  
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iLevel = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 18:
-				// Str 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iStr = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 19:
-				// Int 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iInt = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 20:
-				// Vit 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iVit = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 21:
-				// Dex 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iDex = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 22:
-				// Mag 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iMag = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 23:
-				// Charisma 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iCharisma = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 24:
-				// Luck 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iLuck = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 25:
-				// Exp 
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iExp = atol(token);
-				cReadModeA = 0;
-				break;
-
-			case 26:
-				// Magic-Mastery
-				for (i = 0; i < DEF_MAXMAGICTYPE; i++) {
-					m_pClientList[iClientH]->m_cMagicMastery[i] = token[i] - 48;
-				}
-				cReadModeA = 0;
-				break;
-
-			case 27:
-				// Skill-Mastery
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_cSkillMastery[cReadModeB] = atoi(token);
-				cReadModeB++;
-
-				if (cReadModeB >= DEF_MAXSKILLTYPE) {
-					cReadModeA = 0;
-					cReadModeB = 0;
-				}
-				break;
-				//
-			case 28:
-				// Warehouse
-				switch (cReadModeB) {
-				case 1:
-					if (iItemInBankIndex >= DEF_MAXBANKITEMS) {
-						delete[] pContents;
-						return false;
-					}
-					// token
-					if (_bInitItemAttr(m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex], token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Client(%s)-Bank Item(%s) is not existing Item! Conection closed.", m_pClientList[iClientH]->m_cCharName, token);
-						PutLogList(cTxt);
-
-						// Debug code @@@@@@@@@@@@@@@
-						HANDLE hFile;
-						DWORD nWrite;
-						hFile = CreateFile("Error.Log", GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-						WriteFile(hFile, (char*)pOriginContents, dwSize + 2, &nWrite, 0);
-						CloseHandle(hFile);
-						///////////// @@@@@@@@@@@@@@@
-
-						delete[] pContents;
-						return false;
-					}
-					cReadModeB = 2;
-					break;
-
-				case 2:
-					// m_dwCount
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-
-					iTemp = atoi(token);
-					if (iTemp < 0) iTemp = 1;
-
-					if (iGetItemWeight(m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex], iTemp) > _iCalcMaxLoad(iClientH)) {
-						iTemp = 1;
-						std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Ä³¸¯ÅÍ(%s) ¾ÆÀÌÅÛ(%s) °³¼ö ¿À¹öÇÃ·Î¿ì", m_pClientList[iClientH]->m_cCharName, m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_cName);
-						PutLogFileList(G_cTxt);
-						PutLogList(G_cTxt);
-					}
-
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_dwCount = (uint32_t)iTemp;
-					cReadModeB = 3;
-
-					// v1.3
-					if (memcmp(m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_cName, "Gold", 4) == 0)
-						iTotalGold += iTemp;
-					break;
-
-				case 3:
-					// m_sTouchEffectType
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sTouchEffectType = atoi(token);
-					cReadModeB = 4;
-					break;
-
-				case 4:
-					// m_sTouchEffectValue1
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sTouchEffectValue1 = atoi(token);
-					cReadModeB = 5;
-					break;
-
-				case 5:
-					// m_sTouchEffectValue2
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sTouchEffectValue2 = atoi(token);
-					cReadModeB = 6;
-					break;
-
-				case 6:
-					// m_sTouchEffectValue3
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sTouchEffectValue3 = atoi(token);
-					cReadModeB = 7;
-					break;
-
-				case 7:
-					// m_cItemColor
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_cItemColor = atoi(token);
-					cReadModeB = 8;
-					break;
-
-				case 8:
-					// m_sItemSpecEffectValue1
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sItemSpecEffectValue1 = atoi(token);
-					cReadModeB = 9;
-					break;
-
-				case 9:
-					// m_sItemSpecEffectValue2
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sItemSpecEffectValue2 = atoi(token);
-					cReadModeB = 10;
-					break;
-
-				case 10:
-					// m_sItemSpecEffectValue3
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sItemSpecEffectValue3 = atoi(token);
-					cReadModeB = 11;
-					break;
-
-				case 11:
-					// m_wCurLifeSpan
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wCurLifeSpan = atoi(token);
-
-					cReadModeB = 12;
-					break;
-
-
-				case 12:
-					// m_dwAttribute
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_dwAttribute = atoi(token);
-					cReadModeA = 0;
-					cReadModeB = 0;
-
-					// v1.41
-					if ((m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_dwAttribute & 0x00000001) != 0) {
-						m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wMaxLifeSpan = m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sItemSpecEffectValue1;
-
-					}
-
-					// v2.16 2002-5-21
-					int iValue = (m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_dwAttribute & 0xF0000000) >> 28;
-					if (iValue > 0) {
-						switch (m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_cCategory) {
-						case 5:
-						case 6:
-							m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wMaxLifeSpan = m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sItemSpecEffectValue1;
-							break;
-						}
-					}
-
-					// v1.42
-					_AdjustRareItemValue(m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]);
-
-					// v1.41
-					if (m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wCurLifeSpan > m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wMaxLifeSpan)
-						m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wCurLifeSpan = m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wMaxLifeSpan;
-
-
-					// v1.433
-					if ((m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wCurLifeSpan == 0) &&
-						(m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_sItemEffectType == DEF_ITEMEFFECTTYPE_ALTERITEMDROP)) {
-						std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Ä³¸¯ÅÍ(%s) ¼ö¸í 0Â¥¸® Èñ»ý¼® ¼ÒÁö!", m_pClientList[iClientH]->m_cCharName);
-						PutLogFileList(G_cTxt);
-						m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wCurLifeSpan = 1;
-					}
-
-					// v1.4
-					if (m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_cItemType == DEF_ITEMTYPE_NOTUSED) {
-						iNotUsedItemPrice += m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wPrice;
-						delete m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex];
-						m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex] = 0;
-					}
-					else
-						if (_bCheckDupItemID(m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex])) {
-							// v1.42
-							_bItemLog(DEF_ITEMLOG_DUPITEMID, iClientH, 0, m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]);
-
-							iNotUsedItemPrice += m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex]->m_wPrice;
-							delete m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex];
-							m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex] = 0;
-						}
-						else iItemInBankIndex++;
-					break;
-				}
-				break;
-				//
-
-			case 29:
-				std::memset(m_pClientList[iClientH]->m_cLocation, 0, sizeof(m_pClientList[iClientH]->m_cLocation));
-				strcpy(m_pClientList[iClientH]->m_cLocation, token);
-				if (memcmp(m_pClientList[iClientH]->m_cLocation + 3, "hunter", 6) == 0)
-					m_pClientList[iClientH]->m_bIsPlayerCivil = true;
-				cReadModeA = 0;
-				break;
-
-				/* 2.03 Code - Fixed by KLKS
-							case 29:
-								std::memset(m_pClientList[iClientH]->m_cLocation, 0, sizeof(m_pClientList[iClientH]->m_cLocation));
-								strcpy(m_pClientList[iClientH]->m_cLocation, token);
-								cReadModeA = 0;
-								break;
-				*/
-			case 30:
-				// m_iMP
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iMP = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 31:
-				// m_iSP
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iSP = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 32:
-				// m_cLU_Pool
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iLU_Pool = atoi(token);
-				cReadModeA = 0;
-				break;
-				/*
-				case 33:
-					// m_cLU_Vit
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-										return false;
-					}
-					m_pClientList[iClientH]->m_cLU_Vit = atoi(token);
-					cReadModeA = 0;
-					break;
-
-				case 34:
-					// m_cLU_Dex
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-										return false;
-					}
-					m_pClientList[iClientH]->m_cLU_Dex = atoi(token);
-					cReadModeA = 0;
-					break;
-
-				case 35:
-					// m_cLU_Int
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-										return false;
-					}
-					m_pClientList[iClientH]->m_cLU_Int = atoi(token);
-					cReadModeA = 0;
-					break;
-
-				case 36:
-					// m_cLU_Mag
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-										return false;
-					}
-					m_pClientList[iClientH]->m_cLU_Mag = atoi(token);
-					cReadModeA = 0;
-					break;
-
-				case 37:
-					// m_cLU_Char
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-										return false;
-					}
-					m_pClientList[iClientH]->m_cLU_Char = atoi(token);
-					cReadModeA = 0;
-					break;
-	*/
-			case 38:
-				// m_iEnemyKillCount
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iEnemyKillCount = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 39:
-				// m_iPKCount
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iPKCount = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 40:
-				// m_iRewardGold
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iRewardGold = atol(token);
-				cReadModeA = 0;
-				break;
-
-			case 41:
-				// Skill-SSN
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iSkillSSN[cReadModeB] = atoi(token);
-				cReadModeB++;
-
-				if (cReadModeB >= DEF_MAXSKILLTYPE) {
-					cReadModeA = 0;
-					cReadModeB = 0;
-				}
-				break;
-
-			case 42:
-				if (token != 0) {
-					std::memset(m_pClientList[iClientH]->m_cProfile, 0, sizeof(m_pClientList[iClientH]->m_cProfile));
-					strcpy(m_pClientList[iClientH]->m_cProfile, token);
-				}
-				cReadModeA = 0;
-				break;
-
-			case 43:
-				// Hunger-Status
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iHungerStatus = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 44:
-				// AdminUserLevel
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iAdminUserLevel = 0; //Default it to 0
-				if (atoi(token) > 0) {
-					for (i = 0; i < DEF_MAXADMINS; i++) {
-						if (strlen(m_stAdminList[i].m_cGMName) == 0) break; //No more GM's on list
-						if ((strlen(m_stAdminList[i].m_cGMName)) == (strlen(m_pClientList[iClientH]->m_cCharName))) {
-							if (memcmp(m_stAdminList[i].m_cGMName, m_pClientList[iClientH]->m_cCharName, strlen(m_pClientList[iClientH]->m_cCharName)) == 0) {
-								m_pClientList[iClientH]->m_iAdminUserLevel = atoi(token);
-								break; //Break goes to cReadModeA = 0;, so no need to do it again
-							}
-						}
-					}
-				}
-				cReadModeA = 0;
-				break;
-
-				/*case 44:
-				// AdminUserLevel
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-									return false;
-				}
-				for (i = 0; i < DEF_MAXADMINS; i++) {
-					if (atoi(token) > 0) {
-						if ((strlen(m_stAdminList[i].m_cGMName)) == (strlen(m_pClientList[iClientH]->m_cCharName))) {
-							m_pClientList[iClientH]->m_iAdminUserLevel = atoi(token);
-							cReadModeA = 0;
-							break;
-						}
-						else {
-							m_pClientList[iClientH]->m_iAdminUserLevel = 0;
-						}
-					else m_pClientList[iClientH]->m_iAdminUserLevel = 0;
-					}
-				}
-				cReadModeA = 0;
-				break;*/
-
-			case 45:
-				// TimeLeft_ShutUp
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iTimeLeft_ShutUp = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 46:
-				// TimeLeft_Rating
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iTimeLeft_Rating = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 47:
-				// Rating
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iRating = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 48:
-				// Guild GUID
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iGuildGUID = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 49:
-				// Down Skill Index
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				m_pClientList[iClientH]->m_iDownSkillIndex = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 50:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_ItemPosList[cReadModeB - 1].x = atoi(token);
-				cReadModeB++;
-				if (cReadModeB > 50) {
-					cReadModeA = 0;
-					cReadModeB = 0;
-				}
-				break;
-
-			case 51:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_ItemPosList[cReadModeB - 1].y = atoi(token);
-				if (m_pClientList[iClientH]->m_ItemPosList[cReadModeB - 1].y < -10) m_pClientList[iClientH]->m_ItemPosList[cReadModeB - 1].y = -10;
-				cReadModeB++;
-				if (cReadModeB > 50) {
-					cReadModeA = 0;
-					cReadModeB = 0;
-				}
-				break;
-
-			case 52:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_sCharIDnum1 = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 53:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_sCharIDnum2 = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 54:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_sCharIDnum3 = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 55:
-				switch (cReadModeB) {
-				case 1:
-					// Penalty Block Year
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_iPenaltyBlockYear = atoi(token);
-
-					cReadModeB = 2;
-					break;
-
-				case 2:
-					// Penalty Block Month
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_iPenaltyBlockMonth = atoi(token);
-
-					cReadModeB = 3;
-					break;
-
-				case 3:
-					// Penalty Block day
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_iPenaltyBlockDay = atoi(token);
-
-					cReadModeA = 0;
-					cReadModeB = 0;
-					break;
-				}
-				break;
-
-			case 56:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iQuest = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 57:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iCurQuestCount = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 58:
-				cReadModeA = 0;
-				break;
-
-			case 59:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iQuestRewardType = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 60:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iQuestRewardAmount = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 61:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iContribution = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 62:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iQuestID = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 63:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_bIsQuestCompleted = (bool)atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 64:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = (bool)atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 65:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iTimeLeft_FirmStaminar = (bool)atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 66:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iSpecialEventID = (bool)atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 67:
-				switch (cReadModeB) {
-				case 1:
-					// FightZone Number
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_iFightzoneNumber = atoi(token);
-
-					cReadModeB = 2;
-					break;
-
-				case 2:
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_iReserveTime = atoi(token);
-
-
-					cReadModeB = 3;
-					break;
-				case 3:
-					if (_bGetIsStringIsNumber(token) == false) {
-						std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-						PutLogList(cTxt);
-						delete[] pContents;
-						return false;
-					}
-					m_pClientList[iClientH]->m_iFightZoneTicketNumber = atoi(token);
-
-					cReadModeA = 0;
-					cReadModeB = 0;
-					break;
-
-				}
-				break;
-
-			case 70:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iSuperAttackLeft = (bool)atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 71:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iSpecialAbilityTime = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 72:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iWarContribution = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 73:
-				if (strlen(token) > 10) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-				std::memset(m_pClientList[iClientH]->m_cLockedMapName, 0, sizeof(m_pClientList[iClientH]->m_cLockedMapName));
-				strcpy(m_pClientList[iClientH]->m_cLockedMapName, token);
-				cReadModeA = 0;
-				break;
-
-			case 74:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iLockedMapTime = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 75:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iCrusadeDuty = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 76:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iConstructionPoint = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 77:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_dwCrusadeGUID = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 78:
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iDeadPenaltyTime = atoi(token);
-				cReadModeA = 0;
-				break;
-
-			case 79: // v2.06 12-4
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iPartyID = atoi(token);
-				if (m_pClientList[iClientH]->m_iPartyID != 0) m_pClientList[iClientH]->m_iPartyStatus = DEF_PARTYSTATUS_CONFIRM;
-				cReadModeA = 0;
-				break;
-
-			case 80: // v2.15
-				if (_bGetIsStringIsNumber(token) == false) {
-					std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file error! wrong Data format - Connection closed. ", m_pClientList[iClientH]->m_cCharName);
-					PutLogList(cTxt);
-					delete[] pContents;
-					return false;
-				}
-
-				m_pClientList[iClientH]->m_iGizonItemUpgradeLeft = atoi(token);
-				cReadModeA = 0;
-				break;
-			}
-		}
-		else {
-			if (memcmp(token, "character-loc-map", 17) == 0)		 cReadModeA = 1;
-			if (memcmp(token, "character-loc-x", 15) == 0)			 cReadModeA = 2;
-			if (memcmp(token, "character-loc-y", 15) == 0)			 cReadModeA = 3;
-			if (memcmp(token, "character-account-status", 21) == 0)  cReadModeA = 4;
-			if (memcmp(token, "character-item", 14) == 0) {
-				cReadModeA = 5;
-				cReadModeB = 1;
-				m_pClientList[iClientH]->m_pItemList[iItemIndex] = new class CItem;
-			}
-
-			if (memcmp(token, "character-bank-item", 18) == 0) {
-				cReadModeA = 28;
-				cReadModeB = 1;
-				m_pClientList[iClientH]->m_pItemInBankList[iItemInBankIndex] = new class CItem;
-			}
-
-			if (memcmp(token, "sex-status", 10) == 0)        cReadModeA = 6;
-			if (memcmp(token, "skin-status", 11) == 0)       cReadModeA = 7;
-			if (memcmp(token, "hairstyle-status", 16) == 0)  cReadModeA = 8;
-			if (memcmp(token, "haircolor-status", 16) == 0)  cReadModeA = 9;
-			if (memcmp(token, "underwear-status", 16) == 0)  cReadModeA = 10;
-
-			if (memcmp(token, "item-equip-status", 17) == 0)    cReadModeA = 11;
-			if (memcmp(token, "character-guild-name", 20) == 0) cReadModeA = 12;
-			if (memcmp(token, "character-guild-rank", 20) == 0) cReadModeA = 13;
-			if (memcmp(token, "character-HP", 12) == 0)         cReadModeA = 14;
-			if (memcmp(token, "character-DefenseRatio", 22) == 0)  cReadModeA = 15;
-			if (memcmp(token, "character-HitRatio", 18) == 0)   cReadModeA = 16;
-			if (memcmp(token, "character-LEVEL", 15) == 0)      cReadModeA = 17;
-			if (memcmp(token, "character-STR", 13) == 0)        cReadModeA = 18;
-			if (memcmp(token, "character-INT", 13) == 0)        cReadModeA = 19;
-			if (memcmp(token, "character-VIT", 13) == 0)        cReadModeA = 20;
-			if (memcmp(token, "character-DEX", 13) == 0)        cReadModeA = 21;
-			if (memcmp(token, "character-MAG", 13) == 0)        cReadModeA = 22;
-			if (memcmp(token, "character-CHARISMA", 18) == 0)   cReadModeA = 23;
-			if (memcmp(token, "character-LUCK", 14) == 0)       cReadModeA = 24;
-			if (memcmp(token, "character-EXP", 13) == 0)        cReadModeA = 25;
-			if (memcmp(token, "magic-mastery", 13) == 0)        cReadModeA = 26;
-
-			if (memcmp(token, "skill-mastery", 13) == 0) {
-				cReadModeA = 27;
-				cReadModeB = 0;
-			}
-
-			if (memcmp(token, "character-location", 18) == 0)   cReadModeA = 29;
-
-			if (memcmp(token, "character-MP", 12) == 0)         cReadModeA = 30;
-			if (memcmp(token, "character-SP", 12) == 0)         cReadModeA = 31;
-
-			if (memcmp(token, "character-LU_Pool", 17) == 0)     cReadModeA = 32;
-
-			/*
-			if (memcmp(token, "character-LU_Str", 16) == 0)     cReadModeA = 32;
-			if (memcmp(token, "character-LU_Vit", 16) == 0)     cReadModeA = 33;
-			if (memcmp(token, "character-LU_Dex", 16) == 0)     cReadModeA = 34;
-			if (memcmp(token, "character-LU_Int", 16) == 0)     cReadModeA = 35;
-			if (memcmp(token, "character-LU_Mag", 16) == 0)     cReadModeA = 36;
-			if (memcmp(token, "character-LU_Char",17) == 0)     cReadModeA = 37;
-			*/
-
-			if (memcmp(token, "character-EK-Count", 18) == 0)    cReadModeA = 38;
-			if (memcmp(token, "character-PK-Count", 18) == 0)    cReadModeA = 39;
-
-			if (memcmp(token, "character-reward-gold", 21) == 0) cReadModeA = 40;
-			if (memcmp(token, "skill-SSN", 9) == 0) 			cReadModeA = 41;
-			if (memcmp(token, "character-profile", 17) == 0)	cReadModeA = 42;
-
-			if (memcmp(token, "hunger-status", 13) == 0) 		cReadModeA = 43;
-			if (memcmp(token, "admin-user-level", 16) == 0) 	cReadModeA = 44;
-			if (memcmp(token, "timeleft-shutup", 15) == 0) 		cReadModeA = 45;
-			if (memcmp(token, "timeleft-rating", 15) == 0) 		cReadModeA = 46;
-			if (memcmp(token, "character-RATING", 16) == 0)	    cReadModeA = 47;
-
-			if (memcmp(token, "character-guild-GUID", 20) == 0) cReadModeA = 48;
-
-			if (memcmp(token, "character-downskillindex", 24) == 0) cReadModeA = 49;
-			if (memcmp(token, "item-position-x", 16) == 0) {
-				cReadModeA = 50;
-				cReadModeB = 1;
-			}
-			if (memcmp(token, "item-position-y", 16) == 0) {
-				cReadModeA = 51;
-				cReadModeB = 1;
-			}
-			if (memcmp(token, "character-IDnum1", 16) == 0)		cReadModeA = 52;
-			if (memcmp(token, "character-IDnum2", 16) == 0)		cReadModeA = 53;
-			if (memcmp(token, "character-IDnum3", 16) == 0)		cReadModeA = 54;
-			if (memcmp(token, "penalty-block-date", 18) == 0) {
-				cReadModeA = 55;
-				cReadModeB = 1;
-			}
-
-			if (memcmp(token, "character-quest-number", 22) == 0) cReadModeA = 56;
-			if (memcmp(token, "current-quest-count", 19) == 0)	 cReadModeA = 57;
-
-			if (memcmp(token, "quest-reward-type", 17) == 0)    cReadModeA = 59;
-			if (memcmp(token, "quest-reward-amount", 19) == 0)  cReadModeA = 60;
-
-			if (memcmp(token, "character-contribution", 22) == 0)   cReadModeA = 61;
-			if (memcmp(token, "character-quest-ID", 18) == 0)        cReadModeA = 62;
-			if (memcmp(token, "character-quest-completed", 25) == 0) cReadModeA = 63;
-
-			if (memcmp(token, "timeleft-force-recall", 21) == 0)	cReadModeA = 64;
-			if (memcmp(token, "timeleft-firm-staminar", 22) == 0)	cReadModeA = 65;
-			if (memcmp(token, "special-event-id", 16) == 0)			cReadModeA = 66;
-			if (memcmp(token, "super-attack-left", 17) == 0)		cReadModeA = 70;
-
-			if (memcmp(token, "reserved-fightzone-id", 21) == 0) {
-				cReadModeA = 67;
-				cReadModeB = 1;
-			}
-
-			if (memcmp(token, "special-ability-time", 20) == 0)       cReadModeA = 71;
-			if (memcmp(token, "character-war-contribution", 26) == 0) cReadModeA = 72;
-
-			if (memcmp(token, "locked-map-name", 15) == 0) cReadModeA = 73;
-			if (memcmp(token, "locked-map-time", 15) == 0) cReadModeA = 74;
-			if (memcmp(token, "crusade-job", 11) == 0)     cReadModeA = 75;
-			if (memcmp(token, "construct-point", 15) == 0) cReadModeA = 76;
-			if (memcmp(token, "crusade-GUID", 12) == 0)    cReadModeA = 77;
-
-			if (memcmp(token, "dead-penalty-time", 17) == 0) cReadModeA = 78;
-			if (memcmp(token, "party-id", 8) == 0)           cReadModeA = 79; // v2.06 12-4
-			if (memcmp(token, "gizon-item-upgade-left", 22) == 0) cReadModeA = 80; // v2.15 ÁöÁ¸¾ÆÀÌÅÛ¾÷±×·¹ÀÌµå
-
-			if (memcmp(token, "[EOF]", 5) == 0) goto DPDC_STOP_DECODING;
-		}
-
-		token = strtok(NULL, seps);
-	}
-
-DPDC_STOP_DECODING:
-
-	delete[] pContents;
-	if ((cReadModeA != 0) || (cReadModeB != 0)) {
-		std::snprintf(cTxt, sizeof(cTxt), "(!!!) Player(%s) data file contents error(%d %d)! Connection closed.", m_pClientList[iClientH]->m_cCharName, cReadModeA, cReadModeB);
-		PutLogList(cTxt);
-
-		// Debug code @@@@@@@@@@@@@@@
-		HANDLE hFile2;
-		DWORD nWrite2;
-		hFile2 = CreateFile("Error.Log", GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-		WriteFile(hFile2, (char*)pOriginContents, dwSize + 2, &nWrite2, 0);
-		CloseHandle(hFile2);
-		///////////// @@@@@@@@@@@@@@@
-
-		return false;
-	}
-
-	bRet = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->bIsValidLoc(m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY);
-	if (bRet == false) {
-		if ((m_pClientList[iClientH]->m_sX != -1) || (m_pClientList[iClientH]->m_sY != -1)) {
-			std::snprintf(cTxt, sizeof(cTxt), "Invalid location error! %s (%d, %d)", m_pClientList[iClientH]->m_cCharName, m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY);
-			PutLogList(cTxt);
-			return false;
-		}
-	}
-
-	/*	if ((m_pClientList[iClientH]->m_cLU_Str > DEF_TOTALLEVELUPPOINT) || (m_pClientList[iClientH]->m_cLU_Str < 0))
-	return false;
-
-	if ((m_pClientList[iClientH]->m_cLU_Vit > DEF_TOTALLEVELUPPOINT) || (m_pClientList[iClientH]->m_cLU_Vit < 0))
-	return false;
-
-	if ((m_pClientList[iClientH]->m_cLU_Dex > DEF_TOTALLEVELUPPOINT) || (m_pClientList[iClientH]->m_cLU_Dex < 0))
-	return false;
-
-	if ((m_pClientList[iClientH]->m_cLU_Int > DEF_TOTALLEVELUPPOINT) || (m_pClientList[iClientH]->m_cLU_Int < 0))
-	return false;
-
-	if ((m_pClientList[iClientH]->m_cLU_Mag > DEF_TOTALLEVELUPPOINT) || (m_pClientList[iClientH]->m_cLU_Mag < 0))
-	return false;
-
-	if ((m_pClientList[iClientH]->m_cLU_Char > DEF_TOTALLEVELUPPOINT) || (m_pClientList[iClientH]->m_cLU_Char < 0))
-	return false;
-	*/
-	//	if ( (m_pClientList[iClientH]->m_cLU_Str + m_pClientList[iClientH]->m_cLU_Vit + m_pClientList[iClientH]->m_cLU_Dex + 
-	//  		  m_pClientList[iClientH]->m_cLU_Int + m_pClientList[iClientH]->m_cLU_Mag + m_pClientList[iClientH]->m_cLU_Char) > DEF_TOTALLEVELUPPOINT) 
-	if ((m_pClientList[iClientH]->m_iLU_Pool < 0) || (m_pClientList[iClientH]->m_iLU_Pool > DEF_CHARPOINTLIMIT))
-		return false;
-
-	if ((m_pClientList[iClientH]->m_iStr < 10) || (m_pClientList[iClientH]->m_iStr > DEF_CHARPOINTLIMIT))
-		return false;
-
-	if ((m_pClientList[iClientH]->m_iDex < 10) || (m_pClientList[iClientH]->m_iDex > DEF_CHARPOINTLIMIT))
-		return false;
-
-	if ((m_pClientList[iClientH]->m_iVit < 10) || (m_pClientList[iClientH]->m_iVit > DEF_CHARPOINTLIMIT))
-		return false;
-
-	if ((m_pClientList[iClientH]->m_iInt < 10) || (m_pClientList[iClientH]->m_iInt > DEF_CHARPOINTLIMIT))
-		return false;
-
-	if ((m_pClientList[iClientH]->m_iMag < 10) || (m_pClientList[iClientH]->m_iMag > DEF_CHARPOINTLIMIT))
-		return false;
-
-	if ((m_pClientList[iClientH]->m_iCharisma < 10) || (m_pClientList[iClientH]->m_iCharisma > DEF_CHARPOINTLIMIT))
-		return false;
-
-	//	if ((m_pClientList[iClientH]->m_iStr + m_pClientList[iClientH]->m_iDex + m_pClientList[iClientH]->m_iVit + 
-	//		 m_pClientList[iClientH]->m_iInt + m_pClientList[iClientH]->m_iMag + m_pClientList[iClientH]->m_iCharisma) 
-	//		 !=	((m_pClientList[iClientH]->m_iLevel-1)*3 + 70)) return false;
-
-
-	//if ((m_pClientList[iClientH]->m_cAccountStatus != 2) && (m_pClientList[iClientH]->m_iLevel > DEF_LEVELLIMIT)) 
-	//	return false;
-
-	if ((CMisc::bCheckValidName(m_pClientList[iClientH]->m_cCharName) == false) || (CMisc::bCheckValidName(m_pClientList[iClientH]->m_cAccountName) == false))
-		return false;
-
-	if (m_pClientList[iClientH]->m_iPenaltyBlockYear != 0) {
-		GetLocalTime(&SysTime);
-		iDateSum1 = (__int64)(m_pClientList[iClientH]->m_iPenaltyBlockYear * 10000 + m_pClientList[iClientH]->m_iPenaltyBlockMonth * 100 + m_pClientList[iClientH]->m_iPenaltyBlockDay);
-		iDateSum2 = (__int64)(SysTime.wYear * 10000 + SysTime.wMonth * 100 + SysTime.wDay);
-		if (iDateSum1 >= iDateSum2) return false;
-	}
-
-	// v1.4311-3
-	if (m_pClientList[iClientH]->m_iReserveTime != 0) {
-		GetLocalTime(&SysTime);
-		iDateSum1 = (__int64)m_pClientList[iClientH]->m_iReserveTime;
-		iDateSum2 = (__int64)(SysTime.wMonth * 10000 + SysTime.wDay * 100 + SysTime.wHour);
-		if (iDateSum2 >= iDateSum1) {
-			SendNotifyMsg(0, iClientH, DEF_NOTIFY_FIGHTZONERESERVE, -2, 0, 0, 0);
-			m_pClientList[iClientH]->m_iFightzoneNumber = 0;
-			m_pClientList[iClientH]->m_iReserveTime = 0;
-			m_pClientList[iClientH]->m_iFightZoneTicketNumber = 0;
-		}
-	}
-
-	// v1.42
-	if (m_pClientList[iClientH]->m_iAdminUserLevel < 0) m_pClientList[iClientH]->m_iAdminUserLevel = 0;
-
-	// ============================================================================================================
-
-
-	if (m_pClientList[iClientH]->m_cSex == 1) {
-		sTmpType = 1;
-	}
-	else if (m_pClientList[iClientH]->m_cSex == 2) {
-		sTmpType = 4;
-	}
-
-	switch (m_pClientList[iClientH]->m_cSkin) {
-	case 1:
-		break;
-	case 2:
-		sTmpType += 1;
-		break;
-	case 3:
-		sTmpType += 2;
-		break;
-	}
-
-	// v1.41
-	if (m_pClientList[iClientH]->m_iAdminUserLevel >= 10)
-		sTmpType = m_pClientList[iClientH]->m_iAdminUserLevel;
-
-	sTmpAppr1 = (m_pClientList[iClientH]->m_cHairStyle << 8) | (m_pClientList[iClientH]->m_cHairColor << 4) | (m_pClientList[iClientH]->m_cUnderwear);
-
-	m_pClientList[iClientH]->m_sType = sTmpType;
-	m_pClientList[iClientH]->m_sAppr1 = sTmpAppr1;
-
-	iCalcTotalWeight(iClientH);
-
-	// v1.3
-	//if (iTotalGold > 800000) {
-	//	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) ÇØÅ· ¿ëÀÇÀÚ(%s) Gold(%d)", m_pClientList[iClientH]->m_cCharName, iTotalGold);
-	//PutLogFileList(G_cTxt);
-	//}
-
-	// v.135 
-	/*
-	if ((m_pClientList[iClientH]->m_cSkillMastery[0] >= 70) || (m_pClientList[iClientH]->m_cSkillMastery[1] >= 70) ||
-	(m_pClientList[iClientH]->m_cSkillMastery[12] >= 70)) {
-	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) ÇØÅ· ¿ëÀÇÀÚ(%s) ³ôÀº ½ºÅ³ (%d %d %d)", m_pClientList[iClientH]->m_cCharName,
-	m_pClientList[iClientH]->m_cSkillMastery[0], m_pClientList[iClientH]->m_cSkillMastery[1],
-	m_pClientList[iClientH]->m_cSkillMastery[12]);
-	PutLogFileList(G_cTxt);
-	}
-	*/
-
-	if (m_pClientList[iClientH]->m_sCharIDnum1 == 0) {
-		// v1.3
-		int _i, _iTemp1, _iTemp2;
-		short _sID1, _sID2, _sID3;
-
-		_iTemp1 = 1;
-		_iTemp2 = 1;
-		for (_i = 0; _i < 10; _i++) {
-			_iTemp1 += m_pClientList[iClientH]->m_cCharName[_i];
-			_iTemp2 += abs(m_pClientList[iClientH]->m_cCharName[_i] ^ m_pClientList[iClientH]->m_cCharName[_i]);
-		}
-
-		_sID1 = (short)GameClock::GetTimeMS();
-		_sID2 = (short)_iTemp1;
-		_sID3 = (short)_iTemp2;
-
-		m_pClientList[iClientH]->m_sCharIDnum1 = _sID1;
-		m_pClientList[iClientH]->m_sCharIDnum2 = _sID2;
-		m_pClientList[iClientH]->m_sCharIDnum3 = _sID3;
-	}
-
-	// v1.4
-	m_pClientList[iClientH]->m_iRewardGold += iNotUsedItemPrice;
-
-	// 
-	m_pClientList[iClientH]->m_iSpeedHackCheckExp = m_pClientList[iClientH]->m_iExp;
-
-	// v1.41 
-	if (memcmp(m_pClientList[iClientH]->m_cLocation, "NONE", 4) == 0) m_pClientList[iClientH]->m_bIsNeutral = true;
-
-	return true;
-}
-
-int CGame::_iComposePlayerDataFileContents(int iClientH, char* pData)
-{
-	SYSTEMTIME SysTime;
-	char  cTxt[120], cTmp[21];
-	POINT TempItemPosList[DEF_MAXITEMS];
-	int   i, iPos;
-
-	if (m_pClientList[iClientH] == 0) return 0;
-
-	GetLocalTime(&SysTime);
-	strcat(pData, "[FILE-DATE]\n\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "file-saved-date: %d %d %d %d %d\n", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	strcat(pData, "[NAME-ACCOUNT]\n\n");
-	strcat(pData, "character-name     = ");
-	strcat(pData, m_pClientList[iClientH]->m_cCharName);
-	strcat(pData, "\n");
-	strcat(pData, "account-name       = ");
-	strcat(pData, m_pClientList[iClientH]->m_cAccountName);
-	strcat(pData, "\n\n");
-
-	strcat(pData, "[STATUS]\n\n");
-	strcat(pData, "character-profile 	=");
-	if (strlen(m_pClientList[iClientH]->m_cProfile) == 0) {
-		strcat(pData, "__________");
-	}
-	else strcat(pData, m_pClientList[iClientH]->m_cProfile);
-	strcat(pData, "\n");
-
-	strcat(pData, "character-location   = ");
-	strcat(pData, m_pClientList[iClientH]->m_cLocation);
-	strcat(pData, "\n");
-
-	strcat(pData, "character-guild-name = ");
-	if (m_pClientList[iClientH]->m_iGuildRank != -1) {
-		// GuildRank
-		strcat(pData, m_pClientList[iClientH]->m_cGuildName);
-	}
-	else strcat(pData, "NONE");
-	strcat(pData, "\n");
-
-	// GUID 
-	strcat(pData, "character-guild-GUID = ");
-	if (m_pClientList[iClientH]->m_iGuildRank != -1) {
-		// GuildRank
-		std::memset(cTxt, 0, sizeof(cTxt));
-		std::snprintf(cTxt, sizeof(cTxt), "%d", m_pClientList[iClientH]->m_iGuildGUID);
-		strcat(pData, cTxt);
-	}
-	else strcat(pData, "-1");
-	strcat(pData, "\n");
-
-	strcat(pData, "character-guild-rank = ");
-	_itoa(m_pClientList[iClientH]->m_iGuildRank, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	strcat(pData, "character-loc-map = ");
-	strcat(pData, m_pClientList[iClientH]->m_cMapName);
-	strcat(pData, "\n");
-	strcat(pData, "character-loc-x   = ");
-	_itoa(m_pClientList[iClientH]->m_sX, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "character-loc-y   = ");
-	_itoa(m_pClientList[iClientH]->m_sY, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n\n");
-	//
-	if (m_pClientList[iClientH]->m_iHP <= 0)
-		m_pClientList[iClientH]->m_iHP = 30;
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-HP       = %d", m_pClientList[iClientH]->m_iHP);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-MP       = %d", m_pClientList[iClientH]->m_iMP);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	if (m_pClientList[iClientH]->m_iSP < 0) m_pClientList[iClientH]->m_iSP = 0; // v1.1
-	std::snprintf(cTxt, sizeof(cTxt), "character-SP       = %d", m_pClientList[iClientH]->m_iSP);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LEVEL    = %d", m_pClientList[iClientH]->m_iLevel);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-RATING   = %d", m_pClientList[iClientH]->m_iRating);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-STR      = %d", m_pClientList[iClientH]->m_iStr);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-INT      = %d", m_pClientList[iClientH]->m_iInt);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-VIT      = %d", m_pClientList[iClientH]->m_iVit);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-DEX      = %d", m_pClientList[iClientH]->m_iDex);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-MAG      = %d", m_pClientList[iClientH]->m_iMag);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-CHARISMA = %d", m_pClientList[iClientH]->m_iCharisma);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LUCK     = %d", m_pClientList[iClientH]->m_iLuck);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-EXP      = %d", m_pClientList[iClientH]->m_iExp);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LU_Pool  = %d", m_pClientList[iClientH]->m_iLU_Pool);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	/*
-	std::snprintf(cTxt, sizeof(cTxt), "character-LU_Str   = %d", m_pClientList[iClientH]->m_cLU_Str);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LU_Vit   = %d", m_pClientList[iClientH]->m_cLU_Vit);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LU_Dex   = %d", m_pClientList[iClientH]->m_cLU_Dex);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LU_Int   = %d", m_pClientList[iClientH]->m_cLU_Int);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LU_Mag   = %d", m_pClientList[iClientH]->m_cLU_Mag);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-LU_Char  = %d", m_pClientList[iClientH]->m_cLU_Char);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-	*/
-	std::snprintf(cTxt, sizeof(cTxt), "character-EK-Count = %d", m_pClientList[iClientH]->m_iEnemyKillCount);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-PK-Count = %d", m_pClientList[iClientH]->m_iPKCount);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-reward-gold = %d", m_pClientList[iClientH]->m_iRewardGold);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-downskillindex = %d", m_pClientList[iClientH]->m_iDownSkillIndex);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-IDnum1 = %d", m_pClientList[iClientH]->m_sCharIDnum1);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-IDnum2 = %d", m_pClientList[iClientH]->m_sCharIDnum2);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-IDnum3 = %d", m_pClientList[iClientH]->m_sCharIDnum3);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	/*
-	std::snprintf(cTxt, sizeof(cTxt), "party-rank = %d", m_pClientList[iClientH]->m_iPartyRank);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "party-IDnum1 = %d", m_pClientList[iClientH]->m_sPartyIDnum1);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "party-IDnum2 = %d", m_pClientList[iClientH]->m_sPartyIDnum2);
-	strcat(pData, cTxt);
-	strcat(pData,"\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "party-IDnum3 = %d", m_pClientList[iClientH]->m_sPartyIDnum3);
-	strcat(pData, cTxt);
-	strcat(pData,"\n\n");
-	*/
-
-	strcat(pData, "sex-status       = ");
-	_itoa(m_pClientList[iClientH]->m_cSex, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "skin-status      = ");
-	_itoa(m_pClientList[iClientH]->m_cSkin, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "hairstyle-status = ");
-	_itoa(m_pClientList[iClientH]->m_cHairStyle, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "haircolor-status = ");
-	_itoa(m_pClientList[iClientH]->m_cHairColor, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "underwear-status = ");
-	_itoa(m_pClientList[iClientH]->m_cUnderwear, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "hunger-status    = %d", m_pClientList[iClientH]->m_iHungerStatus);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "timeleft-shutup  = %d", m_pClientList[iClientH]->m_iTimeLeft_ShutUp);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "timeleft-rating  = %d", m_pClientList[iClientH]->m_iTimeLeft_Rating);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "timeleft-force-recall  = %d", m_pClientList[iClientH]->m_iTimeLeft_ForceRecall);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "timeleft-firm-staminar = %d", m_pClientList[iClientH]->m_iTimeLeft_FirmStaminar);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "admin-user-level = %d", m_pClientList[iClientH]->m_iAdminUserLevel);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "penalty-block-date = %d %d %d", m_pClientList[iClientH]->m_iPenaltyBlockYear, m_pClientList[iClientH]->m_iPenaltyBlockMonth, m_pClientList[iClientH]->m_iPenaltyBlockDay);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-quest-number = %d", m_pClientList[iClientH]->m_iQuest);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-quest-ID     = %d", m_pClientList[iClientH]->m_iQuestID);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "current-quest-count    = %d", m_pClientList[iClientH]->m_iCurQuestCount);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "quest-reward-type      = %d", m_pClientList[iClientH]->m_iQuestRewardType);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "quest-reward-amount    = %d", m_pClientList[iClientH]->m_iQuestRewardAmount);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-contribution = %d", m_pClientList[iClientH]->m_iContribution);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-war-contribution = %d", m_pClientList[iClientH]->m_iWarContribution);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "character-quest-completed = %d", (int)m_pClientList[iClientH]->m_bIsQuestCompleted);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "special-event-id = %d", (int)m_pClientList[iClientH]->m_iSpecialEventID);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "super-attack-left = %d", (int)m_pClientList[iClientH]->m_iSuperAttackLeft);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	// v1.4311-3
-	std::snprintf(cTxt, sizeof(cTxt), "reserved-fightzone-id = %d %d %d", m_pClientList[iClientH]->m_iFightzoneNumber, m_pClientList[iClientH]->m_iReserveTime, m_pClientList[iClientH]->m_iFightZoneTicketNumber);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "special-ability-time = %d", m_pClientList[iClientH]->m_iSpecialAbilityTime);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "locked-map-name = %s", m_pClientList[iClientH]->m_cLockedMapName);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "locked-map-time = %d", m_pClientList[iClientH]->m_iLockedMapTime);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "crusade-job = %d", m_pClientList[iClientH]->m_iCrusadeDuty);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "crusade-GUID = %d", m_pClientList[iClientH]->m_dwCrusadeGUID);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	std::snprintf(cTxt, sizeof(cTxt), "construct-point = %d", m_pClientList[iClientH]->m_iConstructionPoint);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	// v2.04 
-	std::snprintf(cTxt, sizeof(cTxt), "dead-penalty-time = %d", m_pClientList[iClientH]->m_iDeadPenaltyTime);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	// v2.06 12-4
-	std::snprintf(cTxt, sizeof(cTxt), "party-id = %d", m_pClientList[iClientH]->m_iPartyID);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	// v2.15
-	std::snprintf(cTxt, sizeof(cTxt), "gizon-item-upgade-left = %d", m_pClientList[iClientH]->m_iGizonItemUpgradeLeft);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-	strcat(pData, "\n\n");
-
-	strcat(pData, "appr1 = ");
-	_itoa(m_pClientList[iClientH]->m_sAppr1, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "appr2 = ");
-	//m_pClientList[iClientH]->m_sAppr2 = m_pClientList[iClientH]->m_sAppr2 & 0x0FFF;
-	_itoa(m_pClientList[iClientH]->m_sAppr2, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "appr3 = ");
-	_itoa(m_pClientList[iClientH]->m_sAppr3, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	strcat(pData, "appr4 = ");
-	_itoa(m_pClientList[iClientH]->m_sAppr4, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-	// v1.4 ApprColor
-	strcat(pData, "appr-color = ");
-	_itoa(m_pClientList[iClientH]->m_iApprColor, cTxt, 10);
-	strcat(pData, cTxt);
-	strcat(pData, "\n\n");
-
-	strcat(pData, "[ITEMLIST]\n\n");
-
-	for (i = 0; i < DEF_MAXITEMS; i++) { // v1.4
-		TempItemPosList[i].x = 40;
-		TempItemPosList[i].y = 30;
-	}
-	iPos = 0;
-
-	for (i = 0; i < DEF_MAXITEMS; i++)
-		if (m_pClientList[iClientH]->m_pItemList[i] != 0) {
-			// v1.4
-			TempItemPosList[iPos].x = m_pClientList[iClientH]->m_ItemPosList[i].x;
-			TempItemPosList[iPos].y = m_pClientList[iClientH]->m_ItemPosList[i].y;
-			iPos++;
-
-			strcat(pData, "character-item = ");
-			memset(cTmp, ' ', 21);
-			strcpy(cTmp, m_pClientList[iClientH]->m_pItemList[i]->m_cName);
-			cTmp[strlen(m_pClientList[iClientH]->m_pItemList[i]->m_cName)] = (char)' ';
-			cTmp[20] = 0;
-			strcat(pData, cTmp);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_dwCount, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_sTouchEffectType, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_sTouchEffectValue1, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_sTouchEffectValue2, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_sTouchEffectValue3, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_cItemColor, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_sItemSpecEffectValue1, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_sItemSpecEffectValue2, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_sItemSpecEffectValue3, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_wCurLifeSpan, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemList[i]->m_dwAttribute, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, "\n");
-		}
-	strcat(pData, "\n\n");
-
-	// v1.4
-	for (i = 0; i < DEF_MAXITEMS; i++) {
-		m_pClientList[iClientH]->m_ItemPosList[i].x = TempItemPosList[i].x;
-		m_pClientList[iClientH]->m_ItemPosList[i].y = TempItemPosList[i].y;
-	}
-
-	for (i = 0; i < DEF_MAXBANKITEMS; i++)
-		if (m_pClientList[iClientH]->m_pItemInBankList[i] != 0) {
-			strcat(pData, "character-bank-item = ");
-			memset(cTmp, ' ', 21);
-			strcpy(cTmp, m_pClientList[iClientH]->m_pItemInBankList[i]->m_cName);
-			cTmp[strlen(m_pClientList[iClientH]->m_pItemInBankList[i]->m_cName)] = (char)' ';
-			cTmp[20] = 0;
-			strcat(pData, cTmp);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_dwCount, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sTouchEffectType, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sTouchEffectValue1, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sTouchEffectValue2, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sTouchEffectValue3, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_cItemColor, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sItemSpecEffectValue1, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sItemSpecEffectValue2, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sItemSpecEffectValue3, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_wCurLifeSpan, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, " ");
-			_itoa(m_pClientList[iClientH]->m_pItemInBankList[i]->m_dwAttribute, cTxt, 10);
-			strcat(pData, cTxt);
-			strcat(pData, "\n");
-		}
-	strcat(pData, "\n\n");
-
-
-	strcat(pData, "[MAGIC-SKILL-MASTERY]\n\n");
-
-	strcat(pData, "//------------------012345678901234567890123456789012345678901234567890");
-	strcat(pData, "\n");
-
-	strcat(pData, "magic-mastery     = ");
-	for (i = 0; i < DEF_MAXMAGICTYPE; i++) {
-		std::snprintf(cTxt, sizeof(cTxt), "%d", (int)m_pClientList[iClientH]->m_cMagicMastery[i]);
-		strcat(pData, cTxt);
-	}
-	strcat(pData, "\n");
-
-	strcat(pData, "skill-mastery     = ");
-
-
-	for (i = 0; i < 60; i++) {
-		std::memset(cTxt, 0, sizeof(cTxt));
-		std::snprintf(cTxt, sizeof(cTxt), "%d ", m_pClientList[iClientH]->m_cSkillMastery[i]);
-
-		strcat(pData, cTxt);
-	}
-	strcat(pData, "\n");
-
-	strcat(pData, "skill-SSN     = ");
-	for (i = 0; i < 60; i++) {
-		std::memset(cTxt, 0, sizeof(cTxt));
-		std::snprintf(cTxt, sizeof(cTxt), "%d ", m_pClientList[iClientH]->m_iSkillSSN[i]);
-
-		strcat(pData, cTxt);
-	}
-	strcat(pData, "\n");
-
-	strcat(pData, "[ITEM-EQUIP-STATUS]\n\n");
-	strcat(pData, "item-equip-status = ");
-
-	std::memset(cTxt, 0, sizeof(cTxt));
-	strcpy(cTxt, "00000000000000000000000000000000000000000000000000");
-
-	int iEP = 0;
-	for (i = 0; i < DEF_MAXITEMS; i++)
-		if (m_pClientList[iClientH]->m_pItemList[i] != 0) {
-			if ((m_pClientList[iClientH]->m_bIsItemEquipped[i]) &&
-				(m_pClientList[iClientH]->m_pItemList[i]->m_cItemType == DEF_ITEMTYPE_EQUIP)) {
-				cTxt[iEP] = '1';
-			}
-			iEP++;
-		}
-	strcat(pData, cTxt);
-	strcat(pData, "\n");
-
-
-	strcat(pData, "item-position-x = ");
-	for (i = 0; i < DEF_MAXITEMS; i++) {
-		std::memset(cTxt, 0, sizeof(cTxt));
-		std::snprintf(cTxt, sizeof(cTxt), "%d ", m_pClientList[iClientH]->m_ItemPosList[i].x);
-		strcat(pData, cTxt);
-	}
-	strcat(pData, "\n");
-
-	strcat(pData, "item-position-y = ");
-	for (i = 0; i < DEF_MAXITEMS; i++) {
-		std::memset(cTxt, 0, sizeof(cTxt));
-		std::snprintf(cTxt, sizeof(cTxt), "%d ", m_pClientList[iClientH]->m_ItemPosList[i].y);
-		strcat(pData, cTxt);
-	}
-	strcat(pData, "\n\n");
-
-	strcat(pData, "[EOF]");
-	strcat(pData, "\n\n\n\n");
-
-	return strlen(pData);
-}
-
 bool CGame::_bDecodeItemConfigFileContents(char* pData, uint32_t dwMsgSize)
 {
 	char* pContents, * token, cTxt[120];
@@ -8423,8 +6435,39 @@ DICFC_STOPDECODING:
 	return true;
 }
 
+void CGame::_ClearItemConfigList()
+{
+	for (int i = 0; i < DEF_MAXITEMTYPES; i++) {
+		if (m_pItemConfigList[i] != 0) {
+			delete m_pItemConfigList[i];
+			m_pItemConfigList[i] = 0;
+		}
+	}
+}
 
-bool CGame::_bInitItemAttr(class CItem* pItem, char* pItemName)
+bool CGame::_bLoadItemConfigsFromDb()
+{
+	sqlite3* db = nullptr;
+	std::string dbPath;
+	bool created = false;
+	if (!EnsureGameConfigDatabase(&db, dbPath, &created)) {
+		return false;
+	}
+
+	if (created) {
+		CloseGameConfigDatabase(db);
+		PutLogList("(!) GameConfigs.db missing; item configs must be preloaded in the database.");
+		return false;
+	}
+
+	_ClearItemConfigList();
+	bool ok = LoadItemConfigs(db, m_pItemConfigList, DEF_MAXITEMTYPES);
+	CloseGameConfigDatabase(db);
+	return ok;
+}
+
+
+bool CGame::_bInitItemAttr(class CItem* pItem, const char* pItemName)
 {
 	int i;
 	char cTmpName[21];
@@ -36128,64 +34171,28 @@ void CGame::ReqCreateCraftingHandler(int iClientH, char* pData)
 
 void CGame::LocalSavePlayerData(int iClientH)
 {
-	char* pData, * cp, cFn[256], cDir[256], cTxt[256], cCharDir[256];
-	int    iSize;
-	FILE* pFile;
-	SYSTEMTIME SysTime;
-
-	// ·Î±× ¼­¹ö·ÎÀÇ ¿¬°áÀÌ Á¾·áµÇ¾î ÀÓ½Ã·Î °ÔÀÓ¼­¹ö ³»ÀÇ Æú´õ¿¡ ÀúÀåÇÑ´Ù. 
 	if (m_pClientList[iClientH] == 0) return;
 
-	pData = new char[30000];
-	if (pData == 0) return;
-	std::memset(pData, 0, 30000);
-
-	cp = (char*)(pData);
-	iSize = _iComposePlayerDataFileContents(iClientH, cp);
-
-	GetLocalTime(&SysTime);
-	std::memset(cCharDir, 0, sizeof(cDir));
-	std::snprintf(cCharDir, sizeof(cCharDir), "Character_%d_%d_%d_%d", SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
-
-	std::memset(cDir, 0, sizeof(cDir));
-	std::memset(cFn, 0, sizeof(cFn));
-	strcat(cFn, cCharDir);
-	strcat(cFn, "\\");
-	strcat(cFn, "\\");
-	std::snprintf(cTxt, sizeof(cTxt), "MeC77%d", (unsigned char)m_pClientList[iClientH]->m_cCharName[0]);
-	strcat(cFn, cTxt);
-	strcpy(cDir, cFn);
-	strcat(cFn, "\\");
-	strcat(cFn, "\\");
-	strcat(cFn, m_pClientList[iClientH]->m_cCharName);
-	strcat(cFn, ".txt");
-
-	// µð·ºÅä¸®¸¦ ¸¸µç´Ù.
-#ifdef _WIN32
-	_mkdir(cCharDir);
-	_mkdir(cDir);
-#endif
-
-	// (char*)cp ºÎÅÍ (dwMsgSize - 36)Å©±â±îÁö°¡ ÆÄÀÏ¿¡ ÀúÀåµÉ µ¥ÀÌÅÍÀÌ´Ù.
-	if (iSize == 0) {
-		PutLogList("(!) Character data body empty: Cannot create & save temporal player data file.");
-		delete pData;
-		return;
+	sqlite3* db = nullptr;
+	std::string dbPath;
+	if (EnsureAccountDatabase(m_pClientList[iClientH]->m_cAccountName, &db, dbPath)) {
+		if (!SaveCharacterSnapshot(db, m_pClientList[iClientH])) {
+			char logMsg[256] = {};
+			std::snprintf(logMsg, sizeof(logMsg),
+				"(SQLITE) SaveCharacterSnapshot failed: Account(%s) Char(%s) Error(%s)",
+				m_pClientList[iClientH]->m_cAccountName,
+				m_pClientList[iClientH]->m_cCharName,
+				sqlite3_errmsg(db));
+			PutLogList(logMsg);
+		}
+		CloseAccountDatabase(db);
+	} else {
+		char logMsg[256] = {};
+		std::snprintf(logMsg, sizeof(logMsg),
+			"(SQLITE) EnsureAccountDatabase failed: Account(%s)",
+			m_pClientList[iClientH]->m_cAccountName);
+		PutLogList(logMsg);
 	}
-
-	pFile = fopen(cFn, "wt");
-	if (pFile == 0) {
-		std::snprintf(cTxt, sizeof(cTxt), "(!) Cannot create temporal player data file : Name(%s)", cFn);
-		PutLogList(cTxt);
-	}
-	else {
-		std::snprintf(cTxt, sizeof(cTxt), "(!) temporal player data file saved : Name(%s)", cFn);
-		PutLogList(cTxt);
-		fwrite(cp, iSize, 1, pFile);
-	}
-
-	if (pFile != 0) fclose(pFile);
-	delete pData;
 }
 
 void CGame::MineralGenerator()
@@ -52642,8 +50649,9 @@ bool CGame::bCalculateEnduranceDecrement(short sTargetH, short sAttackerH, char 
 	uint16_t wWeaponType;
 
 	if (m_pClientList[sTargetH] == 0) return false;
+	if (sAttackerH > DEF_MAXCLIENTS) return false;
 	if ((cTargetType == DEF_OWNERTYPE_PLAYER) && (m_pClientList[sAttackerH] == 0)) return false;
-	wWeaponType = ((m_pClientList[sAttackerH]->m_sAppr2 & 0x0FF0) >> 4);
+	wWeaponType = ((m_pClientList[sAttackerH]->m_sAppr2 & 0x0FF0) >> 4);		// sAttackerH was 2536 == null
 	if ((cTargetType == DEF_OWNERTYPE_PLAYER) && (m_pClientList[sTargetH]->m_cSide != m_pClientList[sAttackerH]->m_cSide)) {
 		switch (m_pClientList[sAttackerH]->m_sUsingWeaponSkill) {
 		case 14:

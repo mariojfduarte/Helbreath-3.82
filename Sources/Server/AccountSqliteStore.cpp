@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <direct.h>
 #include <cstdio>
+#include <cstring>
 
 #include "Client.h"
 #include "sqlite3.h"
@@ -41,6 +42,52 @@ namespace
     {
         return sqlite3_bind_text(stmt, idx, value, -1, SQLITE_TRANSIENT) == SQLITE_OK;
     }
+
+    bool ColumnExists(sqlite3* db, const char* tableName, const char* columnName)
+    {
+        char sql[256] = {};
+        std::snprintf(sql, sizeof(sql), "PRAGMA table_info(%s);", tableName);
+
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            return false;
+        }
+
+        bool found = false;
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const unsigned char* name = sqlite3_column_text(stmt, 1);
+            if (name != nullptr && std::strcmp(reinterpret_cast<const char*>(name), columnName) == 0) {
+                found = true;
+                break;
+            }
+        }
+
+        sqlite3_finalize(stmt);
+        return found;
+    }
+
+    bool AddColumnIfMissing(sqlite3* db, const char* tableName, const char* columnName, const char* columnDef)
+    {
+        if (ColumnExists(db, tableName, columnName)) {
+            return true;
+        }
+
+        char sql[512] = {};
+        std::snprintf(sql, sizeof(sql), "ALTER TABLE %s ADD COLUMN %s %s;", tableName, columnName, columnDef);
+        return ExecSql(db, sql);
+    }
+
+    void CopyColumnText(sqlite3_stmt* stmt, int col, char* dest, size_t destSize)
+    {
+        const unsigned char* text = sqlite3_column_text(stmt, col);
+        if (text == nullptr) {
+            if (destSize > 0) {
+                dest[0] = 0;
+            }
+            return;
+        }
+        std::snprintf(dest, destSize, "%s", reinterpret_cast<const char*>(text));
+    }
 }
 
 bool EnsureAccountDatabase(const char* accountName, sqlite3** outDb, std::string& outPath)
@@ -77,7 +124,7 @@ bool EnsureAccountDatabase(const char* accountName, sqlite3** outDb, std::string
         " key TEXT PRIMARY KEY,"
         " value TEXT NOT NULL"
         ");"
-        "INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version','2');"
+        "INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version','3');"
         "CREATE TABLE IF NOT EXISTS accounts ("
         " account_name TEXT PRIMARY KEY,"
         " password TEXT NOT NULL,"
@@ -201,7 +248,864 @@ bool EnsureAccountDatabase(const char* accountName, sqlite3** outDb, std::string
         return false;
     }
 
+    if (!AddColumnIfMissing(db, "characters", "profile", "TEXT NOT NULL DEFAULT ''") ||
+        !AddColumnIfMissing(db, "characters", "location", "TEXT NOT NULL DEFAULT ''") ||
+        !AddColumnIfMissing(db, "characters", "guild_name", "TEXT NOT NULL DEFAULT ''") ||
+        !AddColumnIfMissing(db, "characters", "guild_guid", "INTEGER NOT NULL DEFAULT -1") ||
+        !AddColumnIfMissing(db, "characters", "guild_rank", "INTEGER NOT NULL DEFAULT -1") ||
+        !AddColumnIfMissing(db, "characters", "rating", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "luck", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "lu_pool", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "enemy_kill_count", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "pk_count", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "reward_gold", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "downskill_index", "INTEGER NOT NULL DEFAULT -1") ||
+        !AddColumnIfMissing(db, "characters", "idnum1", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "idnum2", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "idnum3", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "hunger_status", "INTEGER NOT NULL DEFAULT 100") ||
+        !AddColumnIfMissing(db, "characters", "timeleft_shutup", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "timeleft_rating", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "timeleft_force_recall", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "timeleft_firm_staminar", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "admin_user_level", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "penalty_block_year", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "penalty_block_month", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "penalty_block_day", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "quest_number", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "quest_id", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "current_quest_count", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "quest_reward_type", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "quest_reward_amount", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "contribution", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "war_contribution", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "quest_completed", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "special_event_id", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "super_attack_left", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "fightzone_number", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "reserve_time", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "fightzone_ticket_number", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "special_ability_time", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "locked_map_name", "TEXT NOT NULL DEFAULT ''") ||
+        !AddColumnIfMissing(db, "characters", "locked_map_time", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "crusade_job", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "crusade_guid", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "construct_point", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "dead_penalty_time", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "party_id", "INTEGER NOT NULL DEFAULT 0") ||
+        !AddColumnIfMissing(db, "characters", "gizon_item_upgrade_left", "INTEGER NOT NULL DEFAULT 0")) {
+        sqlite3_close(db);
+        return false;
+    }
+
     *outDb = db;
+    return true;
+}
+
+bool LoadAccountRecord(sqlite3* db, const char* accountName, AccountDbAccountData& outData)
+{
+    if (db == nullptr || accountName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT account_name, password, email, quiz, answer, created_at, password_changed_at, last_ip "
+        "FROM accounts WHERE account_name = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, accountName);
+    bool ok = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        std::memset(&outData, 0, sizeof(outData));
+        CopyColumnText(stmt, 0, outData.name, sizeof(outData.name));
+        CopyColumnText(stmt, 1, outData.password, sizeof(outData.password));
+        CopyColumnText(stmt, 2, outData.email, sizeof(outData.email));
+        CopyColumnText(stmt, 3, outData.quiz, sizeof(outData.quiz));
+        CopyColumnText(stmt, 4, outData.answer, sizeof(outData.answer));
+        CopyColumnText(stmt, 5, outData.createdAt, sizeof(outData.createdAt));
+        CopyColumnText(stmt, 6, outData.passwordChangedAt, sizeof(outData.passwordChangedAt));
+        CopyColumnText(stmt, 7, outData.lastIp, sizeof(outData.lastIp));
+        ok = true;
+    }
+
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+bool UpdateAccountPassword(sqlite3* db, const char* accountName, const char* newPassword)
+{
+    if (db == nullptr || accountName == nullptr || newPassword == nullptr) {
+        return false;
+    }
+
+    SYSTEMTIME sysTime;
+    GetLocalTime(&sysTime);
+    char timestamp[32] = {};
+    FormatTimestamp(sysTime, timestamp, sizeof(timestamp));
+
+    const char* sql =
+        "UPDATE accounts SET password = ?, password_changed_at = ? WHERE account_name = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    bool ok = true;
+    ok &= PrepareAndBindText(&stmt, 1, newPassword);
+    ok &= PrepareAndBindText(&stmt, 2, timestamp);
+    ok &= PrepareAndBindText(&stmt, 3, accountName);
+
+    if (ok) {
+        ok = sqlite3_step(stmt) == SQLITE_DONE;
+    }
+
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+bool ListCharacterSummaries(sqlite3* db, const char* accountName, std::vector<AccountDbCharacterSummary>& outChars)
+{
+    if (db == nullptr || accountName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT character_name, appr1, appr2, appr3, appr4, appr_color, gender, skin, level, exp, map_name "
+        "FROM characters WHERE account_name = ? ORDER BY character_name;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, accountName);
+    outChars.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbCharacterSummary row = {};
+        CopyColumnText(stmt, 0, row.characterName, sizeof(row.characterName));
+        row.appr1 = static_cast<short>(sqlite3_column_int(stmt, 1));
+        row.appr2 = static_cast<short>(sqlite3_column_int(stmt, 2));
+        row.appr3 = static_cast<short>(sqlite3_column_int(stmt, 3));
+        row.appr4 = static_cast<short>(sqlite3_column_int(stmt, 4));
+        row.apprColor = static_cast<uint32_t>(sqlite3_column_int(stmt, 5));
+        row.sex = static_cast<uint16_t>(sqlite3_column_int(stmt, 6));
+        row.skin = static_cast<uint16_t>(sqlite3_column_int(stmt, 7));
+        row.level = static_cast<uint16_t>(sqlite3_column_int(stmt, 8));
+        row.exp = static_cast<uint32_t>(sqlite3_column_int(stmt, 9));
+        CopyColumnText(stmt, 10, row.mapName, sizeof(row.mapName));
+        outChars.push_back(row);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool LoadCharacterState(sqlite3* db, const char* characterName, AccountDbCharacterState& outState)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT account_name, character_name, profile, location, guild_name, guild_guid, guild_rank, "
+        "map_name, map_x, map_y, hp, mp, sp, level, rating, str, intl, vit, dex, mag, chr, luck, exp, "
+        "lu_pool, enemy_kill_count, pk_count, reward_gold, downskill_index, idnum1, idnum2, idnum3, "
+        "gender, skin, hairstyle, haircolor, underwear, hunger_status, timeleft_shutup, timeleft_rating, "
+        "timeleft_force_recall, timeleft_firm_staminar, admin_user_level, penalty_block_year, "
+        "penalty_block_month, penalty_block_day, quest_number, quest_id, current_quest_count, "
+        "quest_reward_type, quest_reward_amount, contribution, war_contribution, quest_completed, "
+        "special_event_id, super_attack_left, fightzone_number, reserve_time, fightzone_ticket_number, "
+        "special_ability_time, locked_map_name, locked_map_time, crusade_job, crusade_guid, "
+        "construct_point, dead_penalty_time, party_id, gizon_item_upgrade_left, "
+        "appr1, appr2, appr3, appr4, appr_color "
+        "FROM characters WHERE character_name = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    bool ok = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        std::memset(&outState, 0, sizeof(outState));
+        int col = 0;
+        CopyColumnText(stmt, col++, outState.accountName, sizeof(outState.accountName));
+        CopyColumnText(stmt, col++, outState.characterName, sizeof(outState.characterName));
+        CopyColumnText(stmt, col++, outState.profile, sizeof(outState.profile));
+        CopyColumnText(stmt, col++, outState.location, sizeof(outState.location));
+        CopyColumnText(stmt, col++, outState.guildName, sizeof(outState.guildName));
+        outState.guildGuid = sqlite3_column_int(stmt, col++);
+        outState.guildRank = sqlite3_column_int(stmt, col++);
+        CopyColumnText(stmt, col++, outState.mapName, sizeof(outState.mapName));
+        outState.mapX = sqlite3_column_int(stmt, col++);
+        outState.mapY = sqlite3_column_int(stmt, col++);
+        outState.hp = sqlite3_column_int(stmt, col++);
+        outState.mp = sqlite3_column_int(stmt, col++);
+        outState.sp = sqlite3_column_int(stmt, col++);
+        outState.level = sqlite3_column_int(stmt, col++);
+        outState.rating = sqlite3_column_int(stmt, col++);
+        outState.str = sqlite3_column_int(stmt, col++);
+        outState.intl = sqlite3_column_int(stmt, col++);
+        outState.vit = sqlite3_column_int(stmt, col++);
+        outState.dex = sqlite3_column_int(stmt, col++);
+        outState.mag = sqlite3_column_int(stmt, col++);
+        outState.chr = sqlite3_column_int(stmt, col++);
+        outState.luck = sqlite3_column_int(stmt, col++);
+        outState.exp = static_cast<uint32_t>(sqlite3_column_int(stmt, col++));
+        outState.luPool = sqlite3_column_int(stmt, col++);
+        outState.enemyKillCount = sqlite3_column_int(stmt, col++);
+        outState.pkCount = sqlite3_column_int(stmt, col++);
+        outState.rewardGold = static_cast<uint32_t>(sqlite3_column_int(stmt, col++));
+        outState.downSkillIndex = sqlite3_column_int(stmt, col++);
+        outState.idnum1 = sqlite3_column_int(stmt, col++);
+        outState.idnum2 = sqlite3_column_int(stmt, col++);
+        outState.idnum3 = sqlite3_column_int(stmt, col++);
+        outState.sex = sqlite3_column_int(stmt, col++);
+        outState.skin = sqlite3_column_int(stmt, col++);
+        outState.hairStyle = sqlite3_column_int(stmt, col++);
+        outState.hairColor = sqlite3_column_int(stmt, col++);
+        outState.underwear = sqlite3_column_int(stmt, col++);
+        outState.hungerStatus = sqlite3_column_int(stmt, col++);
+        outState.timeleftShutup = sqlite3_column_int(stmt, col++);
+        outState.timeleftRating = sqlite3_column_int(stmt, col++);
+        outState.timeleftForceRecall = sqlite3_column_int(stmt, col++);
+        outState.timeleftFirmStaminar = sqlite3_column_int(stmt, col++);
+        outState.adminUserLevel = sqlite3_column_int(stmt, col++);
+        outState.penaltyBlockYear = sqlite3_column_int(stmt, col++);
+        outState.penaltyBlockMonth = sqlite3_column_int(stmt, col++);
+        outState.penaltyBlockDay = sqlite3_column_int(stmt, col++);
+        outState.questNumber = sqlite3_column_int(stmt, col++);
+        outState.questId = sqlite3_column_int(stmt, col++);
+        outState.currentQuestCount = sqlite3_column_int(stmt, col++);
+        outState.questRewardType = sqlite3_column_int(stmt, col++);
+        outState.questRewardAmount = sqlite3_column_int(stmt, col++);
+        outState.contribution = sqlite3_column_int(stmt, col++);
+        outState.warContribution = sqlite3_column_int(stmt, col++);
+        outState.questCompleted = sqlite3_column_int(stmt, col++);
+        outState.specialEventId = sqlite3_column_int(stmt, col++);
+        outState.superAttackLeft = sqlite3_column_int(stmt, col++);
+        outState.fightzoneNumber = sqlite3_column_int(stmt, col++);
+        outState.reserveTime = sqlite3_column_int(stmt, col++);
+        outState.fightzoneTicketNumber = sqlite3_column_int(stmt, col++);
+        outState.specialAbilityTime = sqlite3_column_int(stmt, col++);
+        CopyColumnText(stmt, col++, outState.lockedMapName, sizeof(outState.lockedMapName));
+        outState.lockedMapTime = sqlite3_column_int(stmt, col++);
+        outState.crusadeJob = sqlite3_column_int(stmt, col++);
+        outState.crusadeGuid = static_cast<uint32_t>(sqlite3_column_int(stmt, col++));
+        outState.constructPoint = sqlite3_column_int(stmt, col++);
+        outState.deadPenaltyTime = sqlite3_column_int(stmt, col++);
+        outState.partyId = sqlite3_column_int(stmt, col++);
+        outState.gizonItemUpgradeLeft = sqlite3_column_int(stmt, col++);
+        outState.appr1 = static_cast<short>(sqlite3_column_int(stmt, col++));
+        outState.appr2 = static_cast<short>(sqlite3_column_int(stmt, col++));
+        outState.appr3 = static_cast<short>(sqlite3_column_int(stmt, col++));
+        outState.appr4 = static_cast<short>(sqlite3_column_int(stmt, col++));
+        outState.apprColor = static_cast<uint32_t>(sqlite3_column_int(stmt, col++));
+        ok = true;
+    }
+
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+bool LoadCharacterItems(sqlite3* db, const char* characterName, std::vector<AccountDbItemRow>& outItems)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT slot, item_name, count, touch_effect_type, touch_effect_value1, touch_effect_value2, "
+        "touch_effect_value3, item_color, spec_effect_value1, spec_effect_value2, spec_effect_value3, "
+        "cur_lifespan, attribute, pos_x, pos_y, is_equipped "
+        "FROM character_items WHERE character_name = ? ORDER BY slot;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    outItems.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbItemRow row = {};
+        int col = 0;
+        row.slot = sqlite3_column_int(stmt, col++);
+        CopyColumnText(stmt, col++, row.itemName, sizeof(row.itemName));
+        row.count = sqlite3_column_int(stmt, col++);
+        row.touchEffectType = sqlite3_column_int(stmt, col++);
+        row.touchEffectValue1 = sqlite3_column_int(stmt, col++);
+        row.touchEffectValue2 = sqlite3_column_int(stmt, col++);
+        row.touchEffectValue3 = sqlite3_column_int(stmt, col++);
+        row.itemColor = sqlite3_column_int(stmt, col++);
+        row.specEffectValue1 = sqlite3_column_int(stmt, col++);
+        row.specEffectValue2 = sqlite3_column_int(stmt, col++);
+        row.specEffectValue3 = sqlite3_column_int(stmt, col++);
+        row.curLifeSpan = sqlite3_column_int(stmt, col++);
+        row.attribute = static_cast<uint32_t>(sqlite3_column_int(stmt, col++));
+        row.posX = sqlite3_column_int(stmt, col++);
+        row.posY = sqlite3_column_int(stmt, col++);
+        row.isEquipped = sqlite3_column_int(stmt, col++);
+        outItems.push_back(row);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool LoadCharacterBankItems(sqlite3* db, const char* characterName, std::vector<AccountDbBankItemRow>& outItems)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT slot, item_name, count, touch_effect_type, touch_effect_value1, touch_effect_value2, "
+        "touch_effect_value3, item_color, spec_effect_value1, spec_effect_value2, spec_effect_value3, "
+        "cur_lifespan, attribute "
+        "FROM character_bank_items WHERE character_name = ? ORDER BY slot;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    outItems.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbBankItemRow row = {};
+        int col = 0;
+        row.slot = sqlite3_column_int(stmt, col++);
+        CopyColumnText(stmt, col++, row.itemName, sizeof(row.itemName));
+        row.count = sqlite3_column_int(stmt, col++);
+        row.touchEffectType = sqlite3_column_int(stmt, col++);
+        row.touchEffectValue1 = sqlite3_column_int(stmt, col++);
+        row.touchEffectValue2 = sqlite3_column_int(stmt, col++);
+        row.touchEffectValue3 = sqlite3_column_int(stmt, col++);
+        row.itemColor = sqlite3_column_int(stmt, col++);
+        row.specEffectValue1 = sqlite3_column_int(stmt, col++);
+        row.specEffectValue2 = sqlite3_column_int(stmt, col++);
+        row.specEffectValue3 = sqlite3_column_int(stmt, col++);
+        row.curLifeSpan = sqlite3_column_int(stmt, col++);
+        row.attribute = static_cast<uint32_t>(sqlite3_column_int(stmt, col++));
+        outItems.push_back(row);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool LoadCharacterItemPositions(sqlite3* db, const char* characterName, std::vector<AccountDbIndexedValue>& outPositionsX, std::vector<AccountDbIndexedValue>& outPositionsY)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT slot, pos_x, pos_y FROM character_item_positions WHERE character_name = ? ORDER BY slot;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    outPositionsX.clear();
+    outPositionsY.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbIndexedValue posX = {};
+        AccountDbIndexedValue posY = {};
+        posX.index = sqlite3_column_int(stmt, 0);
+        posX.value = sqlite3_column_int(stmt, 1);
+        posY.index = posX.index;
+        posY.value = sqlite3_column_int(stmt, 2);
+        outPositionsX.push_back(posX);
+        outPositionsY.push_back(posY);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool LoadCharacterItemEquips(sqlite3* db, const char* characterName, std::vector<AccountDbIndexedValue>& outEquips)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT slot, is_equipped FROM character_item_equips WHERE character_name = ? ORDER BY slot;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    outEquips.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbIndexedValue equip = {};
+        equip.index = sqlite3_column_int(stmt, 0);
+        equip.value = sqlite3_column_int(stmt, 1);
+        outEquips.push_back(equip);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool LoadCharacterMagicMastery(sqlite3* db, const char* characterName, std::vector<AccountDbIndexedValue>& outMastery)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT magic_index, mastery_value FROM character_magic_mastery WHERE character_name = ? ORDER BY magic_index;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    outMastery.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbIndexedValue row = {};
+        row.index = sqlite3_column_int(stmt, 0);
+        row.value = sqlite3_column_int(stmt, 1);
+        outMastery.push_back(row);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool LoadCharacterSkillMastery(sqlite3* db, const char* characterName, std::vector<AccountDbIndexedValue>& outMastery)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT skill_index, mastery_value FROM character_skill_mastery WHERE character_name = ? ORDER BY skill_index;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    outMastery.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbIndexedValue row = {};
+        row.index = sqlite3_column_int(stmt, 0);
+        row.value = sqlite3_column_int(stmt, 1);
+        outMastery.push_back(row);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool LoadCharacterSkillSSN(sqlite3* db, const char* characterName, std::vector<AccountDbIndexedValue>& outValues)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "SELECT skill_index, ssn_value FROM character_skill_ssn WHERE character_name = ? ORDER BY skill_index;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    outValues.clear();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        AccountDbIndexedValue row = {};
+        row.index = sqlite3_column_int(stmt, 0);
+        row.value = sqlite3_column_int(stmt, 1);
+        outValues.push_back(row);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool InsertCharacterState(sqlite3* db, const AccountDbCharacterState& state)
+{
+    if (db == nullptr) {
+        return false;
+    }
+
+    SYSTEMTIME sysTime;
+    GetLocalTime(&sysTime);
+    char timestamp[32] = {};
+    FormatTimestamp(sysTime, timestamp, sizeof(timestamp));
+
+    const char* sql =
+        "INSERT INTO characters("
+        " account_name, character_name, created_at, profile, location, guild_name, guild_guid, guild_rank, "
+        " map_name, map_x, map_y, hp, mp, sp, level, rating, str, intl, vit, dex, mag, chr, luck, exp, "
+        " lu_pool, enemy_kill_count, pk_count, reward_gold, downskill_index, idnum1, idnum2, idnum3, "
+        " gender, skin, hairstyle, haircolor, underwear, hunger_status, timeleft_shutup, timeleft_rating, "
+        " timeleft_force_recall, timeleft_firm_staminar, admin_user_level, penalty_block_year, "
+        " penalty_block_month, penalty_block_day, quest_number, quest_id, current_quest_count, "
+        " quest_reward_type, quest_reward_amount, contribution, war_contribution, quest_completed, "
+        " special_event_id, super_attack_left, fightzone_number, reserve_time, fightzone_ticket_number, "
+        " special_ability_time, locked_map_name, locked_map_time, crusade_job, crusade_guid, "
+        " construct_point, dead_penalty_time, party_id, gizon_item_upgrade_left, "
+        " appr1, appr2, appr3, appr4, appr_color"
+        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    int col = 1;
+    bool ok = true;
+    ok &= PrepareAndBindText(stmt, col++, state.accountName);
+    ok &= PrepareAndBindText(stmt, col++, state.characterName);
+    ok &= PrepareAndBindText(stmt, col++, timestamp);
+    ok &= PrepareAndBindText(stmt, col++, state.profile);
+    ok &= PrepareAndBindText(stmt, col++, state.location);
+    ok &= PrepareAndBindText(stmt, col++, state.guildName);
+    ok &= (sqlite3_bind_int(stmt, col++, state.guildGuid) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.guildRank) == SQLITE_OK);
+    ok &= PrepareAndBindText(stmt, col++, state.mapName);
+    ok &= (sqlite3_bind_int(stmt, col++, state.mapX) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.mapY) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.hp) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.mp) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.sp) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.level) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.rating) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.str) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.intl) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.vit) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.dex) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.mag) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.chr) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.luck) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, static_cast<int>(state.exp)) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.luPool) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.enemyKillCount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.pkCount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, static_cast<int>(state.rewardGold)) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.downSkillIndex) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.idnum1) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.idnum2) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.idnum3) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.sex) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.skin) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.hairStyle) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.hairColor) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.underwear) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.hungerStatus) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.timeleftShutup) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.timeleftRating) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.timeleftForceRecall) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.timeleftFirmStaminar) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.adminUserLevel) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.penaltyBlockYear) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.penaltyBlockMonth) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.penaltyBlockDay) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.questNumber) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.questId) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.currentQuestCount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.questRewardType) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.questRewardAmount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.contribution) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.warContribution) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.questCompleted) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.specialEventId) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.superAttackLeft) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.fightzoneNumber) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.reserveTime) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.fightzoneTicketNumber) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.specialAbilityTime) == SQLITE_OK);
+    ok &= PrepareAndBindText(stmt, col++, state.lockedMapName);
+    ok &= (sqlite3_bind_int(stmt, col++, state.lockedMapTime) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.crusadeJob) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, static_cast<int>(state.crusadeGuid)) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.constructPoint) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.deadPenaltyTime) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.partyId) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.gizonItemUpgradeLeft) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.appr1) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.appr2) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.appr3) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, state.appr4) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, col++, static_cast<int>(state.apprColor)) == SQLITE_OK);
+
+    if (ok) {
+        ok = sqlite3_step(stmt) == SQLITE_DONE;
+    }
+
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+bool InsertCharacterItems(sqlite3* db, const char* characterName, const std::vector<AccountDbItemRow>& items)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "INSERT INTO character_items("
+        " character_name, slot, item_name, count, touch_effect_type, touch_effect_value1, touch_effect_value2,"
+        " touch_effect_value3, item_color, spec_effect_value1, spec_effect_value2, spec_effect_value3,"
+        " cur_lifespan, attribute, pos_x, pos_y, is_equipped"
+        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    for (const auto& item : items) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        int col = 1;
+        bool ok = true;
+        ok &= PrepareAndBindText(stmt, col++, characterName);
+        ok &= (sqlite3_bind_int(stmt, col++, item.slot) == SQLITE_OK);
+        ok &= PrepareAndBindText(stmt, col++, item.itemName);
+        ok &= (sqlite3_bind_int(stmt, col++, item.count) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectType) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectValue1) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectValue2) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectValue3) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.itemColor) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.specEffectValue1) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.specEffectValue2) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.specEffectValue3) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.curLifeSpan) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, static_cast<int>(item.attribute)) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.posX) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.posY) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.isEquipped) == SQLITE_OK);
+        if (!ok || sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool InsertCharacterBankItems(sqlite3* db, const char* characterName, const std::vector<AccountDbBankItemRow>& items)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "INSERT INTO character_bank_items("
+        " character_name, slot, item_name, count, touch_effect_type, touch_effect_value1, touch_effect_value2,"
+        " touch_effect_value3, item_color, spec_effect_value1, spec_effect_value2, spec_effect_value3,"
+        " cur_lifespan, attribute"
+        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    for (const auto& item : items) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        int col = 1;
+        bool ok = true;
+        ok &= PrepareAndBindText(stmt, col++, characterName);
+        ok &= (sqlite3_bind_int(stmt, col++, item.slot) == SQLITE_OK);
+        ok &= PrepareAndBindText(stmt, col++, item.itemName);
+        ok &= (sqlite3_bind_int(stmt, col++, item.count) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectType) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectValue1) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectValue2) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.touchEffectValue3) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.itemColor) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.specEffectValue1) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.specEffectValue2) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.specEffectValue3) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, item.curLifeSpan) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, col++, static_cast<int>(item.attribute)) == SQLITE_OK);
+        if (!ok || sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool InsertCharacterItemPositions(sqlite3* db, const char* characterName, const std::vector<AccountDbIndexedValue>& positionsX, const std::vector<AccountDbIndexedValue>& positionsY)
+{
+    if (db == nullptr || characterName == nullptr || positionsX.size() != positionsY.size()) {
+        return false;
+    }
+
+    const char* sql =
+        "INSERT INTO character_item_positions(character_name, slot, pos_x, pos_y) VALUES(?,?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    for (size_t i = 0; i < positionsX.size(); i++) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        bool ok = true;
+        ok &= PrepareAndBindText(stmt, 1, characterName);
+        ok &= (sqlite3_bind_int(stmt, 2, positionsX[i].index) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, 3, positionsX[i].value) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, 4, positionsY[i].value) == SQLITE_OK);
+        if (!ok || sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool InsertCharacterItemEquips(sqlite3* db, const char* characterName, const std::vector<AccountDbIndexedValue>& equips)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "INSERT INTO character_item_equips(character_name, slot, is_equipped) VALUES(?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    for (const auto& equip : equips) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        bool ok = true;
+        ok &= PrepareAndBindText(stmt, 1, characterName);
+        ok &= (sqlite3_bind_int(stmt, 2, equip.index) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, 3, equip.value) == SQLITE_OK);
+        if (!ok || sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool InsertCharacterMagicMastery(sqlite3* db, const char* characterName, const std::vector<AccountDbIndexedValue>& mastery)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "INSERT INTO character_magic_mastery(character_name, magic_index, mastery_value) VALUES(?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    for (const auto& entry : mastery) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        bool ok = true;
+        ok &= PrepareAndBindText(stmt, 1, characterName);
+        ok &= (sqlite3_bind_int(stmt, 2, entry.index) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, 3, entry.value) == SQLITE_OK);
+        if (!ok || sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool InsertCharacterSkillMastery(sqlite3* db, const char* characterName, const std::vector<AccountDbIndexedValue>& mastery)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "INSERT INTO character_skill_mastery(character_name, skill_index, mastery_value) VALUES(?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    for (const auto& entry : mastery) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        bool ok = true;
+        ok &= PrepareAndBindText(stmt, 1, characterName);
+        ok &= (sqlite3_bind_int(stmt, 2, entry.index) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, 3, entry.value) == SQLITE_OK);
+        if (!ok || sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool InsertCharacterSkillSSN(sqlite3* db, const char* characterName, const std::vector<AccountDbIndexedValue>& values)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql =
+        "INSERT INTO character_skill_ssn(character_name, skill_index, ssn_value) VALUES(?,?,?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    for (const auto& entry : values) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        bool ok = true;
+        ok &= PrepareAndBindText(stmt, 1, characterName);
+        ok &= (sqlite3_bind_int(stmt, 2, entry.index) == SQLITE_OK);
+        ok &= (sqlite3_bind_int(stmt, 3, entry.value) == SQLITE_OK);
+        if (!ok || sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
     return true;
 }
 
@@ -313,6 +1217,24 @@ bool InsertCharacterRecord(sqlite3* db, const AccountDbCharacterData& data)
     return ok;
 }
 
+bool DeleteCharacterData(sqlite3* db, const char* characterName)
+{
+    if (db == nullptr || characterName == nullptr) {
+        return false;
+    }
+
+    const char* sql = "DELETE FROM characters WHERE character_name = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    PrepareAndBindText(&stmt, 1, characterName);
+    bool ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
 void CloseAccountDatabase(sqlite3* db)
 {
     if (db != nullptr) {
@@ -337,10 +1259,18 @@ bool SaveCharacterSnapshot(sqlite3* db, const CClient* client)
 
     const char* upsertSql =
         "INSERT OR REPLACE INTO characters("
-        " character_name, account_name, created_at, appr1, appr2, appr3, appr4, appr_color,"
-        " level, exp, map_name, map_x, map_y, hp, mp, sp, str, vit, dex, intl, mag, chr,"
-        " gender, skin, hairstyle, haircolor, underwear"
-        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+        " account_name, character_name, created_at, profile, location, guild_name, guild_guid, guild_rank,"
+        " map_name, map_x, map_y, hp, mp, sp, level, rating, str, intl, vit, dex, mag, chr, luck, exp,"
+        " lu_pool, enemy_kill_count, pk_count, reward_gold, downskill_index, idnum1, idnum2, idnum3,"
+        " gender, skin, hairstyle, haircolor, underwear, hunger_status, timeleft_shutup, timeleft_rating,"
+        " timeleft_force_recall, timeleft_firm_staminar, admin_user_level, penalty_block_year,"
+        " penalty_block_month, penalty_block_day, quest_number, quest_id, current_quest_count,"
+        " quest_reward_type, quest_reward_amount, contribution, war_contribution, quest_completed,"
+        " special_event_id, super_attack_left, fightzone_number, reserve_time, fightzone_ticket_number,"
+        " special_ability_time, locked_map_name, locked_map_time, crusade_job, crusade_guid,"
+        " construct_point, dead_penalty_time, party_id, gizon_item_upgrade_left,"
+        " appr1, appr2, appr3, appr4, appr_color"
+        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, upsertSql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -350,33 +1280,79 @@ bool SaveCharacterSnapshot(sqlite3* db, const CClient* client)
 
     int idx = 1;
     bool ok = true;
-    ok &= PrepareAndBindText(stmt, idx++, client->m_cCharName);
     ok &= PrepareAndBindText(stmt, idx++, client->m_cAccountName);
+    ok &= PrepareAndBindText(stmt, idx++, client->m_cCharName);
     ok &= PrepareAndBindText(stmt, idx++, timestamp);
-    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr1) == SQLITE_OK);
-    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr2) == SQLITE_OK);
-    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr3) == SQLITE_OK);
-    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr4) == SQLITE_OK);
-    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iApprColor) == SQLITE_OK);
-    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iLevel) == SQLITE_OK);
-    ok &= (sqlite3_bind_int(stmt, idx++, static_cast<int>(client->m_iExp)) == SQLITE_OK);
+    ok &= PrepareAndBindText(stmt, idx++, client->m_cProfile);
+    ok &= PrepareAndBindText(stmt, idx++, client->m_cLocation);
+    ok &= PrepareAndBindText(stmt, idx++, client->m_cGuildName);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iGuildGUID) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iGuildRank) == SQLITE_OK);
     ok &= PrepareAndBindText(stmt, idx++, client->m_cMapName);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_sX) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_sY) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iHP) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iMP) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iSP) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iLevel) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iRating) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iStr) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iInt) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iVit) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iDex) == SQLITE_OK);
-    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iInt) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iMag) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_iCharisma) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iLuck) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, static_cast<int>(client->m_iExp)) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iLU_Pool) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iEnemyKillCount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iPKCount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, static_cast<int>(client->m_iRewardGold)) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iDownSkillIndex) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sCharIDnum1) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sCharIDnum2) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sCharIDnum3) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_cSex) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_cSkin) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_cHairStyle) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_cHairColor) == SQLITE_OK);
     ok &= (sqlite3_bind_int(stmt, idx++, client->m_cUnderwear) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iHungerStatus) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iTimeLeft_ShutUp) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iTimeLeft_Rating) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iTimeLeft_ForceRecall) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iTimeLeft_FirmStaminar) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iAdminUserLevel) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iPenaltyBlockYear) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iPenaltyBlockMonth) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iPenaltyBlockDay) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iQuest) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iQuestID) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iCurQuestCount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iQuestRewardType) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iQuestRewardAmount) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iContribution) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iWarContribution) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_bIsQuestCompleted ? 1 : 0) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iSpecialEventID) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iSuperAttackLeft) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iFightzoneNumber) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iReserveTime) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iFightZoneTicketNumber) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iSpecialAbilityTime) == SQLITE_OK);
+    ok &= PrepareAndBindText(stmt, idx++, client->m_cLockedMapName);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iLockedMapTime) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iCrusadeDuty) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, static_cast<int>(client->m_dwCrusadeGUID)) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iConstructionPoint) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iDeadPenaltyTime) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iPartyID) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iGizonItemUpgradeLeft) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr1) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr2) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr3) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_sAppr4) == SQLITE_OK);
+    ok &= (sqlite3_bind_int(stmt, idx++, client->m_iApprColor) == SQLITE_OK);
 
     if (ok) {
         ok = sqlite3_step(stmt) == SQLITE_DONE;
