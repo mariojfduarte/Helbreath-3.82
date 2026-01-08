@@ -6622,9 +6622,6 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 			if (_bInitNpcAttr(m_pNpcList[i], pNpcName, sClass, cSA) == false) {
 				std::snprintf(cTxt, sizeof(cTxt), "(!) Not existing NPC creation request! (%s) Ignored.", pNpcName);
 				PutLogList(cTxt);
-#ifdef _DEBUG
-				printf("[DEBUG] bCreateNewNpc: FAILED - Invalid NPC type '%s'\n", pNpcName);
-#endif
 				delete m_pNpcList[i];
 				m_pNpcList[i] = 0;
 				return false;
@@ -6632,10 +6629,6 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 
 			if (m_pNpcList[i]->m_cDayOfWeekLimit < 10) {
 				if (m_pNpcList[i]->m_cDayOfWeekLimit != SysTime.wDayOfWeek) {
-#ifdef _DEBUG
-					printf("[DEBUG] bCreateNewNpc: FAILED - Day of week restriction (need=%d, current=%d) for '%s'\n",
-						m_pNpcList[i]->m_cDayOfWeekLimit, SysTime.wDayOfWeek, pNpcName);
-#endif
 					delete m_pNpcList[i];
 					m_pNpcList[i] = 0;
 					return false;
@@ -6668,10 +6661,6 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 						if (bFlag) goto GET_VALIDLOC_SUCCESS;
 
 					}
-#ifdef _DEBUG
-					printf("[DEBUG] bCreateNewNpc: FAILED - No valid location after 30 tries for '%s' on map '%s'\n",
-						pNpcName, pMapName);
-#endif
 					delete m_pNpcList[i];
 					m_pNpcList[i] = 0;
 					return false;
@@ -6709,20 +6698,12 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 			}
 
 			if (bGetEmptyPosition(&sX, &sY, iMapIndex) == false) {
-#ifdef _DEBUG
-				printf("[DEBUG] bCreateNewNpc: FAILED - bGetEmptyPosition failed for '%s' on map '%s' at (%d,%d) - area too crowded\n",
-					pNpcName, pMapName, sX, sY);
-#endif
 				delete m_pNpcList[i];
 				m_pNpcList[i] = 0;
 				return false;
 			}
 
 			if ((bHideGenMode) && (_iGetPlayerNumberOnSpot(sX, sY, iMapIndex, 7) != 0)) {
-#ifdef _DEBUG
-				printf("[DEBUG] bCreateNewNpc: FAILED - Players nearby (bHideGenMode) for '%s' on map '%s' at (%d,%d)\n",
-					pNpcName, pMapName, sX, sY);
-#endif
 				delete m_pNpcList[i];
 				m_pNpcList[i] = 0;
 				return false;
@@ -6889,10 +6870,6 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 
 			m_pNpcList[i]->m_cBravery = (rand() % 3) + m_pNpcList[i]->m_iMinBravery;
 			m_pNpcList[i]->m_iSpotMobIndex = iSpotMobIndex;
-#ifdef _DEBUG
-			printf("[DEBUG] bCreateNewNpc: Created NPC[%d] '%s' on map '%s' with iSpotMobIndex=%d\n",
-				i, pName, pMapName, iSpotMobIndex);
-#endif
 			m_pNpcList[i]->m_iGuildGUID = iGuildGUID;
 			//testcode
 			if (iGuildGUID != 0) {
@@ -6922,10 +6899,6 @@ int CGame::bCreateNewNpc(char* pNpcName, char* pName, char* pMapName, short sCla
 			return true;
 		}
 
-#ifdef _DEBUG
-	printf("[DEBUG] bCreateNewNpc: FAILED - No free NPC slots available (all %d slots full) for '%s'\n",
-		DEF_MAXNPCS, pNpcName);
-#endif
 	return false;
 }
 
@@ -6939,13 +6912,9 @@ void CGame::NpcProcess()
 
 	dwTime = GameClock::GetTimeMS();
 
-	// PERFORMANCE OPTIMIZATION: Use active entity list instead of iterating all 5000 slots
-	// With 70 entities: 71x faster (70 iterations vs 5000)
-	int* pActiveList = m_pEntityManager->GetActiveEntityList();
-	int iActiveCount = m_pEntityManager->GetActiveEntityCount();
-
-	for (i = 0; i < iActiveCount; i++) {
-		iNpcH = pActiveList[i]; // Get active entity handle (guaranteed non-NULL)
+	// Keep full scan to ensure all NPCs update while EntityManager integration is incomplete.
+	for (i = 1; i < DEF_MAXNPCS; i++) {
+		iNpcH = i;
 
 		// MODERNIZED: Poll sockets every 10 entities to prevent lag during heavy entity processing
 		if (i % 10 == 0) {
@@ -27329,8 +27298,11 @@ bool CGame::bCheckResistingMagicSuccess(char cAttackerDir, short sTargetH, char 
 	if ((iHitRatio < 1000) && (cProtect == 2)) return true;
 	if (iHitRatio >= 10000) iHitRatio -= 10000;
 	if (iTargetMagicResistRatio < 1) iTargetMagicResistRatio = 1;
-	if ((cAttackerDir != 0) && (m_pClientList[sTargetH] != 0) && (m_pClientList[sTargetH]->m_cHeroArmourBonus == 2)) {
-		iHitRatio += 50;
+	if (sTargetH < DEF_MAXCLIENTS)
+	{
+		if ((cAttackerDir != 0) && (m_pClientList[sTargetH] != 0) && (m_pClientList[sTargetH]->m_cHeroArmourBonus == 2)) {
+			iHitRatio += 50;
+		}
 	}
 
 	dTmp1 = (double)(iHitRatio);

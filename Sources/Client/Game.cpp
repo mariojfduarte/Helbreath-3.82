@@ -2280,9 +2280,6 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 						SetRect(&m_rcPlayerRect, m_rcBodyRect.left, m_rcBodyRect.top, m_rcBodyRect.right, m_rcBodyRect.bottom);
 						bIsPlayerDrawed = true;
 					}
-
-					// Disabled: avoid per-frame NPC HP requests flooding the network
-					// bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_REQ_GETNPCHP, 0, _tmp_wObjectID, 0, 0, 0);
 				}
 			}
 
@@ -2663,9 +2660,6 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 			DrawObject_OnDead(m_sMCX, m_sMCY, sFocusX, sFocusY, true, dwTime, msX, msY);
 			break;
 		}
-
-		// Disabled: avoid per-frame NPC HP requests flooding the network
-		// bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_REQ_GETNPCHP, 0, _tmp_wObjectID, 0, 0, 0);
 	}
 
 	if (sItemSelectedID != -1) {
@@ -43717,8 +43711,8 @@ void CGame::InitDataResponseHandler(char* pData)
 	m_pMapData->m_sPivotX = sX;
 	m_pMapData->m_sPivotY = sY;
 
-	m_sPlayerX = sX + 14 + 5;
-	m_sPlayerY = sY + 12 + 5;
+	m_sPlayerX = sX + 19;
+	m_sPlayerY = sY + 17;
 
 	m_cPlayerDir = 5;
 
@@ -43730,9 +43724,11 @@ void CGame::InitDataResponseHandler(char* pData)
 			DEF_OBJECTSTOP, 0, 0, 0);
 	}
 
-	m_sViewDstX = m_sViewPointX = (sX + VIEW_CENTER_TILE_X) * 32 - 16;
-m_sViewDstY = m_sViewPointY = (sY + VIEW_CENTER_TILE_Y + 1) * 32 - 16;
-	_ReadMapData(sX + VIEW_CENTER_TILE_X, sY + VIEW_CENTER_TILE_Y, cp);
+	//m_sViewDstX = m_sViewPointX = (sX + VIEW_CENTER_TILE_X) * 32 - 16;
+	//m_sViewDstY = m_sViewPointY = (sY + VIEW_CENTER_TILE_Y + 1) * 32 - 16;
+	m_sViewDstX = m_sViewPointX = (m_sPlayerX - VIEW_CENTER_TILE_X) * 32;
+	m_sViewDstY = m_sViewPointY = (m_sPlayerY - (VIEW_CENTER_TILE_Y + 1)) * 32;
+	_ReadMapData(sX + 7, sY + 8, cp);
 	m_bIsRedrawPDBGS = true;
 	// ------------------------------------------------------------------------+
 	wsprintf(cTxt, INITDATA_RESPONSE_HANDLER1, m_cMapMessage);
