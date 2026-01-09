@@ -30,8 +30,6 @@ using namespace std;
 #include "GlobalDef.h"
 #include "DXC_ddraw.h"
 #include "DXC_dinput.h"
-#include "YWSound.h"
-#include "SoundBuffer.h"
 #include "XSocket.h"
 #include "Sprite.h"
 #include "SpriteID.h"
@@ -538,7 +536,7 @@ public:
 	void _DrawBlackRect(int iSize);
 	void DrawNpcName(   short sX, short sY, short sOwnerType, int iStatus);
 	void DrawObjectName(short sX, short sY, char * pName, int iStatus);
-	void PlaySound(char cType, int iNum, int iDist, long lPan = 0);
+	void PlaySound(char cType, int iNum, int iDist, long lPan = 0);  // Forwards to AudioManager
 	void _RemoveChatMsgListByObjectID(int iObjectID);
 	void _LoadTextDlgContents(int cType);
 	int  _iLoadTextDlgContents2(int iType);
@@ -649,7 +647,7 @@ public:
 	int _iGetTotalItemNum();
 	LONG GetRegKey(HKEY key, LPCTSTR subkey, LPTSTR retdata);
 	void GoHomepage();
-	void StartBGM();
+	void StartBGM();  // Forwards to AudioManager based on current location
 
 	//Snoopy: added function:
 	void DebugLog(char * cStr);
@@ -782,11 +780,6 @@ public:
 		int iCost;
 	} m_stTeleportList[20];
 
-	class YWSound m_DSound;
-	class CSoundBuffer *	m_pCSound[DEF_MAXSOUNDEFFECTS];
-	class CSoundBuffer *	m_pMSound[DEF_MAXSOUNDEFFECTS];
-	class CSoundBuffer *	m_pESound[DEF_MAXSOUNDEFFECTS];
-	class CSoundBuffer *    m_pBGM;
 	class DXC_ddraw  m_DDraw;
 	class DXC_dinput m_DInput;
 	class CSprite  * m_pSprite[DEF_MAXSPRITES];
@@ -852,8 +845,6 @@ public:
 	bool m_bZoomMap;
 	bool m_bIsProgramActive;
 	bool m_bCommandAvailable;
-	bool m_bSoundFlag;
-	bool m_bSoundStat, m_bMusicStat; // On/Off
 	bool m_bIsItemEquipped[DEF_MAXITEMS];
 	bool m_bIsItemDisabled[DEF_MAXITEMS];
 	bool m_bIsGetPointingMode;
@@ -1025,7 +1016,6 @@ public:
 	char m_cWorldServerName[32];
 	char m_cDetailLevel;
 	char m_cMenuDir, m_cMenuDirCnt, m_cMenuFrame;
-	char m_cSoundVolume, m_cMusicVolume;
 	char m_cWhetherEffectType;
 	char m_cWhetherStatus;
 	char m_cIlusionOwnerType;

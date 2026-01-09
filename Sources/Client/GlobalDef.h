@@ -29,8 +29,7 @@
 
 #define LOGICAL_WIDTH			640
 #define LOGICAL_HEIGHT			480
-#define RESOLUTION_WIDTH		640//1440
-#define RESOLUTION_HEIGHT		480//1080
+// Window size is now in settings.json (ConfigManager)
 #define BASE_SCREEN_WIDTH		LOGICAL_WIDTH
 #define BASE_SCREEN_HEIGHT		LOGICAL_HEIGHT
 #define SCREENX					((LOGICAL_WIDTH - BASE_SCREEN_WIDTH) / 2)

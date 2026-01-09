@@ -22,6 +22,7 @@
 #include "GlobalDef.h"
 #include "resource.h"
 #include "FrameTiming.h"
+#include "ConfigManager.h"
 
 // --------------------------------------------------------------
 #define WM_USER_TIMERSIGNAL		WM_USER + 500
@@ -158,6 +159,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
 {
 	srand((unsigned)time(0));
+
+	// Load settings early so window size is available
+	ConfigManager::Get().Initialize();
+	ConfigManager::Get().Load();
+
 	G_pGame = new class CGame;
 
 	sprintf(szAppClass, "Client-I%d", (int)hInstance);
@@ -191,12 +197,15 @@ BOOL InitApplication(HINSTANCE hInstance)
 
 bool InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
+	int windowWidth = ConfigManager::Get().GetWindowWidth();
+	int windowHeight = ConfigManager::Get().GetWindowHeight();
+
 	int cx = GetSystemMetrics(SM_CXFULLSCREEN) / 2;
 	int cy = GetSystemMetrics(SM_CYFULLSCREEN) / 2;
 	if (cy > 340) cy += 40;
 	G_hWnd = CreateWindowEx(0, szAppClass, "Helbreath", WS_POPUP,
-		cx - (RESOLUTION_WIDTH / 2), cy - (RESOLUTION_HEIGHT / 2),
-		RESOLUTION_WIDTH, RESOLUTION_HEIGHT, 0, 0, hInstance, 0);
+		cx - (windowWidth / 2), cy - (windowHeight / 2),
+		windowWidth, windowHeight, 0, 0, hInstance, 0);
 	if (!G_hWnd) return false;
 	G_hInstance = hInstance;
 	ShowWindow(G_hWnd, SW_SHOWDEFAULT);

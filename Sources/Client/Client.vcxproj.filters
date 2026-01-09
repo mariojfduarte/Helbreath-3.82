@@ -1,137 +1,261 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Library">
-      <UniqueIdentifier>{3b1aa330-eeae-4651-988c-a36e3a7414dd}</UniqueIdentifier>
+    <Filter Include="Core">
+      <UniqueIdentifier>{1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Managers">
+      <UniqueIdentifier>{2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Chat">
+      <UniqueIdentifier>{3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Chat\Commands">
+      <UniqueIdentifier>{4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DirectX">
+      <UniqueIdentifier>{4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Network">
+      <UniqueIdentifier>{5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Graphics">
+      <UniqueIdentifier>{6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="World">
+      <UniqueIdentifier>{7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Entities">
+      <UniqueIdentifier>{8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Language">
       <UniqueIdentifier>{a84ba1ae-b737-4f8d-838c-df968cce5e66}</UniqueIdentifier>
     </Filter>
-    <Filter Include="classes">
-      <UniqueIdentifier>{0a79a3d4-2c6f-4554-aa27-1075857b75af}</UniqueIdentifier>
+    <Filter Include="Resources">
+      <UniqueIdentifier>{9c0d1e2f-3a4b-5c6d-7e8f-9a0b1c2d3e4f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="YWSound.h">
-      <Filter>Library</Filter>
+    <!-- Core -->
+    <ClInclude Include="Game.h">
+      <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="GlobalDef.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="CommonTypes.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="ActionID_Client.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameTiming.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Benchmark.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClCompile Include="Game.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Wmain.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="CommonTypes.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameTiming.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <!-- Managers -->
+    <ClInclude Include="ConfigManager.h">
+      <Filter>Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="AudioManager.h">
+      <Filter>Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="WeatherManager.h">
+      <Filter>Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Managers</Filter>
+    </ClInclude>
+    <ClCompile Include="ConfigManager.cpp">
+      <Filter>Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="AudioManager.cpp">
+      <Filter>Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="miniaudio_impl.cpp">
+      <Filter>Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="WeatherManager.cpp">
+      <Filter>Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Managers</Filter>
+    </ClCompile>
+    <!-- Chat -->
+    <ClInclude Include="ChatCommandManager.h">
+      <Filter>Chat</Filter>
+    </ClInclude>
+    <ClInclude Include="ChatMsg.h">
+      <Filter>Chat</Filter>
+    </ClInclude>
+    <ClCompile Include="ChatCommandManager.cpp">
+      <Filter>Chat</Filter>
+    </ClCompile>
+    <!-- Chat\Commands -->
+    <ClInclude Include="CmdShowFrame.h">
+      <Filter>Chat\Commands</Filter>
+    </ClInclude>
+    <ClInclude Include="CmdEnableToggleScreen.h">
+      <Filter>Chat\Commands</Filter>
+    </ClInclude>
+    <ClInclude Include="CmdWhisper.h">
+      <Filter>Chat\Commands</Filter>
+    </ClInclude>
+    <ClInclude Include="CmdShout.h">
+      <Filter>Chat\Commands</Filter>
+    </ClInclude>
+    <ClInclude Include="CmdIgnore.h">
+      <Filter>Chat\Commands</Filter>
+    </ClInclude>
+    <ClInclude Include="CmdWeather.h">
+      <Filter>Chat\Commands</Filter>
+    </ClInclude>
+    <ClCompile Include="CmdShowFrame.cpp">
+      <Filter>Chat\Commands</Filter>
+    </ClCompile>
+    <ClCompile Include="CmdEnableToggleScreen.cpp">
+      <Filter>Chat\Commands</Filter>
+    </ClCompile>
+    <ClCompile Include="CmdWhisper.cpp">
+      <Filter>Chat\Commands</Filter>
+    </ClCompile>
+    <ClCompile Include="CmdShout.cpp">
+      <Filter>Chat\Commands</Filter>
+    </ClCompile>
+    <ClCompile Include="CmdIgnore.cpp">
+      <Filter>Chat\Commands</Filter>
+    </ClCompile>
+    <ClCompile Include="CmdWeather.cpp">
+      <Filter>Chat\Commands</Filter>
+    </ClCompile>
+    <!-- DirectX -->
+    <ClInclude Include="DXC_ddraw.h">
+      <Filter>DirectX</Filter>
+    </ClInclude>
+    <ClInclude Include="DXC_dinput.h">
+      <Filter>DirectX</Filter>
+    </ClInclude>
+    <ClCompile Include="DXC_ddraw.cpp">
+      <Filter>DirectX</Filter>
+    </ClCompile>
+    <ClCompile Include="DXC_dinput.cpp">
+      <Filter>DirectX</Filter>
+    </ClCompile>
+    <!-- Network -->
+    <ClInclude Include="XSocket.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="ClientMessages.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClCompile Include="XSocket.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <!-- Graphics -->
+    <ClInclude Include="Sprite.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="SpriteID.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Mydib.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Effect.h">
+      <Filter>Graphics</Filter>
+    </ClInclude>
+    <ClCompile Include="Sprite.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Mydib.cpp">
+      <Filter>Graphics</Filter>
+    </ClCompile>
+    <!-- World -->
+    <ClInclude Include="MapData.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="Tile.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClInclude Include="TileSpr.h">
+      <Filter>World</Filter>
+    </ClInclude>
+    <ClCompile Include="MapData.cpp">
+      <Filter>World</Filter>
+    </ClCompile>
+    <!-- Entities -->
+    <ClInclude Include="CharInfo.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Item.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemName.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Magic.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Skill.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="BuildItem.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Curse.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="MobCounter.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="GameMonitor.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="MouseInterface.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Misc.h">
+      <Filter>Entities</Filter>
+    </ClInclude>
+    <ClCompile Include="Curse.cpp">
+      <Filter>Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="GameMonitor.cpp">
+      <Filter>Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="MouseInterface.cpp">
+      <Filter>Entities</Filter>
+    </ClCompile>
+    <!-- Language -->
     <ClInclude Include="lan_eng.h">
       <Filter>Language</Filter>
     </ClInclude>
-    <ClInclude Include="BuildItem.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="CharInfo.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Curse.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="DXC_ddraw.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="DXC_dinput.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="DXC_dsound.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Effect.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="GameMonitor.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Item.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="ItemName.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Magic.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="MapData.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Misc.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="MouseInterface.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Mydib.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Skill.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="SoundBuffer.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Sprite.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Tile.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="TileSpr.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="XSocket.h">
-      <Filter>classes</Filter>
-    </ClInclude>
-    <ClInclude Include="Game.h" />
-    <ClInclude Include="GlobalDef.h" />
-    <ClInclude Include="SpriteID.h" />
-    <ClInclude Include="MobCounter.h" />
-    <ClInclude Include="resource.h" />
-    <ClInclude Include="ActionID_Client.h" />
-    <ClInclude Include="Benchmark.h" />
-    <ClInclude Include="ChatMsg.h" />
-    <ClInclude Include="ClientMessages.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="YWSound.cpp">
-      <Filter>Library</Filter>
-    </ClCompile>
-    <ClCompile Include="Curse.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="DXC_ddraw.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="DXC_dinput.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="GameMonitor.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="MapData.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="MouseInterface.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Mydib.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="SoundBuffer.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Sprite.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="XSocket.cpp">
-      <Filter>classes</Filter>
-    </ClCompile>
-    <ClCompile Include="Game.cpp" />
-    <ClCompile Include="Wmain.cpp" />
+    <ResourceCompile Include="Game.rc">
+      <Filter>Resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Game.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="icon1.ico" />
+    <Image Include="icon1.ico">
+      <Filter>Resources</Filter>
+    </Image>
   </ItemGroup>
 </Project>

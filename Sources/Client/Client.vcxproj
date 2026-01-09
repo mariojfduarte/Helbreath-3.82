@@ -170,16 +170,27 @@
     <ClInclude Include="Mydib.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Skill.h" />
-    <ClInclude Include="SoundBuffer.h" />
     <ClInclude Include="Sprite.h" />
     <ClInclude Include="SpriteID.h" />
     <ClInclude Include="Tile.h" />
     <ClInclude Include="TileSpr.h" />
     <ClInclude Include="XSocket.h" />
-    <ClInclude Include="YWSound.h" />
+    <ClInclude Include="ConfigManager.h" />
+    <ClInclude Include="Camera.h" />
+    <ClInclude Include="AudioManager.h" />
+    <ClInclude Include="ChatCommandManager.h" />
+    <ClInclude Include="CmdShowFrame.h" />
+    <ClInclude Include="CmdEnableToggleScreen.h" />
+    <ClInclude Include="CmdWhisper.h" />
+    <ClInclude Include="CmdShout.h" />
+    <ClInclude Include="CmdIgnore.h" />
+    <ClInclude Include="CmdWeather.h" />
+    <ClInclude Include="WeatherManager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CommonTypes.cpp" />
+    <ClCompile Include="ConfigManager.cpp" />
+    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Curse.cpp" />
     <ClCompile Include="FrameTiming.cpp" />
     <ClCompile Include="DXC_ddraw.cpp" />
@@ -189,11 +200,19 @@
     <ClCompile Include="MapData.cpp" />
     <ClCompile Include="MouseInterface.cpp" />
     <ClCompile Include="Mydib.cpp" />
-    <ClCompile Include="SoundBuffer.cpp" />
     <ClCompile Include="Sprite.cpp" />
     <ClCompile Include="Wmain.cpp" />
     <ClCompile Include="XSocket.cpp" />
-    <ClCompile Include="YWSound.cpp" />
+    <ClCompile Include="AudioManager.cpp" />
+    <ClCompile Include="ChatCommandManager.cpp" />
+    <ClCompile Include="CmdShowFrame.cpp" />
+    <ClCompile Include="CmdEnableToggleScreen.cpp" />
+    <ClCompile Include="CmdWhisper.cpp" />
+    <ClCompile Include="CmdShout.cpp" />
+    <ClCompile Include="CmdIgnore.cpp" />
+    <ClCompile Include="CmdWeather.cpp" />
+    <ClCompile Include="miniaudio_impl.cpp" />
+    <ClCompile Include="WeatherManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Game.rc" />

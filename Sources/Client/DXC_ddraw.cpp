@@ -6,6 +6,7 @@
 #include "CommonTypes.h"
 #include <objbase.h>
 #include "DXC_ddraw.h"
+#include "ConfigManager.h"
 
 extern HWND G_hEditWnd;
 extern HWND G_hWnd;
@@ -69,6 +70,10 @@ bool DXC_ddraw::bInit(HWND hWnd)
  DDSURFACEDESC2 ddsd;
  int            iS, iD;
 
+	// Get window dimensions from settings
+	int windowWidth = ConfigManager::Get().GetWindowWidth();
+	int windowHeight = ConfigManager::Get().GetWindowHeight();
+
 	 res_x = LOGICAL_WIDTH;
 	 res_y = LOGICAL_HEIGHT;
 	 res_x_mid = LOGICAL_WIDTH / 2;
@@ -87,7 +92,7 @@ bool DXC_ddraw::bInit(HWND hWnd)
 		ddVal = m_lpDD4->SetCooperativeLevel(hWnd, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN);
 		if (ddVal != DD_OK) return false;
 		ChangeBPP(CHANGE32BPP);
-		ddVal = m_lpDD4->SetDisplayMode(RESOLUTION_WIDTH, RESOLUTION_HEIGHT, 16, 0, 0);
+		ddVal = m_lpDD4->SetDisplayMode(windowWidth, windowHeight, 16, 0, 0);
 		if (ddVal != DD_OK) return false;
 		memset( (VOID *)&ddsd, 0, sizeof(ddsd) );
 		ddsd.dwSize = sizeof( ddsd );
@@ -102,7 +107,7 @@ bool DXC_ddraw::bInit(HWND hWnd)
 		ddscaps.dwCaps = DDSCAPS_BACKBUFFER;
 		ddVal = m_lpFrontB4->GetAttachedSurface(&ddscaps, &m_lpBackB4flip);
 		if (ddVal != DD_OK) return false;
-		SetRect(&m_rcFlipping, 0, 0, RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
+		SetRect(&m_rcFlipping, 0, 0, windowWidth, windowHeight);
 	}
 	else
 	{
@@ -125,7 +130,7 @@ bool DXC_ddraw::bInit(HWND hWnd)
 		// then convert to screen coordinates for the Blt call
 		POINT ptZero = {0, 0};
 		ClientToScreen(hWnd, &ptZero);
-		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + RESOLUTION_WIDTH, ptZero.y + RESOLUTION_HEIGHT);
+		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + windowWidth, ptZero.y + windowHeight);
 	}
 
 	InitFlipToGDI(hWnd);
@@ -199,14 +204,16 @@ HRESULT DXC_ddraw::iFlip()
 
 	if (m_bFullMode)
 	{
-		double scale = (double)RESOLUTION_WIDTH / (double)LOGICAL_WIDTH;
-		double scaleY = (double)RESOLUTION_HEIGHT / (double)LOGICAL_HEIGHT;
+		int windowWidth = ConfigManager::Get().GetWindowWidth();
+		int windowHeight = ConfigManager::Get().GetWindowHeight();
+		double scale = (double)windowWidth / (double)LOGICAL_WIDTH;
+		double scaleY = (double)windowHeight / (double)LOGICAL_HEIGHT;
 		if (scaleY < scale) scale = scaleY;
 		if (scale <= 0.0) scale = 1.0;
 		int destW = (int)(LOGICAL_WIDTH * scale);
 		int destH = (int)(LOGICAL_HEIGHT * scale);
-		int offsetX = (RESOLUTION_WIDTH - destW) / 2;
-		int offsetY = (RESOLUTION_HEIGHT - destH) / 2;
+		int offsetX = (windowWidth - destW) / 2;
+		int offsetY = (windowHeight - destH) / 2;
 		SetRect(&rcDest, offsetX, offsetY, offsetX + destW, offsetY + destH);
 		ddVal = m_lpBackB4flip->Blt(&rcDest, m_lpBackB4, &rcSource, DDBLT_WAIT, 0);
 		ddVal = m_lpFrontB4->Flip(m_lpBackB4flip, DDFLIP_WAIT);
@@ -253,6 +260,10 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 	HRESULT        ddVal;
 	DDSURFACEDESC2 ddsd;
 
+	// Get window dimensions from settings
+	int windowWidth = ConfigManager::Get().GetWindowWidth();
+	int windowHeight = ConfigManager::Get().GetWindowHeight();
+
 	if (!m_init) return;
 
 	if (m_lpBackB4flip != 0)
@@ -294,7 +305,7 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		// then convert to screen coordinates for the Blt call
 		POINT ptZero = {0, 0};
 		ClientToScreen(hWnd, &ptZero);
-		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + RESOLUTION_WIDTH, ptZero.y + RESOLUTION_HEIGHT);
+		SetRect(&m_rcFlipping, ptZero.x, ptZero.y, ptZero.x + windowWidth, ptZero.y + windowHeight);
 		m_bFullMode = false;
 	}
 	else
@@ -303,14 +314,14 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		ddVal = m_lpDD4->SetCooperativeLevel(hWnd, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN);
 		if (ddVal != DD_OK) return;
 		ChangeBPP(CHANGE32BPP);
-		ddVal = m_lpDD4->SetDisplayMode(RESOLUTION_WIDTH, RESOLUTION_HEIGHT, 16, 0, 0);
+		ddVal = m_lpDD4->SetDisplayMode(windowWidth, windowHeight, 16, 0, 0);
 		if (ddVal != DD_OK) return;
 		memset( (VOID *)&ddsd, 0, sizeof(ddsd) );
 		ddsd.dwSize = sizeof( ddsd );
 		ddsd.dwFlags = DDSD_CAPS | DDSD_BACKBUFFERCOUNT;
 		ddsd.dwBackBufferCount = 1;//2; //v1.3
 		ddsd.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE | DDSCAPS_FLIP | DDSCAPS_COMPLEX;
-		
+
 		ddVal = m_lpDD4->CreateSurface(&ddsd, &m_lpFrontB4, 0);
 		if (ddVal != DD_OK) return;
 
@@ -318,7 +329,7 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		ddscaps.dwCaps = DDSCAPS_BACKBUFFER;
 		ddVal = m_lpFrontB4->GetAttachedSurface(&ddscaps, &m_lpBackB4flip);
 		if (ddVal != DD_OK) return;
-		SetRect(&m_rcFlipping, 0, 0, RESOLUTION_WIDTH, RESOLUTION_HEIGHT);
+		SetRect(&m_rcFlipping, 0, 0, windowWidth, windowHeight);
 		m_bFullMode = true;
 	}
 	InitFlipToGDI(hWnd);

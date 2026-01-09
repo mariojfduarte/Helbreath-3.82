@@ -12,6 +12,13 @@
 #include <cstdio>
 #include <windows.h>
 
+// Manager singletons
+#include "ConfigManager.h"
+#include "Camera.h"
+#include "AudioManager.h"
+#include "WeatherManager.h"
+#include "ChatCommandManager.h"
+
 extern char G_cSpriteAlphaDegree;
 
 extern char G_cCmdLine[256], G_cCmdLineTokenA[120], G_cCmdLineTokenA_Lowercase[120], G_cCmdLineTokenB[120], G_cCmdLineTokenC[120], G_cCmdLineTokenD[120], G_cCmdLineTokenE[120];
@@ -46,122 +53,43 @@ int   iFocusApprColor;
 
 void CGame::ReadSettings()
 {
-	m_sMagicShortCut = -1;
-	m_sRecentShortCut = -1;
-	for (int i = 0; i < 6; i++) m_sShortCut[i] = -1;
+	// Initialize and load settings from JSON file via ConfigManager
+	ConfigManager::Get().Initialize();
+	ConfigManager::Get().Load();
 
-	HKEY key;
-	uint32_t dwDisp;
-	UINT Result;
-	uint32_t Size = sizeof(LONG);
-	if (RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\Siementech\\Helbreath\\Settings", 0, 0, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, 0, &key, (LPDWORD)&dwDisp) != ERROR_SUCCESS) return;
-
-	if (RegQueryValueEx(key, "Magic", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
+	// Copy values to CGame member variables
+	m_sMagicShortCut = ConfigManager::Get().GetMagicShortcut();
+	m_sRecentShortCut = ConfigManager::Get().GetRecentShortcut();
+	for (int i = 0; i < 5; i++)
 	{
-		RegCloseKey(key);
-		return;
+		m_sShortCut[i] = ConfigManager::Get().GetShortcut(i);
 	}
-	if (Result > 0 && Result < 101) m_sMagicShortCut = Result - 1;
-	else m_sMagicShortCut = -1;
+	m_sShortCut[5] = -1; // 6th slot unused
 
-	if (RegQueryValueEx(key, "ShortCut0", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-	if (Result > 0 && Result < 201) m_sShortCut[0] = Result - 1;
-	else m_sShortCut[0] = -1;
-
-	if (RegQueryValueEx(key, "ShortCut1", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-	if (Result > 0 && Result < 201) m_sShortCut[1] = Result - 1;
-	else m_sShortCut[1] = -1;
-
-	if (RegQueryValueEx(key, "ShortCut2", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-	if (Result > 0 && Result < 201) m_sShortCut[2] = Result - 1;
-	else m_sShortCut[2] = -1;
-
-	if (RegQueryValueEx(key, "ShortCut3", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-	if (Result > 0 && Result < 201) m_sShortCut[3] = Result - 1;
-	else m_sShortCut[3] = -1;
-
-	if (RegQueryValueEx(key, "ShortCut4", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-	if (Result > 0 && Result < 201) m_sShortCut[4] = Result - 1;
-	else m_sShortCut[4] = -1;
-
-	RegCloseKey(key);
+	// Audio settings loaded into AudioManager
+	AudioManager::Get().SetSoundVolume(ConfigManager::Get().GetSoundVolume());
+	AudioManager::Get().SetMusicVolume(ConfigManager::Get().GetMusicVolume());
+	AudioManager::Get().SetSoundEnabled(ConfigManager::Get().IsSoundEnabled());
+	AudioManager::Get().SetMusicEnabled(ConfigManager::Get().IsMusicEnabled());
 }
 
 void CGame::WriteSettings()
 {
-	HKEY key;
-	uint32_t dwDisp;
-	UINT nData;
-	if (RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\Siementech\\Helbreath\\Settings", 0, 0, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, 0, &key, (LPDWORD)&dwDisp) != ERROR_SUCCESS) return;
-
-	if (m_sMagicShortCut >= 0 && m_sMagicShortCut < 100) nData = m_sMagicShortCut + 1;
-	else nData = 0;
-	if (RegSetValueEx(key, "Magic", 0, REG_DWORD, (LPBYTE)&nData, sizeof(UINT)) != ERROR_SUCCESS)
+	// Copy CGame member variables to ConfigManager
+	ConfigManager::Get().SetMagicShortcut(m_sMagicShortCut);
+	for (int i = 0; i < 5; i++)
 	{
-		RegCloseKey(key);
-		return;
+		ConfigManager::Get().SetShortcut(i, m_sShortCut[i]);
 	}
 
-	if (m_sShortCut[0] >= 0 && m_sShortCut[0] < 200) nData = m_sShortCut[0] + 1;
-	else nData = 0;
-	if (RegSetValueEx(key, "ShortCut0", 0, REG_DWORD, (LPBYTE)&nData, sizeof(UINT)) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
+	// Audio settings from AudioManager
+	ConfigManager::Get().SetSoundVolume(AudioManager::Get().GetSoundVolume());
+	ConfigManager::Get().SetMusicVolume(AudioManager::Get().GetMusicVolume());
+	ConfigManager::Get().SetSoundEnabled(AudioManager::Get().IsSoundEnabled());
+	ConfigManager::Get().SetMusicEnabled(AudioManager::Get().IsMusicEnabled());
 
-	if (m_sShortCut[1] >= 0 && m_sShortCut[1] < 200) nData = m_sShortCut[1] + 1;
-	else nData = 0;
-	if (RegSetValueEx(key, "ShortCut1", 0, REG_DWORD, (LPBYTE)&nData, sizeof(UINT)) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-
-	if (m_sShortCut[2] >= 0 && m_sShortCut[2] < 200) nData = m_sShortCut[2] + 1;
-	else nData = 0;
-	if (RegSetValueEx(key, "ShortCut2", 0, REG_DWORD, (LPBYTE)&nData, sizeof(UINT)) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-
-	if (m_sShortCut[3] >= 0 && m_sShortCut[3] < 200) nData = m_sShortCut[3] + 1;
-	else nData = 0;
-	if (RegSetValueEx(key, "ShortCut3", 0, REG_DWORD, (LPBYTE)&nData, sizeof(UINT)) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-
-	if (m_sShortCut[4] >= 0 && m_sShortCut[4] < 200) nData = m_sShortCut[4] + 1;
-	else nData = 0;
-	if (RegSetValueEx(key, "ShortCut4", 0, REG_DWORD, (LPBYTE)&nData, sizeof(UINT)) != ERROR_SUCCESS)
-	{
-		RegCloseKey(key);
-		return;
-	}
-	RegCloseKey(key);
+	// Save to JSON file
+	ConfigManager::Get().Save();
 }
 
 CGame::CGame()
@@ -217,13 +145,6 @@ CGame::CGame()
 	for (i = 0; i < DEF_MAXSPRITES; i++) m_pSprite[i] = 0;
 	for (i = 0; i < DEF_MAXTILES; i++) m_pTileSpr[i] = 0;
 	for (i = 0; i < DEF_MAXEFFECTSPR; i++) m_pEffectSpr[i] = 0;
-	m_pBGM = 0;
-	for (i = 0; i < DEF_MAXSOUNDEFFECTS; i++)
-	{
-		m_pCSound[i] = 0;
-		m_pESound[i] = 0;
-		m_pMSound[i] = 0;
-	}
 
 	for (i = 0; i < 5000; i++) m_pItemConfigList[i] = 0;
 
@@ -575,7 +496,6 @@ CGame::CGame()
 	m_bShiftPressed = false;
 	m_bEnterPressed = false;
 	m_bEscPressed = false;
-	m_bSoundFlag = false;
 	m_dwDialogCloseTime = 0;
 	m_iTimeLeftSecAccount = 0;
 	m_iTimeLeftSecIP = 0;
@@ -656,8 +576,13 @@ bool CGame::bInit(HWND hWnd, HINSTANCE hInst, char* pCmdLine)
 	m_bCommandAvailable = true;
 	m_pCGameMonitor = 0;
 	m_dwTime = G_dwGlobalTime;
-	m_bSoundFlag = m_DSound.Create(m_hWnd);
-	m_bMusicStat = m_bSoundStat = m_bSoundFlag;
+
+	// Initialize AudioManager (sounds loaded later during loading screen)
+	AudioManager::Get().Initialize(m_hWnd);
+
+	// Initialize ChatCommandManager
+	ChatCommandManager::Get().Initialize(this);
+
 	m_bIsHideLocalCursor = false;
 	m_cEnterCheck = m_cTabCheck = m_cLeftArrowCheck = 0;
 
@@ -746,9 +671,6 @@ bool CGame::bInit(HWND hWnd, HINSTANCE hInst, char* pCmdLine)
 	m_cMenuDirCnt = 0;
 	m_cMenuFrame = 0;
 
-	m_cSoundVolume = 100;
-	m_cMusicVolume = 100;
-
 	CMisc::ColorTransfer(m_DDraw.m_cPixelFormat, RGB(70, 70, 80), &m_wWR[1], &m_wWG[1], &m_wWB[1]); // Light-blue
 	CMisc::ColorTransfer(m_DDraw.m_cPixelFormat, RGB(70, 70, 80), &m_wWR[2], &m_wWG[2], &m_wWB[2]); // light-blue
 	CMisc::ColorTransfer(m_DDraw.m_cPixelFormat, RGB(70, 70, 80), &m_wWR[3], &m_wWG[3], &m_wWB[3]); // light-blue
@@ -805,6 +727,15 @@ bool CGame::bInit(HWND hWnd, HINSTANCE hInst, char* pCmdLine)
 	_LoadGameMsgTextContents();
 	std::memset(m_cWorldServerName, 0, sizeof(m_cWorldServerName));
 
+	// Initialize manager singletons (ConfigManager already initialized in ReadSettings)
+	Camera::Get().Initialize();
+	// AudioManager initialized in bInit() with HWND
+	WeatherManager::Get().Initialize();
+
+	// Set Camera viewport to match screen dimensions
+	Camera::Get().SetViewportSize(SCREENX * 2 + 640, SCREENY * 2 + 480);
+	Camera::Get().SetTileSize(32, 32);
+
 	return true;
 }
 
@@ -813,6 +744,12 @@ void CGame::Quit()
 	int i;
 	WriteSettings();
 	ChangeGameMode(DEF_GAMEMODE_NULL);
+
+	// Shutdown manager singletons
+	WeatherManager::Get().Shutdown();
+	AudioManager::Get().Shutdown();
+	Camera::Get().Shutdown();
+	ConfigManager::Get().Shutdown();
 
 	for (i = 0; i < 5000; i++)
 		if (m_pItemConfigList[i] != 0) delete m_pItemConfigList[i];
@@ -824,13 +761,7 @@ void CGame::Quit()
 	for (i = 0; i < DEF_MAXEFFECTSPR; i++)
 		if (m_pEffectSpr[i] != 0) delete m_pEffectSpr[i];
 
-	for (i = 0; i < DEF_MAXSOUNDEFFECTS; i++) {
-		if (m_pCSound[i] != 0) delete m_pCSound[i];
-		if (m_pMSound[i] != 0) delete m_pMSound[i];
-		if (m_pESound[i] != 0) delete m_pESound[i];
-	}
-
-	if (m_pBGM != 0) delete m_pBGM;
+	// Sound cleanup handled by AudioManager::Shutdown()
 
 	for (i = 0; i < 4; i++)
 		if (m_pCharList[i] != 0) delete m_pCharList[i];
@@ -1086,6 +1017,11 @@ void CGame::RenderFrame()
 {
 	// Reset skip flag - screens can set this to skip rendering (e.g., UpdateScreen_OnGame when iUpdateRet == 0)
 	m_bSkipFrame = false;
+
+	// Update manager singletons with frame delta time
+	double deltaTime = FrameTiming::GetDeltaTime();
+	Camera::Get().Update(deltaTime);
+	AudioManager::Get().Update(deltaTime);
 
 	// Update phase: Logic, input handling, state changes
 	// May set m_bSkipFrame = true to skip rendering entirely
@@ -4165,26 +4101,9 @@ void CGame::UpdateScreen_OnLoading(bool bActive)
 		//MakeEffectSpr( "yseffect4", 167, 7, false); // Wrong in 351 client
 		MakeEffectSpr("yseffect4", 133, 7, false); // Abaddon's map thunder.
 
+		// Pre-load all sound effects into memory
+		AudioManager::Get().LoadSounds();
 
-		if (m_bSoundFlag) // Attention il y a un autre systeme de chargement ds la v351
-		{
-			for (i = 1; i <= 24; i++)
-			{
-				wsprintf(G_cTxt, "sounds\\C%d.wav", i);
-				m_pCSound[i] = new class CSoundBuffer(m_DSound.m_lpDS, m_DSound.m_DSCaps, G_cTxt);
-			}
-
-			for (i = 1; i <= 156; i++)
-			{
-				wsprintf(G_cTxt, "sounds\\M%d.wav", i);
-				m_pMSound[i] = new class CSoundBuffer(m_DSound.m_lpDS, m_DSound.m_DSCaps, G_cTxt);
-			}
-			for (i = 1; i <= 53; i++)
-			{
-				wsprintf(G_cTxt, "sounds\\E%d.wav", i);
-				m_pESound[i] = new class CSoundBuffer(m_DSound.m_lpDS, m_DSound.m_DSCaps, G_cTxt);
-			}
-		}
 		ChangeGameMode(DEF_GAMEMODE_ONMAINMENU);
 	}
 	break;
@@ -4251,11 +4170,8 @@ void CGame::OnTimer()
 			ChangeGameMode(DEF_GAMEMODE_ONQUIT);
 			m_bEscPressed = false;
 			PlaySound('E', 14, 5);
-			if (m_bSoundFlag) m_pESound[38]->bStop();
-			if ((m_bSoundFlag) && (m_bMusicStat == true))
-			{
-				if (m_pBGM != 0) m_pBGM->bStop();
-			}
+			AudioManager::Get().StopSound(SoundType::Effect, 38);
+			AudioManager::Get().StopMusic();
 			return;
 		}
 
@@ -14931,21 +14847,8 @@ void CGame::ReleaseUnusedSprites()
 			}
 		}
 
-	for (i = 0; i < DEF_MAXSOUNDEFFECTS; i++)
-	{
-		if (m_pCSound[i] != 0)
-		{
-			if (((G_dwGlobalTime - m_pCSound[i]->m_dwTime) > 30000) && (m_pCSound[i]->m_bIsLooping == false)) m_pCSound[i]->_ReleaseSoundBuffer();
-		}
-		if (m_pMSound[i] != 0)
-		{
-			if (((G_dwGlobalTime - m_pMSound[i]->m_dwTime) > 30000) && (m_pMSound[i]->m_bIsLooping == false)) m_pMSound[i]->_ReleaseSoundBuffer();
-		}
-		if (m_pESound[i] != 0)
-		{
-			if (((G_dwGlobalTime - m_pESound[i]->m_dwTime) > 30000) && (m_pESound[i]->m_bIsLooping == false)) m_pESound[i]->_ReleaseSoundBuffer();
-		}
-	}
+	// Stale sound buffer release is now handled by AudioManager::Update()
+	AudioManager::Get().Update(G_dwGlobalTime);
 }
 
 void CGame::PutChatScrollList(char* pMsg, char cType)
@@ -21998,38 +21901,23 @@ void CGame::_RemoveChatMsgListByObjectID(int iObjectID)
 
 void CGame::PlaySound(char cType, int iNum, int iDist, long lPan)
 {
-	int iVol;
-
-	if (m_bSoundFlag == false) return;
-	if (m_bSoundStat == false) return;
-
-	if (iDist > 10) iDist = 10;
-
-	iVol = (m_cSoundVolume - 100) * 20;
-	iVol += -200 * iDist;
-
-	if (iVol > 0) iVol = 0;
-	if (iVol < -10000) iVol = -10000;
-
-	if (iVol > -2000) {
-
-		switch (cType) {
-		case 'C':
-			if (m_pCSound[iNum] == 0) return;
-			m_pCSound[iNum]->Play(false, lPan, iVol);
-			break;
-
-		case 'M':
-			if (m_pMSound[iNum] == 0) return;
-			m_pMSound[iNum]->Play(false, lPan, iVol);
-			break;
-
-		case 'E':
-			if (m_pESound[iNum] == 0) return;
-			m_pESound[iNum]->Play(false, lPan, iVol);
-			break;
-		}
+	// Forward to AudioManager
+	SoundType type;
+	switch (cType)
+	{
+	case 'C':
+		type = SoundType::Character;
+		break;
+	case 'M':
+		type = SoundType::Monster;
+		break;
+	case 'E':
+		type = SoundType::Effect;
+		break;
+	default:
+		return;
 	}
+	AudioManager::Get().PlaySound(type, iNum, iDist, static_cast<int>(lPan));
 }
 
 void CGame::_DrawBlackRect(int iSize)
@@ -22449,11 +22337,18 @@ void CGame::SetWhetherStatus(bool bStart, char cType)
 {
 	SYSTEMTIME SysTime;
 	GetLocalTime(&SysTime);
+
+	// Always stop weather sounds first when changing weather
+	AudioManager::Get().StopSound(SoundType::Effect, 38);
+
 	if (bStart == true)
 	{
 		m_bIsWhetherEffect = true;
 		m_cWhetherEffectType = cType;
-		if ((m_bSoundStat == true) && (m_bSoundFlag) && (cType >= 1) && (cType <= 3)) m_pESound[38]->Play(true);
+
+		// Rain sound (types 1-3)
+		if (AudioManager::Get().IsSoundEnabled() && (cType >= 1) && (cType <= 3))
+			AudioManager::Get().PlaySoundLoop(SoundType::Effect, 38);
 
 		for (int i = 0; i < DEF_MAXWHETHEROBJECTS; i++)
 		{
@@ -22462,16 +22357,17 @@ void CGame::SetWhetherStatus(bool bStart, char cType)
 			m_stWhetherObject[i].sY = 1;
 			m_stWhetherObject[i].cStep = -1 * (rand() % 40);
 		}
+
+		// Snow BGM (types 4-6)
 		if (cType >= 4 && cType <= 6)
 		{
-			if (m_bMusicStat) StartBGM();
+			if (AudioManager::Get().IsMusicEnabled()) StartBGM();
 		}
 	}
 	else
 	{
 		m_bIsWhetherEffect = false;
 		m_cWhetherEffectType = 0;
-		if ((m_bSoundStat == true) && (m_bSoundFlag)) m_pESound[38]->bStop();
 	}
 }
 
@@ -24757,11 +24653,8 @@ void CGame::UpdateScreen_OnConnectionLost()
 	if (m_cGameModeCount == 0)
 	{
 		dwTime = GameClock::GetTimeMS();
-		if (m_bSoundFlag) m_pESound[38]->bStop();
-		if ((m_bSoundFlag) && (m_bMusicStat == true))
-		{
-			if (m_pBGM != 0) m_pBGM->bStop();
-		}
+		AudioManager::Get().StopSound(SoundType::Effect, 38);
+		AudioManager::Get().StopMusic();
 	}
 	m_cGameModeCount++;
 	if (m_cGameModeCount > 100) m_cGameModeCount = 100;
@@ -26448,38 +26341,30 @@ void CGame::OnKeyUp(WPARAM wParam)
 	case 83://'S'
 		if (m_bCtrlPressed == true && m_cGameMode == DEF_GAMEMODE_ONMAINGAME && (!m_bInputStatus))
 		{
-			if (m_bMusicStat == true) // Music Off
+			if (AudioManager::Get().IsMusicEnabled()) // Music Off
 			{
-				m_bMusicStat = false;
-				if (m_bSoundFlag)
-				{
-					if (m_pBGM != 0)
-					{
-						m_pBGM->bStop();
-						delete m_pBGM;
-						m_pBGM = 0;
-					}
-				}
+				AudioManager::Get().SetMusicEnabled(false);
+				AudioManager::Get().StopMusic();
 				AddEventList(NOTIFY_MSG_MUSIC_OFF, 10);
 				break;
 			}
-			else if (m_bSoundStat == true)
+			else if (AudioManager::Get().IsSoundEnabled())
 			{
-				m_pESound[38]->bStop();
-				m_bSoundStat = false;
+				AudioManager::Get().StopSound(SoundType::Effect, 38);
+				AudioManager::Get().SetSoundEnabled(false);
 				AddEventList(NOTIFY_MSG_SOUND_OFF, 10);
 				break;
 			}
 			else 	// Music On
 			{
-				if (m_bSoundFlag)
+				if (AudioManager::Get().IsSoundAvailable())
 				{
-					m_bMusicStat = true;
+					AudioManager::Get().SetMusicEnabled(true);
 					AddEventList(NOTIFY_MSG_MUSIC_ON, 10);
 				}
-				if (m_bSoundFlag)
+				if (AudioManager::Get().IsSoundAvailable())
 				{
-					m_bSoundStat = true;
+					AudioManager::Get().SetSoundEnabled(true);
 					AddEventList(NOTIFY_MSG_SOUND_ON, 10);
 				}
 				StartBGM();
@@ -27132,11 +27017,8 @@ void CGame::UpdateScreen_ConnectionLost()
 	if (m_cGameModeCount == 0)
 	{
 		dwTime = GameClock::GetTimeMS();
-		if (m_bSoundFlag) m_pESound[38]->bStop();
-		if ((m_bSoundFlag) && (m_bMusicStat == true))
-		{
-			if (m_pBGM != 0) m_pBGM->bStop();
-		}
+		AudioManager::Get().StopSound(SoundType::Effect, 38);
+		AudioManager::Get().StopMusic();
 	}
 	m_cGameModeCount++;
 	if (m_cGameModeCount > 100) m_cGameModeCount = 100;
@@ -31945,7 +31827,7 @@ void CGame::UpdateScreen_OnLogResMsg()
 		m_bEscPressed = false;
 		m_cArrowPressed = 0;
 		dwCTime = GameClock::GetTimeMS();
-		if (m_bSoundFlag) m_pESound[38]->bStop();
+		AudioManager::Get().StopSound(SoundType::Effect, 38);
 	}
 	m_cGameModeCount++;
 	if (m_cGameModeCount > 100) m_cGameModeCount = 100;
@@ -33161,17 +33043,17 @@ void CGame::DlgBoxClick_SysMenu(short msX, short msY)
 
 	if ((msX >= sX + 24) && (msX <= sX + 115) && (msY >= sY + 81) && (msY <= sY + 100))
 	{
-		if (m_bSoundFlag)
+		if (AudioManager::Get().IsSoundAvailable())
 		{
-			if (m_bSoundStat == true)
+			if (AudioManager::Get().IsSoundEnabled())
 			{
-				m_pESound[38]->bStop();
-				m_bSoundStat = false;
+				AudioManager::Get().StopSound(SoundType::Effect, 38);
+				AudioManager::Get().SetSoundEnabled(false);
 				AddEventList(NOTIFY_MSG_SOUND_OFF, 10);
 			}
 			else
 			{
-				m_bSoundStat = true;
+				AudioManager::Get().SetSoundEnabled(true);
 				AddEventList(NOTIFY_MSG_SOUND_ON, 10);
 			}
 		}
@@ -33179,30 +33061,19 @@ void CGame::DlgBoxClick_SysMenu(short msX, short msY)
 
 	if ((msX >= sX + 116) && (msX <= sX + 202) && (msY >= sY + 81) && (msY <= sY + 100))
 	{
-		if (m_bSoundFlag)
+		if (AudioManager::Get().IsSoundAvailable())
 		{
-			if (m_bMusicStat == true) 	// Music Off
+			if (AudioManager::Get().IsMusicEnabled()) 	// Music Off
 			{
-				m_bMusicStat = false;
+				AudioManager::Get().SetMusicEnabled(false);
 				AddEventList(NOTIFY_MSG_MUSIC_OFF, 10);
-				if (m_bSoundFlag)
-				{
-					if (m_pBGM != 0)
-					{
-						m_pBGM->bStop();
-						delete m_pBGM;
-						m_pBGM = 0;
-					}
-				}
+				AudioManager::Get().StopMusic();
 			}
 			else // Music On
 			{
-				if (m_bSoundFlag)
-				{
-					m_bMusicStat = true;
-					AddEventList(NOTIFY_MSG_MUSIC_ON, 10);
-					StartBGM();
-				}
+				AudioManager::Get().SetMusicEnabled(true);
+				AddEventList(NOTIFY_MSG_MUSIC_ON, 10);
+				StartBGM();
 			}
 		}
 	}
@@ -34019,98 +33890,7 @@ char CGame::GetOfficialMapName(char* pMapName, char* pName)
 
 bool CGame::bCheckLocalChatCommand(char* pMsg)
 {
-	char* token, cBuff[256], cTxt[120], cName[12], cTemp[120];
-	char   seps[] = " \t\n";
-	std::memset(cBuff, 0, sizeof(cBuff));
-	std::memset(cName, 0, sizeof(cName));
-	strcpy(cBuff, pMsg);
-	if (memcmp(cBuff, "/showframe", 10) == 0)
-	{
-		if (m_bShowFPS) m_bShowFPS = false;
-		else m_bShowFPS = true;
-		return true;
-	}
-	if (memcmp(cBuff, "/enabletogglescreen", 19) == 0)
-	{
-		m_bToggleScreen = true;
-		return true;
-	}
-	if (memcmp(cBuff, "/whon", 5) == 0)
-	{
-		m_bWhisper = true;
-		AddEventList(BCHECK_LOCAL_CHAT_COMMAND6, 10);// Enable to listen to whispers."
-		return true;
-	}
-	else if (memcmp(cBuff, "/whoff", 6) == 0)
-	{
-		m_bWhisper = false;
-		AddEventList(BCHECK_LOCAL_CHAT_COMMAND7, 10);//
-		return true;
-	}
-	else if (memcmp(cBuff, "/shon", 5) == 0)
-	{
-		m_bShout = true;
-		AddEventList(BCHECK_LOCAL_CHAT_COMMAND8, 10); //Enalbe to chat in public."
-		return true;
-	}
-	else if (memcmp(cBuff, "/shoff", 6) == 0)
-	{
-		m_bShout = false;
-		AddEventList(BCHECK_LOCAL_CHAT_COMMAND9, 10); //Unable to chat in public."
-		return true;
-	}
-	if (memcmp(cBuff, "/tooff", 6) == 0)
-	{
-		token = strtok(cBuff, seps);
-		token = strtok(NULL, seps);
-		if (token != 0)
-		{
-			if (strlen(token) <= 10)
-			{
-				strcpy(cName, token);
-				if (memcmp(m_cPlayerName, cName, 10) == 0)
-				{
-					AddEventList(BCHECK_LOCAL_CHAT_COMMAND2, 10);
-					return true;
-				}
-				if (m_pExID != 0) delete m_pExID;
-				wsprintf(cTxt, BCHECK_LOCAL_CHAT_COMMAND3, token);
-				AddEventList(cTxt, 10);
-				m_pExID = new class CMsg(0, token, 0);
-				return true;
-			}
-			else AddEventList(BCHECK_LOCAL_CHAT_COMMAND5, 10);
-		}
-		return true;
-	}
-	else if (memcmp(cBuff, "/toon", 5) == 0)
-	{
-		token = strtok(cBuff, seps);
-		token = strtok(NULL, seps);
-		if (token != 0)
-		{
-			if (strlen(token) <= 10)
-			{
-				strcpy(cName, token);
-				if (m_pExID != 0)
-				{
-					std::memset(cTemp, 0, sizeof(cTemp));
-					strcpy(cTemp, m_pExID->m_pMsg);
-					if (memcmp(cTemp, cName, 10) == 0)
-					{
-						wsprintf(cTxt, BCHECK_LOCAL_CHAT_COMMAND1, token);
-						AddEventList(cTxt, 10);
-						delete m_pExID;
-						m_pExID = 0;
-						return true;
-					}
-				}
-			}
-			else AddEventList(BCHECK_LOCAL_CHAT_COMMAND5, 10);
-		}
-		return true;
-	}
-	return false;
+	return ChatCommandManager::Get().ProcessCommand(pMsg);
 }
 
 bool CGame::bCheckItemOperationEnabled(char cItemID)
@@ -34808,11 +34588,8 @@ void CGame::_CalcSocketClosed()
 		m_pGSock = 0;
 		m_bEscPressed = false;
 		PlaySound('E', 14, 5);
-		if (m_bSoundFlag) m_pESound[38]->bStop();
-		if ((m_bSoundFlag) && (m_bMusicStat == true))
-		{
-			if (m_pBGM != 0) m_pBGM->bStop();
-		}
+		AudioManager::Get().StopSound(SoundType::Effect, 38);
+		AudioManager::Get().StopMusic();
 		ChangeGameMode(DEF_GAMEMODE_ONQUIT);
 	}
 }
@@ -34873,7 +34650,7 @@ void CGame::UpdateScreen_OnGame()
 	{
 		m_dwFPStime = m_dwCheckConnTime = m_dwCheckSprTime = m_dwCheckChatTime = s_dwOnGameTime;
 		m_sFrameCount = 0;
-		if (m_bMusicStat) StartBGM();
+		if (AudioManager::Get().IsMusicEnabled()) StartBGM();
 	}
 
 	m_cGameModeCount++;
@@ -34881,6 +34658,20 @@ void CGame::UpdateScreen_OnGame()
 
 	m_DInput.UpdateMouseState(&s_sOnGameMsX, &s_sOnGameMsY, &s_sOnGameMsZ, &s_cOnGameLB, &s_cOnGameRB);
 	m_dwCurTime = GameClock::GetTimeMS();
+
+	// Sync manager singletons with game state
+	// Camera: sync view position (pixel coords to tile coords)
+	Camera::Get().SetViewPosition(m_sViewPointX / 32, m_sViewPointY / 32);
+
+	// AudioManager: update listener position to player location
+	AudioManager::Get().SetListenerPosition(m_sPlayerX, m_sPlayerY);
+
+	// WeatherManager: sync with legacy weather status
+	WeatherType currentWeather = WeatherManager::FromLegacyWeather(m_cWhetherStatus);
+	if (WeatherManager::Get().GetCurrentWeather() != currentWeather)
+	{
+		WeatherManager::Get().SetWeatherImmediate(currentWeather);
+	}
 
 	// Enter key handling
 	if (m_bEnterPressed == true)
@@ -35082,14 +34873,13 @@ void CGame::UpdateScreen_OnGame()
 		}
 	}
 	if (m_cLogOutCount == 0) {
+		WriteSettings(); // Save settings on logout
 		delete m_pGSock;
 		m_pGSock = 0;
 		m_bEscPressed = false;
 		PlaySound('E', 14, 5);
-		if (m_bSoundFlag) m_pESound[38]->bStop();
-		if ((m_bSoundFlag) && (m_bMusicStat == true)) {
-			if (m_pBGM != 0) m_pBGM->bStop();
-		}
+		AudioManager::Get().StopSound(SoundType::Effect, 38);
+		AudioManager::Get().StopMusic();
 		if (strlen(G_cCmdLineTokenA) != 0)
 			ChangeGameMode(DEF_GAMEMODE_ONQUIT);
 		else ChangeGameMode(DEF_GAMEMODE_ONMAINMENU);
@@ -35305,47 +35095,56 @@ void CGame::DrawScreen_OnGame()
 
 void CGame::StartBGM()
 {
-	if (m_bSoundFlag == false)
+	// Determine track name based on current location
+	const char* trackName = "MainTm";
+
+	if ((m_bIsXmas == true) && (m_cWhetherEffectType >= 4))
 	{
-		if (m_pBGM != 0)
-		{
-			m_pBGM->bStop();
-			delete m_pBGM;
-			m_pBGM = 0;
-		}
-		return;
+		trackName = "Carol";
 	}
-	char cWavFileName[32];
-	std::memset(cWavFileName, 0, sizeof(cWavFileName));
-	if ((m_bIsXmas == true) && (m_cWhetherEffectType >= 4)) strcpy(cWavFileName, "music\\Carol.wav");
-	else
+	else if (memcmp(m_cCurLocation, "aresden", 7) == 0)
 	{
-		if (memcmp(m_cCurLocation, "aresden", 7) == 0) strcpy(cWavFileName, "music\\aresden.wav");
-		else if (memcmp(m_cCurLocation, "elvine", 6) == 0) strcpy(cWavFileName, "music\\elvine.wav");
-		else if (memcmp(m_cCurLocation, "dglv", 4) == 0) strcpy(cWavFileName, "music\\dungeon.wav");
-		else if (memcmp(m_cCurLocation, "middled1", 8) == 0) strcpy(cWavFileName, "music\\dungeon.wav");
-		else if (memcmp(m_cCurLocation, "middleland", 10) == 0) strcpy(cWavFileName, "music\\middleland.wav");
-		// Snoopy: new musics
-		else if (memcmp(m_cCurLocation, "druncncity", 10) == 0) strcpy(cWavFileName, "music\\druncncity.wav");
-		else if (memcmp(m_cCurLocation, "inferniaA", 9) == 0) strcpy(cWavFileName, "music\\middleland.wav");
-		else if (memcmp(m_cCurLocation, "inferniaB", 9) == 0) strcpy(cWavFileName, "music\\middleland.wav");
-		else if (memcmp(m_cCurLocation, "maze", 4) == 0) strcpy(cWavFileName, "music\\dungeon.wav");
-		else if (memcmp(m_cCurLocation, "abaddon", 7) == 0) strcpy(cWavFileName, "music\\abaddon.wav");
-		else strcpy(cWavFileName, "music\\MainTm.wav");
+		trackName = "aresden";
+	}
+	else if (memcmp(m_cCurLocation, "elvine", 6) == 0)
+	{
+		trackName = "elvine";
+	}
+	else if (memcmp(m_cCurLocation, "dglv", 4) == 0)
+	{
+		trackName = "dungeon";
+	}
+	else if (memcmp(m_cCurLocation, "middled1", 8) == 0)
+	{
+		trackName = "dungeon";
+	}
+	else if (memcmp(m_cCurLocation, "middleland", 10) == 0)
+	{
+		trackName = "middleland";
+	}
+	else if (memcmp(m_cCurLocation, "druncncity", 10) == 0)
+	{
+		trackName = "druncncity";
+	}
+	else if (memcmp(m_cCurLocation, "inferniaA", 9) == 0)
+	{
+		trackName = "middleland";
+	}
+	else if (memcmp(m_cCurLocation, "inferniaB", 9) == 0)
+	{
+		trackName = "middleland";
+	}
+	else if (memcmp(m_cCurLocation, "maze", 4) == 0)
+	{
+		trackName = "dungeon";
+	}
+	else if (memcmp(m_cCurLocation, "abaddon", 7) == 0)
+	{
+		trackName = "abaddon";
 	}
 
-	if (m_pBGM != 0)
-	{
-		if (strcmp(m_pBGM->m_cWavFileName, cWavFileName) == 0) return;
-		m_pBGM->bStop();
-		delete m_pBGM;
-		m_pBGM = 0;
-	}
-	int iVolume = (m_cMusicVolume - 100) * 20;
-	if (iVolume > 0) iVolume = 0;
-	if (iVolume < -10000) iVolume = -10000; //iVolume == Volume
-	m_pBGM = new class CSoundBuffer(m_DSound.m_lpDS, m_DSound.m_DSCaps, cWavFileName, true);
-	m_pBGM->Play(true, 0, iVolume);
+	// Forward to AudioManager
+	AudioManager::Get().PlayMusic(trackName);
 }
 
 void CGame::MotionResponseHandler(char* pData)
@@ -35757,11 +35556,8 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 		m_pGSock = 0;
 		m_bEscPressed = false;
 		PlaySound('E', 14, 5);
-		if (m_bSoundFlag) m_pESound[38]->bStop();
-		if ((m_bSoundFlag) && (m_bMusicStat == true))
-		{
-			if (m_pBGM != 0) m_pBGM->bStop();
-		}
+		AudioManager::Get().StopSound(SoundType::Effect, 38);
+		AudioManager::Get().StopMusic();
 		if (strlen(G_cCmdLineTokenA) != 0)
 			ChangeGameMode(DEF_GAMEMODE_ONQUIT);
 		else ChangeGameMode(DEF_GAMEMODE_ONMAINMENU);
@@ -41618,16 +41414,16 @@ void CGame::DrawDialogBox_SysMenu(short msX, short msY, char cLB)
 
 	PutString(sX + 23, sY + 84, DRAW_DIALOGBOX_SYSMENU_SOUND, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 84, DRAW_DIALOGBOX_SYSMENU_SOUND, RGB(45, 25, 25));
-	if (m_bSoundFlag) {
-		if (m_bSoundStat) PutString(sX + 85, sY + 85, DRAW_DIALOGBOX_SYSMENU_ON, RGB(255, 255, 255));
+	if (AudioManager::Get().IsSoundAvailable()) {
+		if (AudioManager::Get().IsSoundEnabled()) PutString(sX + 85, sY + 85, DRAW_DIALOGBOX_SYSMENU_ON, RGB(255, 255, 255));
 		else PutString(sX + 83, sY + 85, DRAW_DIALOGBOX_SYSMENU_OFF, RGB(200, 200, 200));
 	}
 	else PutString(sX + 68, sY + 85, DRAW_DIALOGBOX_SYSMENU_DISABLED, RGB(100, 100, 100));
 
 	PutString(sX + 123, sY + 84, DRAW_DIALOGBOX_SYSMENU_MUSIC, RGB(45, 25, 25));
 	PutString(sX + 124, sY + 84, DRAW_DIALOGBOX_SYSMENU_MUSIC, RGB(45, 25, 25));
-	if (m_bSoundFlag) {
-		if (m_bMusicStat) PutString(sX + 180, sY + 85, DRAW_DIALOGBOX_SYSMENU_ON, RGB(255, 255, 255));
+	if (AudioManager::Get().IsSoundAvailable()) {
+		if (AudioManager::Get().IsMusicEnabled()) PutString(sX + 180, sY + 85, DRAW_DIALOGBOX_SYSMENU_ON, RGB(255, 255, 255));
 		else PutString(sX + 178, sY + 85, DRAW_DIALOGBOX_SYSMENU_OFF, RGB(200, 200, 200));
 	}
 	else PutString(sX + 163, sY + 85, DRAW_DIALOGBOX_SYSMENU_DISABLED, RGB(100, 100, 100));
@@ -41644,11 +41440,11 @@ void CGame::DrawDialogBox_SysMenu(short msX, short msY, char cLB)
 
 	PutString(sX + 23, sY + 124, DRAW_DIALOGBOX_SYSMENU_SOUNDVOLUME, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 124, DRAW_DIALOGBOX_SYSMENU_SOUNDVOLUME, RGB(45, 25, 25));
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME2, sX + 130 + m_cSoundVolume, sY + 129, 8);
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME2, sX + 130 + AudioManager::Get().GetSoundVolume(), sY + 129, 8);
 
 	PutString(sX + 23, sY + 141, DRAW_DIALOGBOX_SYSMENU_MUSICVOLUME, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 141, DRAW_DIALOGBOX_SYSMENU_MUSICVOLUME, RGB(45, 25, 25));
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME2, sX + 130 + m_cMusicVolume, sY + 145, 8);
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME2, sX + 130 + AudioManager::Get().GetMusicVolume(), sY + 145, 8);
 
 	PutString(sX + 23, sY + 158, DRAW_DIALOGBOX_SYSMENU_TRANSPARENCY, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 158, DRAW_DIALOGBOX_SYSMENU_TRANSPARENCY, RGB(45, 25, 25));
@@ -41744,27 +41540,17 @@ void CGame::DrawDialogBox_SysMenu(short msX, short msY, char cLB)
 	{
 		if ((msX >= sX + 127) && (msX <= sX + 238) && (msY >= sY + 122) && (msY <= sY + 138))
 		{
-			m_cSoundVolume = msX - (sX + 127);
-			if (m_cSoundVolume > 100) m_cSoundVolume = 100;
-			if (m_cSoundVolume < 0) m_cSoundVolume = 0;
+			int volume = msX - (sX + 127);
+			if (volume > 100) volume = 100;
+			if (volume < 0) volume = 0;
+			AudioManager::Get().SetSoundVolume(volume);
 		}
 		if ((msX >= sX + 127) && (msX <= sX + 238) && (msY >= sY + 139) && (msY <= sY + 155))
 		{
-			m_cMusicVolume = msX - (sX + 127);
-			if (m_cMusicVolume > 100) m_cMusicVolume = 100;
-			if (m_cMusicVolume < 0) m_cMusicVolume = 0;
-			if (m_bSoundFlag)
-			{
-				int iVol;
-				iVol = (m_cMusicVolume - 100) * 20;
-				if (iVol > 0) iVol = 0;
-				if (iVol < -10000) iVol = -10000;
-				if (m_pBGM != 0)
-				{
-					m_pBGM->bStop(true);
-					m_pBGM->Play(false, 0, iVol);
-				}
-			}
+			int volume = msX - (sX + 127);
+			if (volume > 100) volume = 100;
+			if (volume < 0) volume = 0;
+			AudioManager::Get().SetMusicVolume(volume);
 		}
 	}
 	else m_stDialogBoxInfo[19].bIsScrollSelected = false;
@@ -43406,11 +43192,8 @@ void CGame::NotifyMsg_ForceDisconn(char* pData)
 		delete m_pGSock;
 		m_pGSock = 0;
 		m_bEscPressed = false;
-		if (m_bSoundFlag) m_pESound[38]->bStop();
-		if ((m_bSoundFlag) && (m_bMusicStat == true))
-		{
-			if (m_pBGM != 0) m_pBGM->bStop();
-		}
+		AudioManager::Get().StopSound(SoundType::Effect, 38);
+		AudioManager::Get().StopMusic();
 		if (strlen(G_cCmdLineTokenA) != 0)
 			ChangeGameMode(DEF_GAMEMODE_ONQUIT);
 		else ChangeGameMode(DEF_GAMEMODE_ONMAINMENU);
@@ -43707,6 +43490,9 @@ void CGame::NotifyMsg_ItemObtained(char* pData)
 	AddEventList(cTxt, 10);
 
 	PlaySound('E', 20, 0);
+
+	// Clear the item from the ground at the player's position
+	m_pMapData->bSetItem(m_sPlayerX, m_sPlayerY, 0, 0, 0, false);
 
 	if ((cItemType == DEF_ITEMTYPE_CONSUME) || (cItemType == DEF_ITEMTYPE_ARROW))
 	{

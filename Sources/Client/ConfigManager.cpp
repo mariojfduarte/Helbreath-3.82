@@ -1,0 +1,294 @@
+#include "ConfigManager.h"
+#include "GlobalDef.h"
+#include "json.hpp"
+#include <fstream>
+#include <cstring>
+
+using json = nlohmann::json;
+
+ConfigManager& ConfigManager::Get()
+{
+	static ConfigManager instance;
+	return instance;
+}
+
+void ConfigManager::Initialize()
+{
+	// Only initialize once - don't reset if already initialized
+	if (m_bInitialized)
+		return;
+
+	SetDefaults();
+	m_bInitialized = true;
+	m_bDirty = false;
+}
+
+void ConfigManager::Shutdown()
+{
+	// Auto-save if dirty
+	if (m_bDirty)
+	{
+		Save();
+	}
+	m_bInitialized = false;
+}
+
+void ConfigManager::SetDefaults()
+{
+	// Server defaults from compile-time macros
+	std::memset(m_serverAddress, 0, sizeof(m_serverAddress));
+	std::strcpy(m_serverAddress, DEF_SERVER_IP);
+	m_serverPort = DEF_SERVER_PORT;
+	m_gameServerPort = DEF_GSERVER_PORT;
+
+	// Shortcut defaults (none assigned)
+	m_magicShortcut = -1;
+	m_recentShortcut = -1;
+	for (int i = 0; i < MAX_SHORTCUTS; i++)
+	{
+		m_shortcuts[i] = -1;
+	}
+
+	// Audio defaults
+	m_soundVolume = 100;
+	m_musicVolume = 100;
+	m_bSoundEnabled = true;
+	m_bMusicEnabled = true;
+
+	// Window defaults
+	m_windowWidth = 640;
+	m_windowHeight = 480;
+
+	m_bDirty = false;
+}
+
+int ConfigManager::Clamp(int value, int min, int max)
+{
+	if (value < min) return min;
+	if (value > max) return max;
+	return value;
+}
+
+bool ConfigManager::Load(const char* filename)
+{
+	std::ifstream file(filename);
+	if (!file.is_open())
+	{
+		// No config file - save defaults and return success
+		Save(filename);
+		return true;
+	}
+
+	try
+	{
+		json j = json::parse(file);
+
+		// Server settings
+		if (j.contains("server"))
+		{
+			auto& server = j["server"];
+			if (server.contains("address"))
+			{
+				std::string addr = server["address"].get<std::string>();
+				std::strncpy(m_serverAddress, addr.c_str(), sizeof(m_serverAddress) - 1);
+				m_serverAddress[sizeof(m_serverAddress) - 1] = '\0';
+			}
+			if (server.contains("port"))
+			{
+				m_serverPort = server["port"].get<int>();
+			}
+			if (server.contains("gamePort"))
+			{
+				m_gameServerPort = server["gamePort"].get<int>();
+			}
+		}
+
+		// Shortcuts
+		if (j.contains("shortcuts"))
+		{
+			auto& shortcuts = j["shortcuts"];
+			if (shortcuts.contains("magic"))
+			{
+				int slot = shortcuts["magic"].get<int>();
+				m_magicShortcut = (slot >= 0 && slot < MAX_MAGIC_SLOT) ? static_cast<short>(slot) : -1;
+			}
+			if (shortcuts.contains("slots") && shortcuts["slots"].is_array())
+			{
+				auto& slots = shortcuts["slots"];
+				for (size_t i = 0; i < slots.size() && i < MAX_SHORTCUTS; i++)
+				{
+					int slot = slots[i].get<int>();
+					m_shortcuts[i] = (slot >= 0 && slot < MAX_SHORTCUT_SLOT) ? static_cast<short>(slot) : -1;
+				}
+			}
+		}
+
+		// Audio settings
+		if (j.contains("audio"))
+		{
+			auto& audio = j["audio"];
+			if (audio.contains("soundVolume"))
+			{
+				m_soundVolume = Clamp(audio["soundVolume"].get<int>(), 0, 100);
+			}
+			if (audio.contains("musicVolume"))
+			{
+				m_musicVolume = Clamp(audio["musicVolume"].get<int>(), 0, 100);
+			}
+			if (audio.contains("soundEnabled"))
+			{
+				m_bSoundEnabled = audio["soundEnabled"].get<bool>();
+			}
+			if (audio.contains("musicEnabled"))
+			{
+				m_bMusicEnabled = audio["musicEnabled"].get<bool>();
+			}
+		}
+
+		// Window settings
+		if (j.contains("window"))
+		{
+			auto& window = j["window"];
+			if (window.contains("width"))
+			{
+				m_windowWidth = Clamp(window["width"].get<int>(), 640, 3840);
+			}
+			if (window.contains("height"))
+			{
+				m_windowHeight = Clamp(window["height"].get<int>(), 480, 2160);
+			}
+		}
+	}
+	catch (const json::exception&)
+	{
+		// Parse error - keep defaults
+		return false;
+	}
+
+	m_bDirty = false;
+	return true;
+}
+
+bool ConfigManager::Save(const char* filename)
+{
+	json j;
+
+	// Server settings
+	j["server"]["address"] = m_serverAddress;
+	j["server"]["port"] = m_serverPort;
+	j["server"]["gamePort"] = m_gameServerPort;
+
+	// Shortcuts
+	j["shortcuts"]["magic"] = m_magicShortcut;
+	j["shortcuts"]["slots"] = json::array();
+	for (int i = 0; i < MAX_SHORTCUTS; i++)
+	{
+		j["shortcuts"]["slots"].push_back(m_shortcuts[i]);
+	}
+
+	// Audio settings
+	j["audio"]["soundVolume"] = m_soundVolume;
+	j["audio"]["musicVolume"] = m_musicVolume;
+	j["audio"]["soundEnabled"] = m_bSoundEnabled;
+	j["audio"]["musicEnabled"] = m_bMusicEnabled;
+
+	// Window settings
+	j["window"]["width"] = m_windowWidth;
+	j["window"]["height"] = m_windowHeight;
+
+	std::ofstream file(filename);
+	if (!file.is_open())
+	{
+		return false;
+	}
+
+	file << j.dump(4); // Pretty print with 4-space indent
+	m_bDirty = false;
+	return true;
+}
+
+void ConfigManager::SetMagicShortcut(short slot)
+{
+	if (slot >= -1 && slot < MAX_MAGIC_SLOT)
+	{
+		if (m_magicShortcut != slot)
+		{
+			m_magicShortcut = slot;
+			m_bDirty = true;
+		}
+	}
+}
+
+short ConfigManager::GetShortcut(int index) const
+{
+	if (index >= 0 && index < MAX_SHORTCUTS)
+	{
+		return m_shortcuts[index];
+	}
+	return -1;
+}
+
+void ConfigManager::SetShortcut(int index, short slot)
+{
+	if (index >= 0 && index < MAX_SHORTCUTS)
+	{
+		if (slot >= -1 && slot < MAX_SHORTCUT_SLOT)
+		{
+			if (m_shortcuts[index] != slot)
+			{
+				m_shortcuts[index] = slot;
+				m_bDirty = true;
+			}
+		}
+	}
+}
+
+void ConfigManager::SetSoundVolume(int volume)
+{
+	volume = Clamp(volume, 0, 100);
+	if (m_soundVolume != volume)
+	{
+		m_soundVolume = volume;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetMusicVolume(int volume)
+{
+	volume = Clamp(volume, 0, 100);
+	if (m_musicVolume != volume)
+	{
+		m_musicVolume = volume;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetSoundEnabled(bool enabled)
+{
+	if (m_bSoundEnabled != enabled)
+	{
+		m_bSoundEnabled = enabled;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetMusicEnabled(bool enabled)
+{
+	if (m_bMusicEnabled != enabled)
+	{
+		m_bMusicEnabled = enabled;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetWindowSize(int width, int height)
+{
+	width = Clamp(width, 640, 3840);
+	height = Clamp(height, 480, 2160);
+	if (m_windowWidth != width || m_windowHeight != height)
+	{
+		m_windowWidth = width;
+		m_windowHeight = height;
+		m_bDirty = true;
+	}
+}
