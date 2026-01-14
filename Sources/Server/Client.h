@@ -17,7 +17,6 @@
 #include "GuildsMan.h"
 #include "Magic.h"
 #include "GlobalDef.h"
-#include "MobCounter.h"
 #include <fstream>
 #include <vector>
 #include <string>
@@ -126,12 +125,6 @@ public:
 
 	int m_iAddTransMana, m_iAddChargeCritical;
 
-	string getvalue(string val, char* fileName);
-
-	class CMobCounter* m_pMobKillCount[100];
-
-	void read_mobs_data();
-	void save_mobs_data();
 
 	uint32_t m_iRewardGold;
 	int  m_iEnemyKillCount, m_iPKCount;

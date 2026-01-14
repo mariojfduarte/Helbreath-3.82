@@ -47,7 +47,6 @@
 #include "GlobalDef.h"
 #include "TempNpcItem.h"
 #include "PartyManager.h"
-#include "MobCounter.h"
 
 #define DEF_MAXADMINS				50
 #define DEF_MAXMAPS					100
@@ -316,7 +315,6 @@ class CGame
 {
 public:
 
-	void RequestMobKills(int client);
 
 	void RequestNoticementHandler(int iClientH);
 	bool bSendClientItemConfigs(int iClientH);
@@ -330,16 +328,12 @@ public:
 
 	void SetHeldenianMode();
 	void AdminOrder_GetFightzoneTicket(int iClientH);
-	void AutomatedHeldenianTimer();
 	void LocalStartHeldenianMode(short sV1, short sV2, uint32_t dwHeldenianGUID);
 	void GlobalStartHeldenianMode();
-	void HeldenianWarEnder();
-	void HeldenianWarStarter();
 	bool UpdateHeldenianStatus();
 	void _CreateHeldenianGUID(uint32_t dwHeldenianGUID, int iWinnerSide);
 	void ManualStartHeldenianMode(int iClientH, char *pData, uint32_t dwMsgSize);
 	void ManualEndHeldenianMode(int iClientH, char *pData, uint32_t dwMsgSize);
-	void NotifyStartHeldenianMode();
 
 	bool _bCheckCharacterData(int iClientH);
 	//bool _bDecodeNpcItemConfigFileContents(char * pData, uint32_t dwMsgSize);
@@ -410,7 +404,6 @@ public:
 	void GSM_SetGuildConstructLoc(int iGuildGUID, int dX, int dY, char * pMapName);
 	void GSM_ConstructionPoint(int iGuildGUID, int iPoint);
 	void CheckCommanderConstructionPoint(int iClientH);
-	void SaveOccupyFlagData();
 	void LocalEndCrusadeMode(int iWinnerSide);
 	void LocalStartCrusadeMode(uint32_t dwGuildGUID);
 	void CheckCrusadeResultCalculation(int iClientH);
@@ -455,7 +448,6 @@ public:
 	void GetHeroMantleHandler(int iClientH, int iItemID, const char * pString);
 	void AdminOrder_Weather(int iClientH, char * pData, uint32_t dwMsgSize);
 	
-	void SendMsg(short sOwnerH, char cOwnerType, bool bStatus, long lPass);
 	bool bCheckMagicInt(int iClientH);
 	bool bChangeState(char cStateChange, char* cStr, char *cVit,char *cDex,char *cInt,char *cMag,char *cChar);
 	void StateChangeHandler(int iClientH, char * pData, uint32_t dwMsgSize);
@@ -512,8 +504,6 @@ public:
 	void EnergySphereProcessor(bool bIsAdminCreate = false, int iClientH = 0);
 	bool bCheckEnergySphereDestination(int iNpcH, short sAttackerH, char cAttackerType);
 	void JoinPartyHandler(int iClientH, int iV1, const char * pMemberName);
-	void CreateNewPartyHandler(int iClientH);
-	void _DeleteRandomOccupyFlag(int iMapIndex);
 	void RequestSellItemListHandler(int iClientH, char * pData);
 	void RequestRestartHandler(int iClientH);
 	int iRequestPanningMapDataRequest(int iClientH, char * pData);
@@ -523,10 +513,8 @@ public:
 	void RequestCheckAccountPasswordHandler(char * pData, uint32_t dwMsgSize);
 	int _iTalkToNpcResult_Guard(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
 	void SetIceFlag(short sOwnerH, char cOwnerType, bool bStatus);
-	void _bDecodeNoticementFileContents(char * pData, uint32_t dwMsgSize);
 	void RequestNoticementHandler(int iClientH, char * pData);
 	void _AdjustRareItemValue(class CItem * pItem);
-	bool _bCheckDupItemID(class CItem * pItem);
 	int  iGetPlayerABSStatus(int iWhatH, int iRecvH);
 	void CheckSpecialEvent(int iClientH);
 	char _cGetSpecialAbility(int iKindSA);
@@ -535,7 +523,6 @@ public:
 	void _CheckGateSockConnection();
 	void OnSubLogRead(int iIndex);
 	void OnSubLogSocketEvent(UINT message, WPARAM wParam, LPARAM lParam);
-	void _CheckStrategicPointOccupyStatus(char cMapIndex);
 	void GetMapInitialPoint(int iMapIndex, short * pX, short * pY, char * pPlayerLocation = 0);
 	int  iGetMaxHP(int iClientH);
 	int  iGetMaxMP(int iClientH);
@@ -544,11 +531,6 @@ public:
 	bool _bCheckItemReceiveCondition(int iClientH, class CItem * pItem);
 	int SendItemNotifyMsg(int iClientH, uint16_t wMsgType, class CItem * pItem, int iV1);
 	
-	int _iTalkToNpcResult_WTower(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
-	int _iTalkToNpcResult_WHouse(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
-	int _iTalkToNpcResult_BSmith(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
-	int _iTalkToNpcResult_GShop(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
-	int _iTalkToNpcResult_GuildHall(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
 	bool _bCheckIsQuestCompleted(int iClientH);
 	void _CheckQuestEnvironment(int iClientH);
 	void _SendQuestContents(int iClientH);
@@ -565,7 +547,6 @@ public:
 	void CheckUniqueItemEquipment(int iClientH);
 	void _SetItemPos(int iClientH, char * pData);
 	
-	bool _bDecodeOccupyFlagSaveFileContents(char * pData, uint32_t dwMsgSize);
 	void GetOccupyFlagHandler(int iClientH);
 	int  _iComposeFlagStatusContents(char * pData);
 	void SetSummonMobAction(int iClientH, int iMode, uint32_t dwMsgSize, char * pData = 0);
@@ -636,7 +617,6 @@ public:
 	int  iCalculateUseSkillItemEffect(int iOwnerH, char cOwnerType, char cOwnerSkill, int iSkillNum, char cMapIndex, int dX, int dY);
 	void ClearSkillUsingStatus(int iClientH);
 	void DynamicObjectEffectProcessor();
-	int _iGetTotalClients();
 	void SendObjectMotionRejectMsg(int iClientH);
 	void SetInvisibilityFlag(short sOwnerH, char cOwnerType, bool bStatus);
 	bool bRemoveFromDelayEventList(int iH, char cType, int iEffectType);
@@ -654,12 +634,10 @@ public:
 	void Effect_SpDown_Spot(short sAttackerH, char cAttackerType, short sTargetH, char cTargetType, short sV1, short sV2, short sV3);
 	void Effect_HpUp_Spot(short sAttackerH, char cAttackerType, short sTargetH, char cTargetType, short sV1, short sV2, short sV3);
 	void Effect_Damage_Spot(short sAttackerH, char cAttackerType, short sTargetH, char cTargetType, short sV1, short sV2, short sV3, bool bExp, int iAttr = 0);
-	void Effect_Damage_Spot_Type2(short sAttackerH, char cAttackerType, short sTargetH, char cTargetType, short sAtkX, short sAtkY, short sV1, short sV2, short sV3, bool bExp, int iAttr);
 	void UseItemHandler(int iClientH, short sItemIndex, short dX, short dY, short sDestItemID);
 	void ItemDepleteHandler(int iClientH, short sItemIndex, bool bIsUseItemResult);
 	int _iGetArrowItemIndex(int iClientH);
 	void RequestFullObjectData(int iClientH, char * pData);
-	void DeleteNpc(int iNpcH);
 	void CalculateSSN_SkillIndex(int iClientH, short sSkillIndex, int iValue);
 	void CalculateSSN_ItemIndex(int iClientH, short sWeaponIndex, int iValue);
 	void CheckDynamicObjectList();
@@ -684,9 +662,6 @@ public:
 	void TimeStaminarPointsUp(int iClientH);
 	void Quit();
 	bool __bReadMapInfo(int iMapIndex);
-	bool bBankItemToPlayer(int iClientH, short sItemIndex);
-	bool bPlayerItemToBank(int iClientH, short sItemIndex);
-	int  _iGetSkillNumber(char * pSkillName);
 	void TrainSkillResponse(bool bSuccess, int iClientH, int iSkillNum, int iSkillLevel);
 	int _iGetMagicNumber(char * pMagicName, int * pReqInt, int * pCost);
 	void RequestStudyMagicHandler(int iClientH, const char * pName, bool bIsPurchase = true);
@@ -702,7 +677,6 @@ public:
 	void SendGuildMsg(int iClientH, uint16_t wNotifyMsgType, short sV1, short sV2, char * pString);
 	void DelayEventProcess();
 	void TimeHitPointsUp(int iClientH);
-	void CalculateGuildEffect(int iVictimH, char cVictimType, short sAttackerH);
 	void OnStartGameSignal();
 	uint32_t iDice(uint32_t iThrow, uint32_t iRange);
 	bool _bInitNpcAttr(class CNpc * pNpc, char * pNpcName, short sClass, char cSA);
@@ -768,7 +742,6 @@ public:
 	void RequestInitPlayerHandler(int iClientH, char * pData, char cKey);
 	int iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDir, char cMoveType);
 	void ClientMotionHandler(int iClientH, char * pData);
-	void DisplayInfo(); // Console version - no HDC needed
 	void OnClientRead(int iClientH);
 	bool bInit();
 	void OnClientSocketEvent(int iClientH);  // MODERNIZED: Polls socket instead of handling window messages
@@ -817,9 +790,6 @@ public:
 	bool _bPKLog(int iAction,int iAttackerH , int iVictumH, char * pNPC);
 
 	//HBest code
-	void AddGizon(int iClientH);
-	void CheckTimeOut(int iClientH);
-	void SetTimeOut(int iClientH);
 	void ForceRecallProcess();
 	void SkillCheck(int sTargetH);
 	bool IsEnemyZone(int i);
@@ -842,7 +812,6 @@ public:
 
 //private:
 	bool LoadPlayerDataFromDb(int iClientH);
-	bool _bLoadItemConfigsFromDb();
 	void _ClearItemConfigList();
 	bool _bRegisterMap(char * pName);
 

@@ -40,6 +40,15 @@
     <ClInclude Include="Game.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="DialogBoxIDs.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="DialogBoxInfo.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="DialogBoxManager.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="GlobalDef.h">
       <Filter>Core</Filter>
     </ClInclude>
@@ -59,6 +68,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClCompile Include="Game.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="DialogBoxManager.cpp">
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="Wmain.cpp">
@@ -220,9 +232,6 @@
       <Filter>Entities</Filter>
     </ClInclude>
     <ClInclude Include="Curse.h">
-      <Filter>Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="MobCounter.h">
       <Filter>Entities</Filter>
     </ClInclude>
     <ClInclude Include="GameMonitor.h">

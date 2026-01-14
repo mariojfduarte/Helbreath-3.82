@@ -326,9 +326,6 @@ CClient::CClient(HWND hWnd)
 	m_iSpellCount = 0;
 	m_bMagicPauseTime = false;
 
-	for (i = 0; i < 100; i++) {
-		m_pMobKillCount[i] = 0;
-	}
 }
 
 CClient::~CClient()
@@ -347,12 +344,6 @@ CClient::~CClient()
 			m_pItemInBankList[i]=0;
 		}
 
-	for (i = 0; i < 100; i++) {
-		if (m_pMobKillCount[i] != 0) {
-			delete m_pMobKillCount[i];
-			m_pMobKillCount[i] = 0;
-		}
-	}
 }
 
 bool CClient::bCreateNewParty()
@@ -373,121 +364,3 @@ bool CClient::bCreateNewParty()
 	return true;
 }
 
-static void tokenize(string const& str, const char* delim,
-	std::vector<string>& out)
-{
-	char* token = strtok(const_cast<char*>(str.c_str()), delim);
-	while (token != nullptr)
-	{
-		out.push_back(string(token));
-		token = strtok(nullptr, delim);
-	}
-}
-
-static string get_line(string file, string value1)
-{
-	ifstream fin(file);
-
-	string line;
-
-	while (getline(fin, line))
-	{
-		if (line.find(value1) != string::npos)
-			return line;
-	}
-
-	return "#";
-}
-
-string CClient::getvalue(string val, char* fileName)
-{
-#ifdef _WIN32
-	_mkdir(fileName);
-#endif
-
-	char cFileName[112] = {};
-	char cDir[112] = {};
-	strcat(cFileName, fileName);
-	strcat(cFileName, "\\");
-	std::snprintf(cDir, sizeof(cDir), "AscII%d", (unsigned char)m_cCharName[0]);
-	strcat(cFileName, cDir);
-	strcat(cFileName, "\\");
-	strcat(cFileName, m_cCharName);
-	strcat(cFileName, ".txt");
-
-	string result = get_line(cFileName, val);
-	if (string(result) == "#") return result;
-	else result.erase(0, val.length());
-	return result;
-}
-
-void CClient::read_mobs_data()
-{
-	for (int i = 0; i < 100; i++)
-	{
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "mob-%d = ", i + 1);
-		string token = getvalue(G_cTxt, "Mobs");
-		if (string(token) == "#") continue;
-		const char* delim = " ";
-		vector<string> out;
-		tokenize(token, delim, out);
-
-		CMobCounter* u = new class CMobCounter;
-
-		int count = 0;
-		for (auto& token : out)
-		{
-			count++;
-			switch (count)
-			{
-			case 1: strcpy(u->cNpcName, (char*)token.c_str()); break;
-			case 2: u->iKillCount = atoi((char*)token.c_str()); break;
-			case 3: u->iNextCount = atoi((char*)token.c_str()); break;
-			case 4: u->iLevel = atoi((char*)token.c_str()); break;
-			default: break;
-			}
-		}
-
-		m_pMobKillCount[i] = u;
-	}
-}
-
-void CClient::save_mobs_data()
-{
-	char cFileName[112] = {};
-	char cDir[112] = {};
-	strcat(cFileName, "Mobs");
-	strcat(cFileName, "\\");
-	std::snprintf(cDir, sizeof(cDir), "AscII%d", (unsigned char)m_cCharName[0]);
-	strcat(cFileName, cDir);
-	strcat(cFileName, "\\");
-	strcat(cFileName, m_cCharName);
-	strcat(cFileName, ".txt");
-
-	FILE* fp = fopen(cFileName, "wt");
-
-	if (fp != 0)
-	{
-		for (int i = 0; i < 100; i++)
-		{
-			if (m_pMobKillCount[i] != 0)
-			{
-				string m_sSave = "mob-";
-				m_sSave.append(to_string(i + 1));
-				m_sSave.append(" = ");
-				m_sSave.append(m_pMobKillCount[i]->cNpcName);
-				m_sSave.append(" ");
-				m_sSave.append(to_string(m_pMobKillCount[i]->iKillCount));
-				m_sSave.append(" ");
-				m_sSave.append(to_string(m_pMobKillCount[i]->iNextCount));
-				m_sSave.append(" ");
-				m_sSave.append(to_string(m_pMobKillCount[i]->iLevel));
-				m_sSave.append("\n");
-
-				fwrite((char*)m_sSave.c_str(), 1, m_sSave.size(), fp);
-			}
-		}
-
-		fclose(fp);
-	}
-}

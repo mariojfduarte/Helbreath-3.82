@@ -87,7 +87,6 @@
     <ClInclude Include="GlobalDef.h" />
     <ClInclude Include="LoginServer.h" />
     <ClInclude Include="PartyManager.h" />
-    <ClInclude Include="MobCounter.h" />
     <ClInclude Include="ActionID_Server.h" />
     <ClInclude Include="CommonTypes.h" />
     <ClInclude Include="EntityManager.h" />

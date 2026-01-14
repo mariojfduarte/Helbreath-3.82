@@ -1093,36 +1093,6 @@ void CGame::OnClientRead(int iClientH)
 }
 
 
-void CGame::DisplayInfo()
-{
-	int  i;
-
-	// Server info line
-	printf("\n");
-	printf("=======================================================================\n");
-	printf("Server: %s | Max Level: %d\n", m_cServerName, m_iPlayerMaxLevel);
-	printf("Players: %d/%d | Total: %d/%d\n",
-		m_iTotalClients, m_iMaxClients,
-		m_iTotalGameServerClients, m_iTotalGameServerMaxClients);
-	printf("=======================================================================\n");
-
-	// Map info
-	printf("Active Maps:\n");
-	printf("-----------------------------------------------------------------------\n");
-	for (i = 0; i < DEF_MAXMAPS; i++) {
-		if (m_pMapList[i] != 0) {
-			printf("%-20s | Objects: %4d | P(%d,%d) N(%d,%d) A(%d,%d) E(%d,%d) M(%d,%d)\n",
-				m_pMapList[i]->m_cName,
-				m_pMapList[i]->m_iTotalActiveObject,
-				m_pMapList[i]->m_iMaxPx * 20 + 10, m_pMapList[i]->m_iMaxPy * 20 + 10,
-				m_pMapList[i]->m_iMaxNx * 20 + 10, m_pMapList[i]->m_iMaxNy * 20 + 10,
-				m_pMapList[i]->m_iMaxAx * 20 + 10, m_pMapList[i]->m_iMaxAy * 20 + 10,
-				m_pMapList[i]->m_iMaxEx * 20 + 10, m_pMapList[i]->m_iMaxEy * 20 + 10,
-				m_pMapList[i]->m_iMaxMx * 20 + 10, m_pMapList[i]->m_iMaxMy * 20 + 10);
-		}
-	}
-	printf("=======================================================================\n\n");
-}
 
 void CGame::ClientMotionHandler(int iClientH, char* pData)
 {
@@ -2046,40 +2016,6 @@ void CGame::RequestInitDataHandler(int iClientH, char * pData, char cKey)
 
 	bSendClientItemConfigs(iClientH);
 
-	RequestMobKills(iClientH);
-}
-
-void CGame::RequestMobKills(int client)
-{
-	auto player = m_pClientList[client];
-	if (player == 0) return;
-
-	char* cData = G_cData50000; // buffer for send
-
-	auto* header = reinterpret_cast<hb::net::PacketNotifyMobKillCountHeader*>(cData);
-	header->header.msg_id = DEF_NOTIFY_MOBKILLS;
-	header->header.msg_type = 0;
-
-	auto* entries = reinterpret_cast<hb::net::PacketNotifyMobKillCountEntry*>(header + 1);
-
-	int count = 0;
-	for (int i = 0; i < 100; i++) //recorro todosl os clientes
-	{
-		auto mob = player->m_pMobKillCount[i];
-
-		if (mob != 0)
-		{
-			entries[count].kill_count = mob->iKillCount;
-			entries[count].next_count = mob->iNextCount;
-			entries[count].level = mob->iLevel;
-			memcpy(entries[count].npc_name, mob->cNpcName, sizeof(entries[count].npc_name)); // copiar el nombre del char
-			count++;
-		}
-	}
-
-	header->total = static_cast<int16_t>(count); // total entries
-	player->m_pXSock->iSendMsg(G_cData50000,
-		static_cast<int>(sizeof(*header) + count * sizeof(hb::net::PacketNotifyMobKillCountEntry)));
 }
 
 bool CGame::bSendClientItemConfigs(int iClientH)
@@ -2792,7 +2728,6 @@ void CGame::DeleteClient(int iClientH, bool bSave, bool bNotify, bool bCountLogo
 			}
 	}
 
-	m_pClientList[iClientH]->save_mobs_data();
 
 	m_iTotalClients--;
 
@@ -5044,7 +4979,6 @@ void CGame::InitPlayerData(int iClientH, char* pData, uint32_t dwSize)
 		}
 	}*/
 
-	m_pClientList[iClientH]->read_mobs_data();
 }
 
 void CGame::GameProcess()
@@ -5068,26 +5002,6 @@ void CGame::_ClearItemConfigList()
 	}
 }
 
-bool CGame::_bLoadItemConfigsFromDb()
-{
-	sqlite3* db = nullptr;
-	std::string dbPath;
-	bool created = false;
-	if (!EnsureGameConfigDatabase(&db, dbPath, &created)) {
-		return false;
-	}
-
-	if (created) {
-		CloseGameConfigDatabase(db);
-		PutLogList("(!) GameConfigs.db missing; item configs must be preloaded in the database.");
-		return false;
-	}
-
-	_ClearItemConfigList();
-	bool ok = LoadItemConfigs(db, m_pItemConfigList, DEF_MAXITEMTYPES);
-	CloseGameConfigDatabase(db);
-	return ok;
-}
 
 
 bool CGame::_bInitItemAttr(class CItem* pItem, const char* pItemName)
@@ -11467,11 +11381,6 @@ uint32_t CGame::iDice(uint32_t iThrow, uint32_t iRange)
 	return iRet;
 }
 
-void CGame::CalculateGuildEffect(int iVictimH, char cVictimType, short sAttackerH)
-{
-	// ### ERROR POINT! ÀÓ½Ã·Î ¸·¾Æ ³í´Ù.
-	return;
-}
 
 void CGame::TimeManaPointsUp(int iClientH)
 {
@@ -15213,92 +15122,10 @@ void CGame::TrainSkillResponse(bool bSuccess, int iClientH, int iSkillNum, int i
 }
 
 
-int CGame::_iGetSkillNumber(char* pSkillName)
-{
-	int i;
-	char cTmpName[21];
-
-	std::memset(cTmpName, 0, sizeof(cTmpName));
-	strcpy(cTmpName, pSkillName);
-
-	for (i = 1; i < DEF_MAXSKILLTYPE; i++)
-		if (m_pSkillConfigList[i] != 0) {
-			if (memcmp(cTmpName, m_pSkillConfigList[i]->m_cName, 20) == 0) {
-				// °°Àº ÀÌ¸§À» °¡Áø ±â¼ú ¼³Á¤À» Ã£¾Ò´Ù. ±â¼ú ¹øÈ£¸¦ ¹ÝÈ¯ÇÑ´Ù.
-				return i;
-			}
-		}
-
-	return 0;
-}
-
-bool CGame::bPlayerItemToBank(int iClientH, short sItemIndex)
-{
-	int i, iIndex;
-
-	if (m_pClientList[iClientH] == 0) return false;
-
-	for (i = 0; i < DEF_MAXBANKITEMS; i++)
-		if (m_pClientList[iClientH]->m_pItemInBankList[i] == 0) {
-			iIndex = i;
-			goto NEXT_STEP_PLTB;
-		}
-	// ´õÀÌ»ó ÀúÀåÇÒ °ø°£ÀÌ ¾ø´Ù. 
-	return false;
-
-NEXT_STEP_PLTB:
-
-	// ¾ÆÀÌÅÛÀ» ÀúÀåÇÒ °ø°£ÀÌ ³²¾ÆÀÖ´Ù. 
-	// ¸ÕÀú ÀåÂøµÇ¾î ÀÖ´Ù¸é ÇØÁ¦½ÃÅ²´Ù.
-	ReleaseItemHandler(iClientH, sItemIndex, true);
-
-	// ¾ÆÀÌÅÛ Å¬·¡½ºÀÇ ÁÖ¼Ò¸¦ ¹Ù²Û´Ù. 
-	m_pClientList[iClientH]->m_pItemInBankList[iIndex] = m_pClientList[iClientH]->m_pItemList[sItemIndex];
-	// ÇÃ·¹ÀÌ¾î ¾ÆÀÌÅÛ ¸®½ºÆ®¸¦ Å¬¸®¾îÇÏ°í 
-	m_pClientList[iClientH]->m_pItemList[sItemIndex] = 0;
-	m_pClientList[iClientH]->m_bIsItemEquipped[sItemIndex] = false;
-
-	// ¾ÆÀÌÅÛ ¸®½ºÆ®ÀÇ ºó °ø°£À» »èÁ¦ÇÑ´Ù.
-	for (i = 1; i < DEF_MAXITEMS; i++)
-		if ((m_pClientList[iClientH]->m_pItemList[i - 1] == 0) && (m_pClientList[iClientH]->m_pItemList[i] != 0)) {
-			m_pClientList[iClientH]->m_pItemList[i - 1] = m_pClientList[iClientH]->m_pItemList[i];
-			m_pClientList[iClientH]->m_bIsItemEquipped[i - 1] = m_pClientList[iClientH]->m_bIsItemEquipped[i];
-			m_pClientList[iClientH]->m_pItemList[i] = 0;
-			m_pClientList[iClientH]->m_bIsItemEquipped[i] = false;
-		}
-
-	return true;
-}
 
 
 
-bool CGame::bBankItemToPlayer(int iClientH, short sItemIndex)
-{
-	int i, iIndex;
 
-	if (m_pClientList[iClientH] == 0) return false;
-
-	if (m_pClientList[iClientH]->m_pItemInBankList[sItemIndex] == 0) return false;
-
-	for (i = 0; i < DEF_MAXITEMS; i++)
-		if (m_pClientList[iClientH]->m_pItemList[i] == 0) {
-			iIndex = i;
-			goto NEXT_STEP_PLTB;
-		}
-	// ´õÀÌ»ó °®°íÀÖÀ» °ø°£ÀÌ ¾ø´Ù. 
-	return false;
-
-NEXT_STEP_PLTB:
-
-	// ¾ÆÀÌÅÛÀ» ¼ÒÁöÇÒ °ø°£ÀÌ ³²¾ÆÀÖ´Ù. 
-
-	// ¾ÆÀÌÅÛ Å¬·¡½ºÀÇ ÁÖ¼Ò¸¦ ¹Ù²Û´Ù. 
-	m_pClientList[iClientH]->m_pItemList[iIndex] = m_pClientList[iClientH]->m_pItemInBankList[sItemIndex];
-
-	m_pClientList[iClientH]->m_pItemInBankList[sItemIndex] = 0;
-
-	return true;
-}
 
 
 
@@ -18940,11 +18767,6 @@ void CGame::CalculateSSN_SkillIndex(int iClientH, short sSkillIndex, int iValue)
 }
 
 
-void CGame::DeleteNpc(int iNpcH)
-{
-	if (m_pEntityManager != 0)
-		m_pEntityManager->DeleteEntity(iNpcH);
-}
 
 
 
@@ -20095,454 +19917,6 @@ void CGame::Effect_Damage_Spot(short sAttackerH, char cAttackerType, short sTarg
 	}
 }
 
-void CGame::Effect_Damage_Spot_Type2(short sAttackerH, char cAttackerType, short sTargetH, char cTargetType, short sAtkX, short sAtkY, short sV1, short sV2, short sV3, bool bExp, int iAttr)
-{
-	int iPartyID, iDamage, iSideCondition, iIndex, iRemainLife, iTemp, iMaxSuperAttack, iRepDamage;
-	char cAttackerSide, cDamageMoveDir, cDamageMinimum;
-	uint32_t dwTime, iExp;
-	double dTmp1, dTmp2, dTmp3;
-	short sTgtX, sTgtY, sItemIndex;
-
-	if ((cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_pClientList[sAttackerH] == 0)) return;
-	if ((cAttackerType == DEF_OWNERTYPE_NPC) && (m_pNpcList[sAttackerH] == 0)) return;
-	if ((cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_pMapList[m_pClientList[sAttackerH]->m_cMapIndex] != 0) &&
-		(m_pMapList[m_pClientList[sAttackerH]->m_cMapIndex]->m_bIsHeldenianMap == 1) && (m_bHeldenianInitiated)) return;
-
-	dwTime = GameClock::GetTimeMS();
-	sTgtX = 0;
-	sTgtY = 0;
-	iDamage = iDice(sV1, sV2) + sV3;
-	if (iDamage <= 0) iDamage = 0;
-
-	switch (cAttackerType) {
-	case DEF_OWNERTYPE_PLAYER:
-		if ((m_bAdminSecurity) && (m_pClientList[sAttackerH]->m_iAdminUserLevel > 0)) return;
-		if (m_pClientList[sAttackerH]->m_cHeroArmourBonus == 2) iDamage += 4;
-		if ((m_pClientList[sAttackerH]->m_sItemEquipmentStatus[DEF_EQUIPPOS_LHAND] == -1) || (m_pClientList[sAttackerH]->m_sItemEquipmentStatus[DEF_EQUIPPOS_TWOHAND] == -1)) {
-			sItemIndex = m_pClientList[sAttackerH]->m_sItemEquipmentStatus[DEF_EQUIPPOS_RHAND];
-			if ((sItemIndex != -1) && (m_pClientList[sAttackerH]->m_pItemList[sItemIndex] != 0)) {
-				if (m_pClientList[sAttackerH]->m_pItemList[sItemIndex]->m_sIDnum == 861 || m_pClientList[sAttackerH]->m_pItemList[sItemIndex]->m_sIDnum == 862) {
-					iDamage *= (int)1.3f;
-				}
-				if (m_pClientList[sAttackerH]->m_pItemList[sItemIndex]->m_sIDnum == 863 || m_pClientList[sAttackerH]->m_pItemList[sItemIndex]->m_sIDnum == 864) {
-					if (m_pClientList[sAttackerH]->m_iRating > 0) {
-						iRepDamage = m_pClientList[sAttackerH]->m_iRating / 100;
-						if (iRepDamage < 5) iRepDamage = 5;
-						if (iRepDamage > 15) iRepDamage = 15;
-						iDamage += iRepDamage;
-					}
-					if (cTargetType == DEF_OWNERTYPE_PLAYER) {
-						if (m_pClientList[sTargetH] != 0) {
-							if (m_pClientList[sTargetH]->m_iRating < 0) {
-								iRepDamage = (abs(m_pClientList[sTargetH]->m_iRating) / 10);
-								if (iRepDamage > 10) iRepDamage = 10;
-								iDamage += iRepDamage;
-							}
-						}
-					}
-				}
-			}
-			sItemIndex = m_pClientList[sAttackerH]->m_sItemEquipmentStatus[DEF_EQUIPPOS_NECK];
-			if ((sItemIndex != -1) && (m_pClientList[sAttackerH]->m_pItemList[sItemIndex] != 0)) {
-				if (m_pClientList[sAttackerH]->m_pItemList[sItemIndex]->m_sIDnum == 859) { // NecklaceOfKloness  
-					if (cTargetType == DEF_OWNERTYPE_PLAYER) {
-						if (m_pClientList[sTargetH] != 0) {
-							iRepDamage = (abs(m_pClientList[sTargetH]->m_iRating) / 20);
-							if (iRepDamage > 5) iRepDamage = 5;
-							iDamage += iRepDamage;
-						}
-					}
-				}
-			}
-		}
-
-		if ((m_bIsCrusadeMode == false) && (m_pClientList[sAttackerH]->m_bIsPlayerCivil) && (cTargetType == DEF_OWNERTYPE_PLAYER)) return;
-
-		dTmp1 = (double)iDamage;
-		dTmp2 = (double)(m_pClientList[sAttackerH]->m_iMag + m_pClientList[sAttackerH]->m_iAngelicMag);
-		dTmp2 = dTmp2 / 3.3f;
-		dTmp3 = dTmp1 + (dTmp1 * (dTmp2 / 100.0f));
-		iDamage = (int)(dTmp3 + 0.5f);
-		if (iDamage <= 0) iDamage = 0;
-		// order switched with above
-		iDamage += m_pClientList[sAttackerH]->m_iAddMagicalDamage;
-
-		if (m_pMapList[m_pClientList[sAttackerH]->m_cMapIndex]->m_bIsFightZone)
-			iDamage += iDamage / 3;
-
-		if (bCheckHeldenianMap(sAttackerH, m_iBTFieldMapIndex, DEF_OWNERTYPE_PLAYER) == 1) {
-			iDamage += iDamage / 3;
-		}
-
-		if ((cTargetType == DEF_OWNERTYPE_PLAYER) && (m_bIsCrusadeMode) && (m_pClientList[sAttackerH]->m_iCrusadeDuty == 1)) {
-			if (m_pClientList[sAttackerH]->m_iLevel <= 80) {
-				iDamage += (iDamage * 7) / 10;
-			}
-			else if (m_pClientList[sAttackerH]->m_iLevel <= 100) {
-				iDamage += iDamage / 2;
-			}
-			else
-				iDamage += iDamage / 3;
-		}
-
-		cAttackerSide = m_pClientList[sAttackerH]->m_cSide;
-		iPartyID = m_pClientList[sAttackerH]->m_iPartyID;
-		break;
-
-	case DEF_OWNERTYPE_NPC:
-		cAttackerSide = m_pNpcList[sAttackerH]->m_cSide;
-		break;
-	}
-
-	switch (cTargetType) {
-	case DEF_OWNERTYPE_PLAYER:
-
-		if (m_pClientList[sTargetH] == 0) return;
-		if (m_pClientList[sTargetH]->m_bIsInitComplete == false) return;
-		if (m_pClientList[sTargetH]->m_bIsKilled) return;
-		if ((dwTime - m_pClientList[sTargetH]->m_dwTime) > DEF_RAGPROTECTIONTIME) return;
-		if (m_pClientList[sTargetH]->m_cMapIndex == -1) return;
-		if ((m_pMapList[m_pClientList[sTargetH]->m_cMapIndex]->m_bIsAttackEnabled == false) && (m_pClientList[sTargetH]->m_iAdminUserLevel == 0)) return;
-		if ((cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_pClientList[sTargetH]->m_bIsNeutral) && (m_pClientList[sTargetH]->m_iPKCount == 0)) return;
-
-		if ((m_pClientList[sTargetH]->m_iStatus & 0x400000) != 0) return;
-
-		if ((cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_bIsCrusadeMode == false) &&
-			(m_pClientList[sTargetH]->m_iPKCount == 0) && (m_pClientList[sTargetH]->m_bIsPlayerCivil)) return;
-
-		if ((cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_pClientList[sTargetH]->m_bIsNeutral) &&
-			(m_pClientList[sTargetH]->m_iPKCount == 0) && (m_pClientList[sTargetH]->m_bIsOwnLocation)) return;
-
-		if ((m_pClientList[sTargetH]->m_iPartyID != 0) && (iPartyID == m_pClientList[sTargetH]->m_iPartyID)) return;
-		m_pClientList[sTargetH]->m_dwLogoutHackCheck = dwTime;
-
-		if (cAttackerType == DEF_OWNERTYPE_PLAYER) {
-			if (m_pClientList[sAttackerH]->m_bIsSafeAttackMode) {
-				iSideCondition = iGetPlayerRelationship(sAttackerH, sTargetH);
-				if ((iSideCondition == 7) || (iSideCondition == 2) || (iSideCondition == 6)) {
-
-				}
-				else {
-					if (m_pMapList[m_pClientList[sAttackerH]->m_cMapIndex]->m_bIsFightZone) {
-						if (m_pClientList[sAttackerH]->m_iGuildGUID != m_pClientList[sTargetH]->m_iGuildGUID) {
-
-						}
-						else return;
-					}
-					else return;
-				}
-			}
-
-			if (m_pMapList[m_pClientList[sTargetH]->m_cMapIndex]->iGetAttribute(m_pClientList[sTargetH]->m_sX, m_pClientList[sTargetH]->m_sY, 0x00000005) != 0) return;
-		}
-
-		ClearSkillUsingStatus(sTargetH);
-
-		switch (iAttr) {
-		case 1:
-			if (m_pClientList[sTargetH]->m_iAddAbsEarth != 0) {
-				dTmp1 = (double)iDamage;
-				dTmp2 = (double)m_pClientList[sTargetH]->m_iAddAbsEarth;
-				dTmp3 = (dTmp2 / 100.0f) * dTmp1;
-				iDamage = iDamage - (int)(dTmp3);
-				if (iDamage < 0) iDamage = 0;
-			}
-			break;
-
-		case 2:
-			if (m_pClientList[sTargetH]->m_iAddAbsAir != 0) {
-				dTmp1 = (double)iDamage;
-				dTmp2 = (double)m_pClientList[sTargetH]->m_iAddAbsAir;
-				dTmp3 = (dTmp2 / 100.0f) * dTmp1;
-				iDamage = iDamage - (int)(dTmp3);
-				if (iDamage < 0) iDamage = 0;
-			}
-			break;
-
-		case 3:
-			if (m_pClientList[sTargetH]->m_iAddAbsFire != 0) {
-				dTmp1 = (double)iDamage;
-				dTmp2 = (double)m_pClientList[sTargetH]->m_iAddAbsFire;
-				dTmp3 = (dTmp2 / 100.0f) * dTmp1;
-				iDamage = iDamage - (int)(dTmp3);
-				if (iDamage < 0) iDamage = 0;
-			}
-			break;
-
-		case 4:
-			if (m_pClientList[sTargetH]->m_iAddAbsWater != 0) {
-				dTmp1 = (double)iDamage;
-				dTmp2 = (double)m_pClientList[sTargetH]->m_iAddAbsWater;
-				dTmp3 = (dTmp2 / 100.0f) * dTmp1;
-				iDamage = iDamage - (int)(dTmp3);
-				if (iDamage < 0) iDamage = 0;
-			}
-			break;
-
-		default: break;
-		}
-
-		iIndex = m_pClientList[sTargetH]->m_iMagicDamageSaveItemIndex;
-		if ((iIndex != -1) && (iIndex >= 0) && (iIndex < DEF_MAXITEMS)) {
-
-			switch (m_pClientList[sTargetH]->m_pItemList[iIndex]->m_sIDnum) {
-			case 335:
-				dTmp1 = (double)iDamage;
-				dTmp2 = dTmp1 * 0.2f;
-				dTmp3 = dTmp1 - dTmp2;
-				iDamage = (int)(dTmp3 + 0.5f);
-				break;
-
-			case 337:
-				dTmp1 = (double)iDamage;
-				dTmp2 = dTmp1 * 0.1f;
-				dTmp3 = dTmp1 - dTmp2;
-				iDamage = (int)(dTmp3 + 0.5f);
-				break;
-			}
-			if (iDamage <= 0) iDamage = 0;
-
-			iRemainLife = m_pClientList[sTargetH]->m_pItemList[iIndex]->m_wCurLifeSpan;
-			if (iRemainLife <= iDamage) {
-				ItemDepleteHandler(sTargetH, iIndex, true);
-			}
-			else {
-				m_pClientList[sTargetH]->m_pItemList[iIndex]->m_wCurLifeSpan -= iDamage;
-				SendNotifyMsg(0, sTargetH, DEF_NOTIFY_CURLIFESPAN, iIndex, m_pClientList[sTargetH]->m_pItemList[iIndex]->m_wCurLifeSpan, 0, 0);
-			}
-		}
-
-		if (m_pClientList[sTargetH]->m_iAddAbsMD != 0) {
-			dTmp1 = (double)iDamage;
-			dTmp2 = (double)m_pClientList[sTargetH]->m_iAddAbsMD;
-			dTmp3 = (dTmp2 / 100.0f) * dTmp1;
-			iDamage = iDamage - (int)dTmp3;
-		}
-
-		if (cTargetType == DEF_OWNERTYPE_PLAYER) {
-			iDamage -= (iDice(1, m_pClientList[sTargetH]->m_iVit / 10) - 1);
-			if (iDamage <= 0) iDamage = 0;
-		}
-
-		if (m_pClientList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_PROTECT] == 2)
-			iDamage = iDamage / 2;
-
-		if (m_pClientList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_PROTECT] == 5) break;
-
-		if ((m_pClientList[sTargetH]->m_bIsLuckyEffect) &&
-			(iDice(1, 10) == 5) && (m_pClientList[sTargetH]->m_iHP <= iDamage)) {
-			iDamage = m_pClientList[sTargetH]->m_iHP - 1;
-		}
-
-		if ((cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_pClientList[sTargetH]->m_bIsSpecialAbilityEnabled)) {
-			switch (m_pClientList[sTargetH]->m_iSpecialAbilityType) {
-			case 51:
-			case 52:
-				return;
-			}
-		}
-
-		m_pClientList[sTargetH]->m_iHP -= iDamage;
-		if (m_pClientList[sTargetH]->m_iHP <= 0) {
-			ClientKilledHandler(sTargetH, sAttackerH, cAttackerType, iDamage);
-		}
-		else {
-			if (iDamage > 0) {
-				if (m_pClientList[sTargetH]->m_iAddTransMana > 0) {
-					dTmp1 = (double)m_pClientList[sTargetH]->m_iAddTransMana;
-					dTmp2 = (double)iDamage;
-					dTmp3 = (dTmp1 / 100.0f) * dTmp2 + 1.0f;
-
-					iTemp = iGetMaxMP(sTargetH);
-					m_pClientList[sTargetH]->m_iMP += (int)dTmp3;
-					if (m_pClientList[sTargetH]->m_iMP > iTemp) m_pClientList[sTargetH]->m_iMP = iTemp;
-				}
-
-				if (m_pClientList[sTargetH]->m_iAddChargeCritical > 0) {
-					if (iDice(1, 100) <= static_cast<uint32_t>(m_pClientList[sTargetH]->m_iAddChargeCritical)) {
-						iMaxSuperAttack = (m_pClientList[sTargetH]->m_iLevel / 10);
-						if (m_pClientList[sTargetH]->m_iSuperAttackLeft < iMaxSuperAttack) m_pClientList[sTargetH]->m_iSuperAttackLeft++;
-						SendNotifyMsg(0, sTargetH, DEF_NOTIFY_SUPERATTACKLEFT, 0, 0, 0, 0);
-					}
-				}
-
-				if ((cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_pMapList[m_pClientList[sAttackerH]->m_cMapIndex]->m_bIsFightZone)) {
-					cDamageMinimum = 80;
-				}
-				else {
-					cDamageMinimum = 50;
-				}
-
-				if (iDamage >= cDamageMinimum) {
-					sTgtX = m_pClientList[sTargetH]->m_sX;
-					sTgtY = m_pClientList[sTargetH]->m_sY;
-					if (sTgtX == sAtkX) {
-						if (sTgtY == sAtkY) return;
-						else if (sTgtY > sAtkY) cDamageMoveDir = 5;
-						else if (sTgtY < sAtkY) cDamageMoveDir = 1;
-					}
-					else if (sTgtX > sAtkX) {
-						if (sTgtY == sAtkY)     cDamageMoveDir = 3;
-						else if (sTgtY > sAtkY) cDamageMoveDir = 4;
-						else if (sTgtY < sAtkY) cDamageMoveDir = 2;
-					}
-					else if (sTgtX < sAtkX) {
-						if (sTgtY == sAtkY)     cDamageMoveDir = 7;
-						else if (sTgtY > sAtkY) cDamageMoveDir = 6;
-						else if (sTgtY < sAtkY) cDamageMoveDir = 8;
-					}
-					m_pClientList[sTargetH]->m_iLastDamage = iDamage;
-					SendNotifyMsg(0, sTargetH, DEF_NOTIFY_HP, 0, 0, 0, 0);
-					SendNotifyMsg(0, sTargetH, DEF_NOTIFY_DAMAGEMOVE, cDamageMoveDir, iDamage, 0, 0);
-				}
-
-				SendNotifyMsg(0, sTargetH, DEF_NOTIFY_HP, 0, 0, 0, 0);
-				SendEventToNearClient_TypeA(sTargetH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_MOTION, DEF_OBJECTDAMAGE, iDamage, 0, 0);
-
-				if (m_pClientList[sTargetH]->m_bSkillUsingStatus[19] != true) {
-					m_pMapList[m_pClientList[sTargetH]->m_cMapIndex]->ClearOwner(0, sTargetH, DEF_OWNERTYPE_PLAYER, m_pClientList[sTargetH]->m_sX, m_pClientList[sTargetH]->m_sY);
-					m_pMapList[m_pClientList[sTargetH]->m_cMapIndex]->SetOwner(sTargetH, DEF_OWNERTYPE_PLAYER, m_pClientList[sTargetH]->m_sX, m_pClientList[sTargetH]->m_sY);
-				}
-
-				if (m_pClientList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_HOLDOBJECT] != 0) {
-					SendNotifyMsg(0, sTargetH, DEF_NOTIFY_MAGICEFFECTOFF, DEF_MAGICTYPE_HOLDOBJECT, m_pClientList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_HOLDOBJECT], 0, 0);
-					m_pClientList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_HOLDOBJECT] = 0;
-					bRemoveFromDelayEventList(sTargetH, DEF_OWNERTYPE_PLAYER, DEF_MAGICTYPE_HOLDOBJECT);
-				}
-			}
-		}
-		break;
-
-	case DEF_OWNERTYPE_NPC:
-		if (m_pNpcList[sTargetH] == 0) return;
-		if (m_pNpcList[sTargetH]->m_iHP <= 0) return;
-		if ((m_bIsCrusadeMode) && (cAttackerSide == m_pNpcList[sTargetH]->m_cSide)) return;
-
-		switch (m_pNpcList[sTargetH]->m_cActionLimit) {
-		case 1:
-		case 2:
-		case 4:
-		case 6:
-			return;
-
-		case 3:
-		case 5:
-			if (cAttackerType == DEF_OWNERTYPE_PLAYER) {
-				switch (m_pNpcList[sTargetH]->m_sType) {
-				case 40:
-				case 41:
-					if ((m_pClientList[sAttackerH]->m_cSide == 0) || (m_pNpcList[sTargetH]->m_cSide == m_pClientList[sAttackerH]->m_cSide)) return;
-					break;
-				}
-			}
-		}
-
-		if (m_pNpcList[sTargetH]->m_iAbsDamage > 0) {
-			dTmp1 = (double)iDamage;
-			dTmp2 = (double)(m_pNpcList[sTargetH]->m_iAbsDamage) / 100.0f;
-			dTmp3 = dTmp1 * dTmp2;
-			dTmp2 = dTmp1 - dTmp3;
-			iDamage = (int)dTmp2;
-			if (iDamage < 0) iDamage = 1;
-		}
-
-		if (m_pNpcList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_PROTECT] == 2)
-			iDamage = iDamage / 2;
-
-		m_pNpcList[sTargetH]->m_iHP -= iDamage;
-		if (m_pNpcList[sTargetH]->m_iHP < 0) {
-			// Use EntityManager for NPC death handling
-			if (m_pEntityManager != NULL)
-				m_pEntityManager->OnEntityKilled(sTargetH, sAttackerH, cAttackerType, iDamage);
-		}
-		else {
-			switch (cAttackerType) {
-			case DEF_OWNERTYPE_PLAYER:
-				if ((m_pNpcList[sTargetH]->m_sType != 21) && (m_pNpcList[sTargetH]->m_sType != 55) && (m_pNpcList[sTargetH]->m_sType != 56)
-					&& (m_pNpcList[sTargetH]->m_cSide == cAttackerSide)) return;
-				break;
-
-			case DEF_OWNERTYPE_NPC:
-				if (m_pNpcList[sAttackerH]->m_cSide == m_pNpcList[sTargetH]->m_cSide) return;
-				break;
-			}
-
-			SendEventToNearClient_TypeA(sTargetH, DEF_OWNERTYPE_NPC, MSGID_EVENT_MOTION, DEF_OBJECTDAMAGE, iDamage, 0, 0);
-			if ((iDice(1, 3) == 2) && (m_pNpcList[sTargetH]->m_cActionLimit == 0)) {
-				if ((cAttackerType == DEF_OWNERTYPE_NPC) &&
-					(m_pNpcList[sAttackerH]->m_sType == m_pNpcList[sTargetH]->m_sType) &&
-					(m_pNpcList[sAttackerH]->m_cSide == m_pNpcList[sTargetH]->m_cSide)) return;
-
-				m_pNpcList[sTargetH]->m_cBehavior = DEF_BEHAVIOR_ATTACK;
-				m_pNpcList[sTargetH]->m_sBehaviorTurnCount = 0;
-				m_pNpcList[sTargetH]->m_iTargetIndex = sAttackerH;
-				m_pNpcList[sTargetH]->m_cTargetType = cAttackerType;
-				m_pNpcList[sTargetH]->m_dwTime = dwTime;
-
-				if (m_pNpcList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_HOLDOBJECT] != 0) {
-					m_pNpcList[sTargetH]->m_cMagicEffectStatus[DEF_MAGICTYPE_HOLDOBJECT] = 0;
-					bRemoveFromDelayEventList(sTargetH, DEF_OWNERTYPE_NPC, DEF_MAGICTYPE_HOLDOBJECT);
-				}
-
-				if ((m_pNpcList[sTargetH]->m_iNoDieRemainExp > 0) && (m_pNpcList[sTargetH]->m_bIsSummoned != true) && (cAttackerType == DEF_OWNERTYPE_PLAYER) && (m_pClientList[sAttackerH] != 0)) {
-					if (m_pNpcList[sTargetH]->m_iNoDieRemainExp > static_cast<uint32_t>(iDamage)) {
-						iExp = iDamage;
-						if ((m_bIsCrusadeMode) && (iExp > 10)) iExp = 10;
-
-						if (m_pClientList[sAttackerH]->m_iAddExp > 0) {
-							dTmp1 = (double)m_pClientList[sAttackerH]->m_iAddExp;
-							dTmp2 = (double)iExp;
-							dTmp3 = (dTmp1 / 100.0f) * dTmp2;
-							iExp += (uint32_t)dTmp3;
-						}
-
-						if (m_pClientList[sAttackerH]->m_iLevel > 100) {
-							switch (m_pNpcList[sTargetH]->m_sType) {
-							case 55:
-							case 56:
-								iExp = 0;
-								break;
-							default: break;
-							}
-						}
-
-						if (bExp)
-							GetExp(sAttackerH, iExp, true);
-						else GetExp(sAttackerH, (iExp / 2), true);
-						m_pNpcList[sTargetH]->m_iNoDieRemainExp -= iDamage;
-					}
-					else {
-						iExp = m_pNpcList[sTargetH]->m_iNoDieRemainExp;
-						if ((m_bIsCrusadeMode) && (iExp > 10)) iExp = 10;
-
-						if (m_pClientList[sAttackerH]->m_iAddExp > 0) {
-							dTmp1 = (double)m_pClientList[sAttackerH]->m_iAddExp;
-							dTmp2 = (double)iExp;
-							dTmp3 = (dTmp1 / 100.0f) * dTmp2;
-							iExp += (uint32_t)dTmp3;
-						}
-
-						if (m_pClientList[sAttackerH]->m_iLevel > 100) {
-							switch (m_pNpcList[sTargetH]->m_sType) {
-							case 55:
-							case 56:
-								iExp = 0;
-								break;
-							default: break;
-							}
-						}
-
-						if (bExp)
-							GetExp(sAttackerH, iExp, true);
-						else GetExp(sAttackerH, (iExp / 2), true);
-						m_pNpcList[sTargetH]->m_iNoDieRemainExp = 0;
-					}
-				}
-			}
-		}
-		break;
-	}
-}
 
 void CGame::Effect_Damage_Spot_DamageMove(short sAttackerH, char cAttackerType, short sTargetH, char cTargetType, short sAtkX, short sAtkY, short sV1, short sV2, short sV3, bool bExp, int iAttr)
 {
@@ -21816,16 +21190,6 @@ void CGame::SendObjectMotionRejectMsg(int iClientH)
 
 
 
-int CGame::_iGetTotalClients()
-{
-	int i, iTotal;
-
-	iTotal = 0;
-	for (i = 1; i < DEF_MAXCLIENTS; i++)
-		if (m_pClientList[i] != 0) iTotal++;
-
-	return iTotal;
-}
 
 void CGame::DynamicObjectEffectProcessor()
 {
@@ -28594,114 +27958,6 @@ int CGame::_iComposeFlagStatusContents(char* pData)
 }
 
 
-bool CGame::_bDecodeOccupyFlagSaveFileContents(char* pData, uint32_t dwMsgSize)
-{
-	char* pContents, * token;
-	char seps[] = "= \t\r\n";
-	char cReadModeA = 0;
-	char cReadModeB = 0;
-	int  iFlagIndex = 0;
-	int  iSide;
-	int dX, dY, iEKNum, iTotalFlags;
-
-	if (m_iMiddlelandMapIndex < 0) {
-		PutLogList("(!) This game server does not managing Middleland Map. OcuupyFlag data ignored.");
-		return false;
-	}
-
-	iTotalFlags = 0;
-
-	pContents = new char[dwMsgSize + 10];
-	std::memset(pContents, 0, dwMsgSize + 10);
-	memcpy(pContents, pData, dwMsgSize - 9);
-
-	token = strtok(pContents, seps);
-
-	while (token != 0) {
-		if (cReadModeA != 0) {
-			switch (cReadModeA) {
-			case 1:
-				switch (cReadModeB) {
-				case 1:
-					// Side
-					if (_bGetIsStringIsNumber(token) == false) {
-						PutLogList("(!!!) CRITICAL ERROR! OccupyFlag save file error - Wrong Data format.");
-						delete[] pContents;
-						return false;
-					}
-
-					iSide = atoi(token);
-					cReadModeB = 2;
-					break;
-
-				case 2:
-					// X ÁÂÇ¥ 
-					if (_bGetIsStringIsNumber(token) == false) {
-						PutLogList("(!!!) CRITICAL ERROR! OccupyFlag save file error - Wrong Data format.");
-						delete[] pContents;
-						return false;
-					}
-
-					dX = atoi(token);
-					cReadModeB = 3;
-					break;
-
-				case 3:
-					// Y ÁÂÇ¥  
-					if (_bGetIsStringIsNumber(token) == false) {
-						PutLogList("(!!!) CRITICAL ERROR! OccupyFlag save file error - Wrong Data format.");
-						delete[] pContents;
-						return false;
-					}
-
-					dY = atoi(token);
-					cReadModeB = 4;
-					break;
-
-				case 4:
-					// EKNum
-					if (_bGetIsStringIsNumber(token) == false) {
-						PutLogList("(!!!) CRITICAL ERROR! OccupyFlag save file error - Wrong Data format.");
-						delete[] pContents;
-						return false;
-					}
-
-					iEKNum = atoi(token);
-
-					// µ¥ÀÌÅÍ¸¦ ¸ðµÎ ¸¸µé¾úÀ¸¹Ç·Î ±ê¹ßÀ» µî·ÏÇÑ´Ù. (!!! Master Flag·Î Ã³¸®ÇØ¾ß¸¸ ¼³Ä¡ÇÒ ¼ö ÀÖ´Ù)
-					if (__bSetOccupyFlag(m_iMiddlelandMapIndex, dX, dY, iSide, iEKNum, -1, true))
-						iTotalFlags++;
-
-					cReadModeA = 0;
-					cReadModeB = 0;
-					break;
-				}
-
-			default:
-				break;
-			}
-		}
-		else {
-			if (memcmp(token, "flag", 4) == 0) {
-				cReadModeA = 1;
-				cReadModeB = 1;
-			}
-		}
-		token = strtok(NULL, seps);
-	}
-
-	delete[] pContents;
-
-	if ((cReadModeA != 0) || (cReadModeB != 0)) {
-		PutLogList("(!!!) CRITICAL ERROR! OccupyFlag save file contents error!");
-		return false;
-	}
-
-	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) OccupyFlag save file decoding success! Total(%d)", iTotalFlags);
-	PutLogList(G_cTxt);
-
-	return true;
-}
 //Hero Code by Zabuza
 void CGame::GetHeroMantleHandler(int iClientH, int iItemID, const char* pString)
 {
@@ -29751,30 +29007,10 @@ bool CGame::_bCheckIsQuestCompleted(int iClientH)
 	return false;
 }
 
-int CGame::_iTalkToNpcResult_GuildHall(int iClientH, int* pQuestType, int* pMode, int* pRewardType, int* pRewardAmount, int* pContribution, char* pTargetName, int* pTargetType, int* pTargetCount, int* pX, int* pY, int* pRange)
-{
-	return -4;
-}
 
-int CGame::_iTalkToNpcResult_GShop(int iClientH, int* pQuestType, int* pMode, int* pRewardType, int* pRewardAmount, int* pContribution, char* pTargetName, int* pTargetType, int* pTargetCount, int* pX, int* pY, int* pRange)
-{
-	return -4;
-}
 
-int CGame::_iTalkToNpcResult_BSmith(int iClientH, int* pQuestType, int* pMode, int* pRewardType, int* pRewardAmount, int* pContribution, char* pTargetName, int* pTargetType, int* pTargetCount, int* pX, int* pY, int* pRange)
-{
-	return -4;
-}
 
-int CGame::_iTalkToNpcResult_WHouse(int iClientH, int* pQuestType, int* pMode, int* pRewardType, int* pRewardAmount, int* pContribution, char* pTargetName, int* pTargetType, int* pTargetCount, int* pX, int* pY, int* pRange)
-{
-	return -4;
-}
 
-int CGame::_iTalkToNpcResult_WTower(int iClientH, int* pQuestType, int* pMode, int* pRewardType, int* pRewardAmount, int* pContribution, char* pTargetName, int* pTargetType, int* pTargetCount, int* pX, int* pY, int* pRange)
-{
-	return -4;
-}
 
 int CGame::SendItemNotifyMsg(int iClientH, uint16_t wMsgType, CItem* pItem, int iV1)
 {
@@ -29934,27 +29170,6 @@ void CGame::GetMapInitialPoint(int iMapIndex, short* pX, short* pY, char* pPlaye
 
 
 
-void CGame::_CheckStrategicPointOccupyStatus(char cMapIndex)
-{
-	class CTile* pTile;
-	int i, iX, iY, iSide, iValue;
-
-	m_iStrategicStatus = 0;
-
-	for (i = 0; i < DEF_MAXSTRATEGICPOINTS; i++)
-		if (m_pMapList[cMapIndex]->m_pStrategicPointList[i] != 0) {
-
-			iSide = m_pMapList[cMapIndex]->m_pStrategicPointList[i]->m_iSide;
-			iValue = m_pMapList[cMapIndex]->m_pStrategicPointList[i]->m_iValue;
-			iX = m_pMapList[cMapIndex]->m_pStrategicPointList[i]->m_iX;
-			iY = m_pMapList[cMapIndex]->m_pStrategicPointList[i]->m_iY;
-
-			pTile = (class CTile*)(m_pMapList[cMapIndex]->m_pTile + iX + iY * m_pMapList[cMapIndex]->m_sSizeY);
-
-			// Àü·«Àû ÁöÁ¡ÀÇ °¡ÁßÄ¡¸¦ °öÇØ¼­ ´õÇÑ´Ù. 
-			m_iStrategicStatus += pTile->m_iOccupyStatus * iValue;
-		}
-}
 
 // MODERNIZED: New function that polls login client socket instead of handling window messages
 void CGame::OnLoginClientSocketEvent(int iLoginClientH)
@@ -30882,24 +30097,6 @@ void CGame::AdminOrder_DisconnectAll(int iClientH, char* pData, uint32_t dwMsgSi
 	_iForcePlayerDisconect(DEF_MAXCLIENTS);
 }
 
-bool CGame::_bCheckDupItemID(CItem* pItem)
-{
-	int i;
-
-	for (i = 0; i < DEF_MAXDUPITEMID; i++)
-		if (m_pDupItemIDList[i] != 0) {
-			if ((pItem->m_sTouchEffectType == m_pDupItemIDList[i]->m_sTouchEffectType) &&
-				(pItem->m_sTouchEffectValue1 == m_pDupItemIDList[i]->m_sTouchEffectValue1) &&
-				(pItem->m_sTouchEffectValue2 == m_pDupItemIDList[i]->m_sTouchEffectValue2) &&
-				(pItem->m_sTouchEffectValue3 == m_pDupItemIDList[i]->m_sTouchEffectValue3)) {
-				// °¡°Ý Á¤º¸¸¦ °»½ÅÇÏ°í ¸®ÅÏ.
-				pItem->m_wPrice = m_pDupItemIDList[i]->m_wPrice;
-				return true;
-			}
-		}
-
-	return false;
-}
 
 void CGame::_AdjustRareItemValue(CItem* pItem)
 {
@@ -31014,26 +30211,6 @@ void CGame::RequestNoticementHandler(int iClientH)
 	}
 }
 
-void CGame::_bDecodeNoticementFileContents(char* pData, uint32_t dwMsgSize)
-{
-	char* cp;
-
-	cp = (pData);
-
-	if (m_pNoticementData != 0) {
-		delete m_pNoticementData;
-		m_pNoticementData = 0;
-	}
-
-	m_pNoticementData = new char[strlen(cp) + 2];
-	std::memset(m_pNoticementData, 0, strlen(cp) + 2);
-
-	memcpy(m_pNoticementData, cp, strlen(cp));
-	m_dwNoticementDataSize = strlen(cp);
-
-	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Noticement Data Size: %d", m_dwNoticementDataSize);
-	PutLogList(G_cTxt);
-}
 
 void CGame::RequestCheckAccountPasswordHandler(char* pData, uint32_t dwMsgSize)
 {
@@ -31538,106 +30715,8 @@ void CGame::RequestSellItemListHandler(int iClientH, char* pData)
 	}
 }
 
-void CGame::_DeleteRandomOccupyFlag(int iMapIndex)
-{
-	int i, iCount, iTotalFlags, iTargetFlag, iDynamicObjectIndex;
-	int tx, ty, fx, fy, iLocalSide, iLocalEKNum, iPrevStatus;
-	class CTile* pTile;
-	uint32_t dwTime;
-
-	if (m_pMapList[iMapIndex] == 0) return;
-
-	dwTime = GameClock::GetTimeMS();
-
-	// ÃÑ ±ê¹ß °¹¼ö¸¦ ±¸ÇÑ´Ù.
-	iTotalFlags = 0;
-	for (i = 1; i < DEF_MAXOCCUPYFLAG; i++)
-		if (m_pMapList[iMapIndex]->m_pOccupyFlag[i] != 0) {
-			iTotalFlags++;
-		}
-
-	// ·£´ýÇÏ°Ô ÇÏ³ª Á¤ÇÑ´Ù.
-	iTargetFlag = iDice(1, iTotalFlags);
-
-	iCount = 0;
-	for (i = 1; i < DEF_MAXOCCUPYFLAG; i++)
-		if (m_pMapList[iMapIndex]->m_pOccupyFlag[i] != 0) {
-			iCount++;
-			if ((iCount == iTotalFlags) && (m_pMapList[iMapIndex]->m_pOccupyFlag[i] != 0)) {
-				// m_pMapList[iMapIndex]->m_pOccupyFlag[i] : ÀÌ ±ê¹ßÀ» ¾ø¾Ø´Ù.	
-
-				//testcode
-				std::snprintf(G_cTxt, sizeof(G_cTxt), "(*)Delete OccupyFlag: Side(%d) XY(%d, %d)", m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_cSide, m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_sX, m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_sY);
-				PutLogList(G_cTxt);
-
-				fx = m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_sX;
-				fy = m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_sY;
-				iLocalSide = m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_cSide;
-				iLocalEKNum = m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_iEKCount;
-
-				pTile = (class CTile*)(m_pMapList[iMapIndex]->m_pTile + m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_sX +
-					m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_sY * m_pMapList[iMapIndex]->m_sSizeY);
-				// ±ê¹ß °´Ã¼ °¨¼Ò 
-				m_pMapList[iMapIndex]->m_iTotalOccupyFlags--;
-
-				iDynamicObjectIndex = m_pMapList[iMapIndex]->m_pOccupyFlag[i]->m_iDynamicObjectIndex;
-				// Å¬¶óÀÌ¾ðÆ®¿¡°Ô ±ê¹ßÀÌ »ç¶óÁüÀ» ¾Ë¸®°í 
-				SendEventToNearClient_TypeB(MSGID_DYNAMICOBJECT, DEF_MSGTYPE_REJECT, m_pDynamicObjectList[iDynamicObjectIndex]->m_cMapIndex,
-					m_pDynamicObjectList[iDynamicObjectIndex]->m_sX, m_pDynamicObjectList[iDynamicObjectIndex]->m_sY,
-					m_pDynamicObjectList[iDynamicObjectIndex]->m_sType, iDynamicObjectIndex, 0, (short)0);
-				// ¸Ê¿¡¼­ ±ê¹ß µ¿Àû °´Ã¼¸¦ »èÁ¦ÇÑ´Ù.
-				m_pMapList[m_pDynamicObjectList[iDynamicObjectIndex]->m_cMapIndex]->SetDynamicObject(0, 0, m_pDynamicObjectList[iDynamicObjectIndex]->m_sX, m_pDynamicObjectList[iDynamicObjectIndex]->m_sY, dwTime);
-
-				// ±ê¹ß °´Ã¼¸¦ »èÁ¦ 
-				delete m_pMapList[iMapIndex]->m_pOccupyFlag[i];
-				m_pMapList[iMapIndex]->m_pOccupyFlag[i] = 0;
-
-				// Å¸ÀÏ »óÀÇ ±ê¹ß ÀÎµ¦½º¸¦ »èÁ¦
-				pTile->m_iOccupyFlagIndex = 0;
-
-				// µ¿Àû °´Ã¼ »èÁ¦ 
-				delete m_pDynamicObjectList[iDynamicObjectIndex];
-				m_pDynamicObjectList[iDynamicObjectIndex] = 0;
-
-				// ÀÌ ±ê¹ßÀ» »èÁ¦ÇÏ¹Ç·Î ¿µÇâ±Ç ³»ÀÇ °ªÀ» º¯°æ½ÃÄÑ¾ß ÇÑ´Ù. *** ¸Ç ¸¶Áö¸·¿¡ Ã³¸®ÇØ¾ß ÇÑ´Ù.
-				for (tx = fx - 12; tx <= fx + 12; tx++)
-					for (ty = fy - 10; ty <= fy + 10; ty++) {
-						if ((tx < 0) || (tx >= m_pMapList[iMapIndex]->m_sSizeX) ||
-							(ty < 0) || (ty >= m_pMapList[iMapIndex]->m_sSizeY)) {
-							// ¹«½ÃÇØ¾ß ÇÏ´Â ÁÂÇ¥ 
-						}
-						else {
-							pTile = (class CTile*)(m_pMapList[iMapIndex]->m_pTile + tx + ty * m_pMapList[iMapIndex]->m_sSizeY);
-							iPrevStatus = pTile->m_iOccupyStatus;
-							// Side: ¾Æ·¹½ºµ§(1)  ¿¤¹ÙÀÎ(2)
-							switch (iLocalSide) {
-							case 1:
-								pTile->m_iOccupyStatus += iLocalEKNum;
-								if (pTile->m_iOccupyStatus > 0) pTile->m_iOccupyStatus = 0;
-								break;
-							case 2:
-								pTile->m_iOccupyStatus -= iLocalEKNum;
-								if (pTile->m_iOccupyStatus < 0) pTile->m_iOccupyStatus = 0;
-								break;
-							}
-						}
-					}
-				//
-				return;
-			}
-		}
-}
 
 
-void CGame::CreateNewPartyHandler(int iClientH)
-{
-	bool bFlag;
-
-	if (m_pClientList[iClientH] == 0) return;
-
-	bFlag = m_pClientList[iClientH]->bCreateNewParty();
-	SendNotifyMsg(0, iClientH, DEF_NOTIFY_RESPONSE_CREATENEWPARTY, (int)bFlag, 0, 0, 0);
-}
 
 void CGame::JoinPartyHandler(int iClientH, int iV1, const char* pMemberName)
 {
@@ -32308,32 +31387,6 @@ void CGame::LocalEndCrusadeMode(int iWinnerSide)
 }
 
 
-void CGame::SaveOccupyFlagData()
-{
-	char* pData;
-	int iSize;
-	FILE* pFile;
-
-	PutLogList("(!) Middleland OccupyFlag data saved.");
-
-	pData = new char[1000000 + 1];
-	if (pData == 0) return;
-	std::memset(pData, 0, 1000000);
-
-	iSize = _iComposeFlagStatusContents(pData);
-
-#ifdef _WIN32
-	_mkdir("GameData");
-#endif
-
-	pFile = fopen("GameData\\OccupyFlag.txt", "wt");
-	if (pFile == 0) return;
-
-	fwrite(pData, 1, iSize, pFile);
-
-	delete pData;
-	fclose(pFile);
-}
 
 
 void CGame::CreateCrusadeStructures()
@@ -34404,13 +33457,6 @@ Skip_Storm:
 	;
 }
 
-void CGame::SendMsg(short sOwnerH, char cOwnerType, bool bStatus, long lPass) {
-	if (m_pClientList[sOwnerH] == 0) return;
-	//SendNotifyMsg(0, sOwnerH, DEF_NOTIFY_LEVELUP, 0, 0, 0, 0);
-
-	SendNotifyMsg(0, sOwnerH, static_cast<uint16_t>(lPass), 0, 0, 0, 0);
-
-}
 
 //ArchAngel Function
 void CGame::AdminOrder_Weather(int iClientH, char* pData, uint32_t dwMsgSize)
@@ -37001,67 +36047,8 @@ void CGame::CancelExchangeItem(int iClientH)
 }
 
 //HBest force recall start code
-void CGame::SetTimeOut(int iClientH)
-{
-	int forcedIn;
-	time_t seconds;
-	SYSTEMTIME SysTime;
-
-	seconds = time(0);
-	GetLocalTime(&SysTime);
-
-	if (m_pClientList[iClientH] == 0) return;
-
-	m_pClientList[iClientH]->m_iForceStart = seconds;
-	m_pClientList[iClientH]->isForceSet = true;
-
-	switch (SysTime.wDayOfWeek) {
-	case 1:	forcedIn = m_sRaidTimeMonday; break;
-	case 2:	forcedIn = m_sRaidTimeTuesday; break;
-	case 3:	forcedIn = m_sRaidTimeWednesday; break;
-	case 4:	forcedIn = m_sRaidTimeThursday; break;
-	case 5:	forcedIn = m_sRaidTimeFriday; break;
-	case 6:	forcedIn = m_sRaidTimeSaturday; break;
-	case 0:	forcedIn = m_sRaidTimeSunday; break;
-	}
-
-	SendNotifyMsg(0, iClientH, DEF_NOTIFY_FORCERECALLTIME, forcedIn, 0, 0, 0);
-
-}
 
 //HBest force recall code
-void CGame::CheckTimeOut(int iClientH)
-{
-	int forcedIn;
-	time_t seconds;
-	SYSTEMTIME SysTime;
-
-	seconds = time(0);
-	GetLocalTime(&SysTime);
-
-	if (m_pClientList[iClientH] == 0) return;
-
-	switch (SysTime.wDayOfWeek) {
-	case 1:	forcedIn = m_sRaidTimeMonday; break;
-	case 2:	forcedIn = m_sRaidTimeTuesday; break;
-	case 3:	forcedIn = m_sRaidTimeWednesday; break;
-	case 4:	forcedIn = m_sRaidTimeThursday; break;
-	case 5:	forcedIn = m_sRaidTimeFriday; break;
-	case 6:	forcedIn = m_sRaidTimeSaturday; break;
-	case 0:	forcedIn = m_sRaidTimeSunday; break;
-	}
-
-	if ((seconds - m_pClientList[iClientH]->m_iForceStart) > (forcedIn * 60)) {
-		SendNotifyMsg(0, iClientH, DEF_NOTIFY_TOBERECALLED, 0, 0, 0, 0);
-		if (memcmp(m_pClientList[iClientH]->m_cLocation, "are", 3) == 0) {
-			RequestTeleportHandler(iClientH, "2   ", "aresden", -1, -1);
-		}
-		if (memcmp(m_pClientList[iClientH]->m_cLocation, "elv", 3) == 0) {
-			RequestTeleportHandler(iClientH, "2   ", "elvine", -1, -1);
-		}
-	}
-
-}
 
 // v2.17 2002-7-15 ���Ͽ� ������� ���� �ð��� ���� �� �� �ְ� �����Ѵ�.
 void CGame::SetForceRecallTime(int iClientH)
@@ -42736,49 +41723,7 @@ void CGame::RequestHeldenianTeleport(int iClientH, char* pData, uint32_t dwMsgSi
 	}
 }
 
-void CGame::HeldenianWarStarter()
-{
-	SYSTEMTIME SysTime;
-	int i;
 
-	GetLocalTime(&SysTime);
-	if (var_89C) return;
-	if (var_8A0 == false) return;
-
-	for (i = 0; i < DEF_MAXSCHEDULE; i++)
-		if (m_bIsApocalypseMode) return;
-	if (m_bIsCrusadeMode) return;
-	if ((m_stHeldenianSchedule[i].iDay != SysTime.wDayOfWeek) &&
-		(m_stHeldenianSchedule[i].StartiHour != SysTime.wHour) &&
-		(m_stHeldenianSchedule[i].StartiMinute != SysTime.wMinute)) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "Heldenian Start : time(%d %d:%d), index(%d)", SysTime.wDayOfWeek, SysTime.wHour, SysTime.wMinute, i);
-		PutLogFileList(G_cTxt);
-		var_8A0 = true;
-		GlobalStartHeldenianMode();
-	}
-}
-
-void CGame::HeldenianWarEnder()
-{
-	SYSTEMTIME SysTime;
-	int i;
-
-	GetLocalTime(&SysTime);
-
-	for (i = 0; i < DEF_MAXSCHEDULE; i++)
-		if (var_89C != true) return;
-	if (var_8A0 != true) return;
-	if ((m_stHeldenianSchedule[i].iDay != SysTime.wDayOfWeek) &&
-		(m_stHeldenianSchedule[i].EndiHour != SysTime.wHour) &&
-		(m_stHeldenianSchedule[i].EndiMinute != SysTime.wMinute)) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "Heldenian End : time(%d %d:%d), index(%d)", SysTime.wDayOfWeek, SysTime.wHour, SysTime.wMinute, i);
-		PutLogFileList(G_cTxt);
-		if (m_cHeldenianModeType == 2) {
-			m_cHeldenianVictoryType = m_sLastHeldenianWinner;
-		}
-		GlobalEndHeldenianMode();
-	}
-}
 
 void CGame::GlobalStartHeldenianMode()
 {
@@ -43042,46 +41987,6 @@ void CGame::ManualEndHeldenianMode(int iClientH, char* pData, uint32_t dwMsgSize
 	bSendMsgToLS(MSGID_GAMEMASTERLOG, iClientH, false, cTemp);
 }*/
 
-void CGame::AutomatedHeldenianTimer()
-{
-	uint32_t dwTime;
-	int x, i;
-
-	dwTime = static_cast<uint32_t>(time(0));
-	if ((dwTime == m_dwHeldenianStartTime - 300) && (m_bHeldenianInitiated != true) && (m_bIsHeldenianMode != true)) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "Heldenian Fight Start");
-		PutLogFileList(G_cTxt);
-		m_bIsHeldenianMode = false;
-		for (x = 0; x < DEF_MAXMAPS; x++) {
-			if (m_pMapList[x] == 0) return;
-			if (m_pMapList[x]->m_bIsHeldenianMap) return;
-			for (i = 0; i < DEF_MAXCLIENTS; i++) {
-				if (m_pClientList[i] == 0) return;
-				if (m_pClientList[i]->m_bIsInitComplete != true) return;
-				if (m_pClientList[i]->m_cMapIndex == x) {
-					SendNotifyMsg(0, i, DEF_NOTIFY_HELDENIANSTART, 0, 0, 0, 0);
-				}
-			}
-		}
-	}
-	if ((dwTime > static_cast<uint32_t>(180 - var_A38)) && (m_bHeldenianInitiated) && (m_bIsHeldenianMode)) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "Heldenian Fight End");
-		PutLogFileList(G_cTxt);
-		m_bHeldenianInitiated = false;
-		for (x = 0; x < DEF_MAXMAPS; x++) {
-			if (m_pMapList[x] == 0) return;
-			if (m_pMapList[x]->m_bIsHeldenianMap) return;
-			for (i = 0; i < DEF_MAXCLIENTS; i++) {
-				if (m_pClientList[i] == 0) return;
-				if (m_pClientList[i]->m_bIsInitComplete != true) return;
-				if (m_pClientList[i]->m_cMapIndex == x) {
-					SendNotifyMsg(0, i, DEF_NOTIFY_0BE8, 0, 0, 0, 0);
-					RequestTeleportHandler(i, "1   ", 0, -1, -1);
-				}
-			}
-		}
-	}
-}
 
 void CGame::AdminOrder_GetFightzoneTicket(int iClientH)
 {
@@ -43230,28 +42135,6 @@ void CGame::CheckHeldenianResultCalculation(int iClientH)
 	}
 }
 
-void CGame::NotifyStartHeldenianMode()
-{
-	int i, x;
-
-	if (m_bIsHeldenianMode) return;
-	if (m_bHeldenianInitiated) return;
-	if (!var_88C) {
-		PutLogList("Heldenian Fight Start");
-		m_bHeldenianInitiated = false;
-		for (i = 0; i < DEF_MAXMAPS; i++) {
-			if (m_pMapList[i] == 0) return;
-			if (m_pMapList[i]->m_bIsHeldenianMap != true) return;
-			for (x = 0; x < DEF_MAXCLIENTS; x++) {
-				if (m_pClientList[x] == 0) return;
-				if (m_pClientList[x]->m_bIsInitComplete != true) return;
-				if (m_pClientList[x]->m_cMapIndex == i) {
-					SendNotifyMsg(0, x, DEF_NOTIFY_HELDENIANSTART, 0, 0, 0, 0);
-				}
-			}
-		}
-	}
-}
 
 bool CGame::UpdateHeldenianStatus()
 {
@@ -43284,13 +42167,6 @@ bool CGame::UpdateHeldenianStatus()
 
 
 
-void CGame::AddGizon(int iClientH) {
-	m_pClientList[iClientH]->m_iGizonItemUpgradeLeft++;
-	SendNotifyMsg(0, iClientH, DEF_NOTIFY_GIZONITEMUPGRADELEFT, m_pClientList[iClientH]->m_iGizonItemUpgradeLeft, 0, 0, 0);
-
-	m_pClientList[iClientH]->m_iNextLevelExp = m_iLevelExpTable[m_iPlayerMaxLevel + 1];
-	m_pClientList[iClientH]->m_iExp = m_iLevelExpTable[m_iPlayerMaxLevel];
-}
 
 void CGame::ForceRecallProcess() {
 	int i;

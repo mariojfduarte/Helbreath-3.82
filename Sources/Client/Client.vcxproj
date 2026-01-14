@@ -154,6 +154,9 @@
     <ClInclude Include="DXC_ddraw.h" />
     <ClInclude Include="DXC_dinput.h" />
     <ClInclude Include="Effect.h" />
+    <ClInclude Include="DialogBoxIDs.h" />
+    <ClInclude Include="DialogBoxInfo.h" />
+    <ClInclude Include="DialogBoxManager.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameMonitor.h" />
     <ClInclude Include="GlobalDef.h" />
@@ -163,7 +166,6 @@
     <ClInclude Include="Magic.h" />
     <ClInclude Include="MapData.h" />
     <ClInclude Include="Misc.h" />
-    <ClInclude Include="MobCounter.h" />
     <ClInclude Include="MouseInterface.h" />
     <ClInclude Include="ChatMsg.h" />
     <ClInclude Include="ClientMessages.h" />
@@ -192,6 +194,7 @@
     <ClCompile Include="ConfigManager.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Curse.cpp" />
+    <ClCompile Include="DialogBoxManager.cpp" />
     <ClCompile Include="FrameTiming.cpp" />
     <ClCompile Include="DXC_ddraw.cpp" />
     <ClCompile Include="DXC_dinput.cpp" />

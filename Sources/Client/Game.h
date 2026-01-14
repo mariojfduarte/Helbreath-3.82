@@ -51,7 +51,7 @@ using namespace std;
 #include "BuildItem.h"
 #include "ItemName.h"
 #include "Curse.h"
-#include "MobCounter.h"
+#include "DialogBoxManager.h"
 
 //v2.18
 #define DEF_BTNSZX				74
@@ -212,11 +212,6 @@ public:
 		uint32_t dwType;
 		uint32_t dwValue;
 	} m_stFragments[13][17];
-
-	void NotifyMsg_MobKillCount(char* pData);
-	void DrawDialogBox_MobKills(short msX, short msY, short msZ, char cLB);
-
-	class CMobCounter* m_pMobKillCount[100];
 
 	int m_iTeleportMapCount;
 	void ResponseTeleportList(char * pData);
@@ -695,19 +690,7 @@ public:
 		short sClickX, sClickY;
 	} m_stMCursor;
 
-	struct {
-		int   sV1, sV2, sV3, sV4, sV5, sV6, sV7, sV8, sV9, sV10, sV11, sV12, sV13, sV14; // v1.4 short
-		uint32_t dwV1, dwV2, dwT1;
-		bool  bFlag;
-		short sX, sY;
-		short sSizeX, sSizeY;
-		short sView;
-		char  cStr[32], cStr2[32], cStr3[32], cStr4[32];
-		char  cMode;
-		bool  bIsScrollSelected;
-	} m_stDialogBoxInfo[61]{}; // Snoopy pass� � 61 (origine 41, Alastor 60), j'ai mis +20 car plus pratique.
-	char m_cDialogBoxOrder[61];
-	bool m_bIsDialogEnabled[61];
+	DialogBoxManager m_dialogBoxManager;
 //Snoopy=>>>>>>>>>>>>>>>>>>>>>
 	struct {
 		int   sV1, sV2, sV3, sV4, sV5, sV6, sV7, sItemID;
@@ -1082,3 +1065,4 @@ public:
 	short iMaxStats;
 	int iMaxLevel;
 };
+

@@ -566,19 +566,6 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
             }
         }
 
-        if (m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType] == 0) {
-            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType] =
-                new class CMobCounter(pEntity->m_cNpcName);
-        }
-
-        m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iKillCount++;
-        if (m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iKillCount >=
-            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iNextCount) {
-            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iLevel++;
-            m_pGame->m_pClientList[sAttackerH]->m_pMobKillCount[sType]->iNextCount *= 2;
-        }
-
-        m_pGame->RequestMobKills(sAttackerH);
     }
 
     // ========================================================================

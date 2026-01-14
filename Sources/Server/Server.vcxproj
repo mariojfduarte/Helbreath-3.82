@@ -153,7 +153,6 @@
     <ClInclude Include="MessageIndex.h" />
     <ClInclude Include="Mineral.h" />
     <ClInclude Include="Misc.h" />
-    <ClInclude Include="MobCounter.h" />
     <ClInclude Include="NetworkMsg.h" />
     <ClInclude Include="Npc.h" />
     <ClInclude Include="OccupyFlag.h" />
