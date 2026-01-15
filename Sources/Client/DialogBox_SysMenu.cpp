@@ -6,6 +6,7 @@
 #include "AudioManager.h"
 #include "CommonTypes.h"
 #include "ConfigManager.h"
+#include <cstring>
 
 extern HWND G_hWnd;
 
@@ -87,18 +88,19 @@ DialogBox_SysMenu::DialogBox_SysMenu(CGame* pGame)
 
 void DialogBox_SysMenu::DrawDetailLevel(short sX, short sY)
 {
+	const int detailLevel = ConfigManager::Get().GetDetailLevel();
 	PutString(sX + 23, sY + 63, DRAW_DIALOGBOX_SYSMENU_DETAILLEVEL, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 63, DRAW_DIALOGBOX_SYSMENU_DETAILLEVEL, RGB(45, 25, 25));
 
-	if (m_pGame->m_cDetailLevel == 0)
+	if (detailLevel == 0)
 		PutString(sX + 121, sY + 63, DRAW_DIALOGBOX_SYSMENU_LOW, RGB(255, 255, 255));
 	else PutString(sX + 121, sY + 63, DRAW_DIALOGBOX_SYSMENU_LOW, RGB(45, 25, 25));
 
-	if (m_pGame->m_cDetailLevel == 1)
+	if (detailLevel == 1)
 		PutString(sX + 153, sY + 63, DRAW_DIALOGBOX_SYSMENU_NORMAL, RGB(255, 255, 255));
 	else PutString(sX + 153, sY + 63, DRAW_DIALOGBOX_SYSMENU_NORMAL, RGB(45, 25, 25));
 
-	if (m_pGame->m_cDetailLevel == 2)
+	if (detailLevel == 2)
 		PutString(sX + 205, sY + 63, DRAW_DIALOGBOX_SYSMENU_HIGH, RGB(255, 255, 255));
 	else PutString(sX + 205, sY + 63, DRAW_DIALOGBOX_SYSMENU_HIGH, RGB(45, 25, 25));
 }
@@ -180,7 +182,7 @@ void DialogBox_SysMenu::DrawMiscSettings(short sX, short sY)
 	PutString(sX + 23, sY + 158, DRAW_DIALOGBOX_SYSMENU_TRANSPARENCY, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 158, DRAW_DIALOGBOX_SYSMENU_TRANSPARENCY, RGB(45, 25, 25));
 
-	if (m_pGame->m_bDialogTrans)
+	if (ConfigManager::Get().IsDialogTransparencyEnabled())
 		PutString(sX + 208, sY + 158, DRAW_DIALOGBOX_SYSMENU_ON, RGB(255, 255, 255));
 	else
 		PutString(sX + 207, sY + 158, DRAW_DIALOGBOX_SYSMENU_OFF, RGB(200, 200, 200));
@@ -204,75 +206,25 @@ void DialogBox_SysMenu::DrawMiscSettings(short sX, short sY)
 
 void DialogBox_SysMenu::DrawServerName(short sX, short sY)
 {
-#ifdef _DEBUG
 	PutString(sX + 23, sY + 41, UPDATE_SCREEN_ON_SELECT_CHARACTER36, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 41, UPDATE_SCREEN_ON_SELECT_CHARACTER36, RGB(45, 25, 25));
-#else
-	if (strcmp(m_pGame->m_cWorldServerName, NAME_WORLDNAME1) == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME1, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME1, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS2") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME2, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME2, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS3") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME3, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME3, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS4") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME4, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME4, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS5") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME5, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME5, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS6") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME6, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME6, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS7") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME7, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME7, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS8") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME8, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME8, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS9") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME9, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME9, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS10") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME10, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME10, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS11") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME11, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME11, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS12") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME12, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME12, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS13") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME13, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME13, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS14") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME14, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME14, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS15") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME15, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME15, RGB(45, 25, 25));
-	}
-	else if (strcmp(m_pGame->m_cWorldServerName, "WS16") == 0) {
-		PutString(sX + 23, sY + 41, MSG_WORLDNAME16, RGB(45, 25, 25));
-		PutString(sX + 24, sY + 41, MSG_WORLDNAME16, RGB(45, 25, 25));
-	}
-#endif
+}
+
+void DialogBox_SysMenu::DrawDisplayModeButtons(short sX, short sY, short msX, short msY)
+{
+	const bool isFullscreen = m_pGame->m_DDraw.m_bFullMode;
+	const short modeY = sY + 204;
+	const short windowedX = sX + 112;
+	const short fullscreenX = sX + 182;
+
+	const bool windowedHover = (msX >= sX + 110) && (msX <= sX + 168) && (msY >= sY + 200) && (msY <= sY + 213);
+	const bool fullscreenHover = (msX >= sX + 180) && (msX <= sX + 242) && (msY >= sY + 200) && (msY <= sY + 213);
+
+	COLORREF windowedColor = ((!isFullscreen) || windowedHover) ? RGB(255, 255, 255) : RGB(200, 200, 200);
+	COLORREF fullscreenColor = (isFullscreen || fullscreenHover) ? RGB(255, 255, 255) : RGB(200, 200, 200);
+
+	PutString(windowedX, modeY, "Windowed", windowedColor);
+	PutString(fullscreenX, modeY, "Fullscreen", fullscreenColor);
 }
 
 void DialogBox_SysMenu::DrawButtons(short sX, short sY, short msX, short msY)
@@ -297,6 +249,7 @@ void DialogBox_SysMenu::DrawButtons(short sX, short sY, short msX, short msY)
 		else DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_BUTTON, sX + DEF_RBTNPOSX, sY + 225, 36);
 	}
 	else if (m_pGame->m_cRestartCount == -1) {
+		DrawDisplayModeButtons(sX, sY, msX, msY);
 		// Resolution button (replaces credits)
 		DrawResolutionButton(sX, sY, msX, msY);
 	}
@@ -304,24 +257,42 @@ void DialogBox_SysMenu::DrawButtons(short sX, short sY, short msX, short msY)
 
 void DialogBox_SysMenu::DrawResolutionButton(short sX, short sY, short msX, short msY)
 {
-	int resIndex = GetCurrentResolutionIndex();
-	char cResText[32];
-	wsprintf(cResText, "%dx%d", s_Resolutions[resIndex].width, s_Resolutions[resIndex].height);
-
-	// Check if mouse is hovering over the resolution text area
-	bool bHover = (msX >= sX + 125) && (msX <= sX + 240) && (msY >= sY + 214) && (msY <= sY + 244);
-
-	// Draw "Resolution:" label
-	PutString(sX + 133, sY + 214, "Resolution:", RGB(45, 25, 25));
-	PutString(sX + 134, sY + 214, "Resolution:", RGB(45, 25, 25));
-
-	// Draw resolution value (highlighted on hover)
-	if (bHover) {
-		PutString(sX + 145, sY + 229, cResText, RGB(255, 255, 255));
+	const bool isFullscreen = m_pGame->m_DDraw.m_bFullMode;
+	int resWidth = 0;
+	int resHeight = 0;
+	if (isFullscreen) {
+		resWidth = GetSystemMetrics(SM_CXSCREEN);
+		resHeight = GetSystemMetrics(SM_CYSCREEN);
 	}
 	else {
-		PutString(sX + 145, sY + 229, cResText, RGB(45, 25, 25));
-		PutString(sX + 146, sY + 229, cResText, RGB(45, 25, 25));
+		int resIndex = GetCurrentResolutionIndex();
+		resWidth = s_Resolutions[resIndex].width;
+		resHeight = s_Resolutions[resIndex].height;
+	}
+
+	char cResText[32];
+	wsprintf(cResText, "%dx%d", resWidth, resHeight);
+
+	const short windowedX = sX + 112;
+	const short fullscreenX = sX + 182;
+	const int kCharWidth = 6;
+	const int windowedWidth = 8 * kCharWidth;
+	const int fullscreenWidth = 10 * kCharWidth;
+	const int leftBound = windowedX;
+	const int rightBound = fullscreenX + fullscreenWidth;
+	const int textWidth = static_cast<int>(std::strlen(cResText)) * kCharWidth;
+	const int textX = leftBound + ((rightBound - leftBound) / 2) - (textWidth / 2);
+	const short textY = sY + 222;
+	const bool bHover = !isFullscreen && (msX >= leftBound) && (msX <= rightBound) && (msY >= sY + 220) && (msY <= sY + 234);
+
+	// Draw single-line resolution text (highlighted on hover)
+	if (bHover) {
+		PutString(textX, textY, cResText, RGB(255, 255, 255));
+	}
+	else {
+		COLORREF color = isFullscreen ? RGB(150, 150, 150) : RGB(45, 25, 25);
+		PutString(textX, textY, cResText, color);
+		PutString(textX + 1, textY, cResText, color);
 	}
 }
 
@@ -349,7 +320,7 @@ bool DialogBox_SysMenu::OnClick(short msX, short msY)
 
 	// Detail level: Low
 	if ((msX >= sX + 120) && (msX <= sX + 150) && (msY >= sY + 63) && (msY <= sY + 74)) {
-		m_pGame->m_cDetailLevel = 0;
+		ConfigManager::Get().SetDetailLevel(0);
 		AddEventList(NOTIFY_MSG_DETAIL_LEVEL_LOW, 10);
 		PlaySoundEffect('E', 14, 5);
 		return true;
@@ -357,7 +328,7 @@ bool DialogBox_SysMenu::OnClick(short msX, short msY)
 
 	// Detail level: Normal
 	if ((msX >= sX + 151) && (msX <= sX + 200) && (msY >= sY + 63) && (msY <= sY + 74)) {
-		m_pGame->m_cDetailLevel = 1;
+		ConfigManager::Get().SetDetailLevel(1);
 		AddEventList(NOTIFY_MSG_DETAIL_LEVEL_MEDIUM, 10);
 		PlaySoundEffect('E', 14, 5);
 		return true;
@@ -365,7 +336,7 @@ bool DialogBox_SysMenu::OnClick(short msX, short msY)
 
 	// Detail level: High
 	if ((msX >= sX + 201) && (msX <= sX + 234) && (msY >= sY + 63) && (msY <= sY + 74)) {
-		m_pGame->m_cDetailLevel = 2;
+		ConfigManager::Get().SetDetailLevel(2);
 		AddEventList(NOTIFY_MSG_DETAIL_LEVEL_HIGH, 10);
 		PlaySoundEffect('E', 14, 5);
 		return true;
@@ -432,7 +403,8 @@ bool DialogBox_SysMenu::OnClick(short msX, short msY)
 
 	// Transparency toggle
 	if ((msX >= sX + 28) && (msX <= sX + 235) && (msY >= sY + 156) && (msY <= sY + 171)) {
-		m_pGame->m_bDialogTrans = !m_pGame->m_bDialogTrans;
+		bool dialogTrans = ConfigManager::Get().IsDialogTransparencyEnabled();
+		ConfigManager::Get().SetDialogTransparencyEnabled(!dialogTrans);
 		return true;
 	}
 
@@ -447,8 +419,36 @@ bool DialogBox_SysMenu::OnClick(short msX, short msY)
 
 	// Resolution button click (only when alive and not restarting)
 	if ((m_pGame->m_iHP > 0) && (m_pGame->m_cRestartCount == -1)) {
-		if ((msX >= sX + 125) && (msX <= sX + 240) && (msY >= sY + 214) && (msY <= sY + 244)) {
+		bool isFullscreen = m_pGame->m_DDraw.m_bFullMode;
+		if ((msX >= sX + 110) && (msX <= sX + 168) && (msY >= sY + 200) && (msY <= sY + 213)) {
+			if (isFullscreen) {
+				m_pGame->m_DDraw.m_bFullMode = false;
+				m_pGame->m_DDraw.ChangeDisplayMode(G_hWnd);
+				InputManager::Get().SetActive(true);
+				ConfigManager::Get().SetFullscreenEnabled(false);
+				ConfigManager::Get().Save();
+				m_pGame->m_bIsRedrawPDBGS = true;
+				PlaySoundEffect('E', 14, 5);
+			}
+			return true;
+		}
+
+		if ((msX >= sX + 180) && (msX <= sX + 242) && (msY >= sY + 200) && (msY <= sY + 213)) {
+			if (!isFullscreen) {
+				m_pGame->m_DDraw.m_bFullMode = true;
+				m_pGame->m_DDraw.ChangeDisplayMode(G_hWnd);
+				InputManager::Get().SetActive(true);
+				ConfigManager::Get().SetFullscreenEnabled(true);
+				ConfigManager::Get().Save();
+				m_pGame->m_bIsRedrawPDBGS = true;
+				PlaySoundEffect('E', 14, 5);
+			}
+			return true;
+		}
+
+		if (!isFullscreen && (msX >= sX + 112) && (msX <= sX + 242) && (msY >= sY + 220) && (msY <= sY + 234)) {
 			CycleResolution();
+			m_pGame->m_bIsRedrawPDBGS = true;
 			PlaySoundEffect('E', 14, 5);
 			AddEventList("Resolution changed.", 10);
 			return true;

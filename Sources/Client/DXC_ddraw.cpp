@@ -20,6 +20,21 @@ extern long    G_lTransG50[64][64], G_lTransRB50[64][64];
 extern long    G_lTransG25[64][64], G_lTransRB25[64][64];
 extern long    G_lTransG2[64][64], G_lTransRB2[64][64];
 
+static void GetDisplayDimensions(bool fullMode, int* outWidth, int* outHeight)
+{
+	if (fullMode) {
+		*outWidth = GetSystemMetrics(SM_CXSCREEN);
+		*outHeight = GetSystemMetrics(SM_CYSCREEN);
+	}
+	else {
+		*outWidth = ConfigManager::Get().GetWindowWidth();
+		*outHeight = ConfigManager::Get().GetWindowHeight();
+	}
+
+	if (*outWidth <= 0) *outWidth = LOGICAL_WIDTH;
+	if (*outHeight <= 0) *outHeight = LOGICAL_HEIGHT;
+}
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -37,11 +52,7 @@ DXC_ddraw::DXC_ddraw()
 	m_hDC			= 0;
 	m_hFontInUse	= 0;
 	m_init = false;
-#ifdef DEF_WINDOWED_MODE
-	m_bFullMode		= false;
-#else
-	m_bFullMode		= true;
-#endif
+	m_bFullMode = ConfigManager::Get().IsFullscreenEnabled();
 	res_x = 0;
 	res_y = 0;
 	res_x_mid = 0;
@@ -70,9 +81,9 @@ bool DXC_ddraw::bInit(HWND hWnd)
  DDSURFACEDESC2 ddsd;
  int            iS, iD;
 
-	// Get window dimensions from settings
-	int windowWidth = ConfigManager::Get().GetWindowWidth();
-	int windowHeight = ConfigManager::Get().GetWindowHeight();
+	int windowWidth = 0;
+	int windowHeight = 0;
+	GetDisplayDimensions(m_bFullMode, &windowWidth, &windowHeight);
 
 	 res_x = LOGICAL_WIDTH;
 	 res_y = LOGICAL_HEIGHT;
@@ -204,8 +215,9 @@ HRESULT DXC_ddraw::iFlip()
 
 	if (m_bFullMode)
 	{
-		int windowWidth = ConfigManager::Get().GetWindowWidth();
-		int windowHeight = ConfigManager::Get().GetWindowHeight();
+		int windowWidth = 0;
+		int windowHeight = 0;
+		GetDisplayDimensions(true, &windowWidth, &windowHeight);
 		double scale = (double)windowWidth / (double)LOGICAL_WIDTH;
 		double scaleY = (double)windowHeight / (double)LOGICAL_HEIGHT;
 		if (scaleY < scale) scale = scaleY;
@@ -260,11 +272,18 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 	HRESULT        ddVal;
 	DDSURFACEDESC2 ddsd;
 
-	// Get window dimensions from settings
-	int windowWidth = ConfigManager::Get().GetWindowWidth();
-	int windowHeight = ConfigManager::Get().GetWindowHeight();
+	int windowWidth = 0;
+	int windowHeight = 0;
+	GetDisplayDimensions(m_bFullMode, &windowWidth, &windowHeight);
 
 	if (!m_init) return;
+
+	static bool s_prevModeSet = false;
+	static bool s_prevFullMode = false;
+	if (!s_prevModeSet) {
+		s_prevFullMode = m_bFullMode;
+		s_prevModeSet = true;
+	}
 
 	if (m_lpBackB4flip != 0)
 	{
@@ -291,6 +310,14 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		if (ddVal != DD_OK) return;
 		ChangeBPP(CHANGE16BPP);
 
+		if (s_prevFullMode != m_bFullMode) {
+			int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+			int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+			int newX = (screenWidth - windowWidth) / 2;
+			int newY = (screenHeight - windowHeight) / 2;
+			SetWindowPos(hWnd, HWND_TOP, newX, newY, windowWidth, windowHeight, SWP_SHOWWINDOW);
+		}
+
 		// Don't reposition the window - use it wherever it currently is
 		memset( (VOID *)&ddsd, 0, sizeof(ddsd) );
 		ddsd.dwSize = sizeof( ddsd );
@@ -314,6 +341,9 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		ddVal = m_lpDD4->SetCooperativeLevel(hWnd, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN);
 		if (ddVal != DD_OK) return;
 		ChangeBPP(CHANGE32BPP);
+		if (s_prevFullMode != m_bFullMode) {
+			SetWindowPos(hWnd, HWND_TOP, 0, 0, windowWidth, windowHeight, SWP_SHOWWINDOW);
+		}
 		ddVal = m_lpDD4->SetDisplayMode(windowWidth, windowHeight, 16, 0, 0);
 		if (ddVal != DD_OK) return;
 		memset( (VOID *)&ddsd, 0, sizeof(ddsd) );
@@ -332,6 +362,7 @@ void DXC_ddraw::ChangeDisplayMode(HWND hWnd)
 		SetRect(&m_rcFlipping, 0, 0, windowWidth, windowHeight);
 		m_bFullMode = true;
 	}
+	s_prevFullMode = m_bFullMode;
 	InitFlipToGDI(hWnd);
 	m_lpBackB4 = pCreateOffScreenSurface(res_x, res_y);
 	if (m_lpBackB4 == 0) return;

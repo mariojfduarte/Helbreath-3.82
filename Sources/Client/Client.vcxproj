@@ -56,10 +56,12 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <StringPooling>true</StringPooling>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
@@ -92,6 +94,9 @@
       </IgnoreSpecificDefaultLibraries>
       <GenerateMapFile>false</GenerateMapFile>
       <AdditionalOptions> /FORCE:UNRESOLVED</AdditionalOptions>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -212,7 +217,6 @@
     <ClInclude Include="AudioManager.h" />
     <ClInclude Include="ChatCommandManager.h" />
     <ClInclude Include="CmdShowFrame.h" />
-    <ClInclude Include="CmdEnableToggleScreen.h" />
     <ClInclude Include="CmdWhisper.h" />
     <ClInclude Include="CmdShout.h" />
     <ClInclude Include="CmdIgnore.h" />
@@ -271,7 +275,6 @@
     <ClCompile Include="AudioManager.cpp" />
     <ClCompile Include="ChatCommandManager.cpp" />
     <ClCompile Include="CmdShowFrame.cpp" />
-    <ClCompile Include="CmdEnableToggleScreen.cpp" />
     <ClCompile Include="CmdWhisper.cpp" />
     <ClCompile Include="CmdShout.cpp" />
     <ClCompile Include="CmdIgnore.cpp" />

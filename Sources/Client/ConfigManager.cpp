@@ -70,6 +70,18 @@ void ConfigManager::SetDefaults()
 	m_windowWidth = 640;
 	m_windowHeight = 480;
 
+	// Display/Detail defaults
+	m_bShowFPS = false;
+	m_cDetailLevel = 2;
+	m_bZoomMap = true;
+	m_bDialogTrans = false;
+	m_bRunningMode = false;
+#ifdef DEF_WINDOWED_MODE
+	m_bFullscreen = false;
+#else
+	m_bFullscreen = true;
+#endif
+
 	m_bDirty = false;
 }
 
@@ -170,6 +182,36 @@ bool ConfigManager::Load(const char* filename)
 			}
 		}
 
+		// Display/Detail settings
+		if (j.contains("display"))
+		{
+			auto& display = j["display"];
+			if (display.contains("showFps"))
+			{
+				m_bShowFPS = display["showFps"].get<bool>();
+			}
+			if (display.contains("detailLevel"))
+			{
+				m_cDetailLevel = Clamp(display["detailLevel"].get<int>(), 0, 2);
+			}
+			if (display.contains("zoomMap"))
+			{
+				m_bZoomMap = display["zoomMap"].get<bool>();
+			}
+			if (display.contains("dialogTransparency"))
+			{
+				m_bDialogTrans = display["dialogTransparency"].get<bool>();
+			}
+			if (display.contains("runningMode"))
+			{
+				m_bRunningMode = display["runningMode"].get<bool>();
+			}
+			if (display.contains("fullscreen"))
+			{
+				m_bFullscreen = display["fullscreen"].get<bool>();
+			}
+		}
+
 		// Validate resolution to nearest 4:3 option
 		bool bValidResolution = false;
 		for (int i = 0; i < s_NumValidResolutions; i++) {
@@ -230,6 +272,14 @@ bool ConfigManager::Save(const char* filename)
 	// Window settings
 	j["window"]["width"] = m_windowWidth;
 	j["window"]["height"] = m_windowHeight;
+
+	// Display/Detail settings
+	j["display"]["showFps"] = m_bShowFPS;
+	j["display"]["detailLevel"] = m_cDetailLevel;
+	j["display"]["zoomMap"] = m_bZoomMap;
+	j["display"]["dialogTransparency"] = m_bDialogTrans;
+	j["display"]["runningMode"] = m_bRunningMode;
+	j["display"]["fullscreen"] = m_bFullscreen;
 
 	std::ofstream file(filename);
 	if (!file.is_open())
@@ -345,6 +395,61 @@ void ConfigManager::SetWindowSize(int width, int height)
 	{
 		m_windowWidth = width;
 		m_windowHeight = height;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetShowFpsEnabled(bool enabled)
+{
+	if (m_bShowFPS != enabled)
+	{
+		m_bShowFPS = enabled;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetDetailLevel(int level)
+{
+	level = Clamp(level, 0, 2);
+	if (m_cDetailLevel != level)
+	{
+		m_cDetailLevel = level;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetZoomMapEnabled(bool enabled)
+{
+	if (m_bZoomMap != enabled)
+	{
+		m_bZoomMap = enabled;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetDialogTransparencyEnabled(bool enabled)
+{
+	if (m_bDialogTrans != enabled)
+	{
+		m_bDialogTrans = enabled;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetRunningModeEnabled(bool enabled)
+{
+	if (m_bRunningMode != enabled)
+	{
+		m_bRunningMode = enabled;
+		m_bDirty = true;
+	}
+}
+
+void ConfigManager::SetFullscreenEnabled(bool enabled)
+{
+	if (m_bFullscreen != enabled)
+	{
+		m_bFullscreen = enabled;
 		m_bDirty = true;
 	}
 }

@@ -1,4 +1,5 @@
 #include "DialogBox_Map.h"
+#include "ConfigManager.h"
 #include "Game.h"
 #include "GlobalDef.h"
 
@@ -20,6 +21,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 {
 	short sX = Info().sX;
 	short sY = Info().sY;
+	const bool dialogTrans = ConfigManager::Get().IsDialogTransparencyEnabled();
 	uint32_t dwTime = m_pGame->m_dwCurTime;
 	double dV1, dV2, dV3;
 	int tX, tY, szX, szY, dX, dY;
@@ -31,7 +33,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 	case 1:
 		switch (Info().sV2) {
 		case 0: // aresden
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS1]->PutTransSprite2(sX, sY, 0, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS1]->PutSpriteFast(sX, sY, 0, dwTime);
 			dX = 19;
@@ -41,7 +43,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 1: // elvine
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS1]->PutTransSprite2(sX, sY, 1, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS1]->PutSpriteFast(sX, sY, 1, dwTime);
 			dX = 20;
@@ -51,7 +53,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 2: // middleland
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS2]->PutTransSprite2(sX, sY, 0, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS2]->PutSpriteFast(sX, sY, 0, dwTime);
 			dX = 11;
@@ -61,7 +63,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 3: // default
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS2]->PutTransSprite2(sX, sY, 1, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS2]->PutSpriteFast(sX, sY, 1, dwTime);
 			dX = 52;
@@ -71,7 +73,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 4: // aresden dungeon
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS3]->PutTransSprite2(sX, sY, 0, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS3]->PutSpriteFast(sX, sY, 0, dwTime);
 			dX = 40;
@@ -81,7 +83,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 5: // elvine dungeon
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS3]->PutTransSprite2(sX, sY, 1, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS3]->PutSpriteFast(sX, sY, 1, dwTime);
 			dX = 40;
@@ -91,7 +93,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 6: // aresden
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS4]->PutTransSprite2(sX, sY, 0, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS4]->PutSpriteFast(sX, sY, 0, dwTime);
 			dX = 40;
@@ -101,7 +103,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 7: // elvine
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS4]->PutTransSprite2(sX, sY, 1, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS4]->PutSpriteFast(sX, sY, 1, dwTime);
 			dX = 40;
@@ -111,7 +113,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 8: // aresden
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS5]->PutTransSprite2(sX, sY, 0, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS5]->PutSpriteFast(sX, sY, 0, dwTime);
 			dX = 40;
@@ -121,7 +123,7 @@ void DialogBox_Map::OnDraw(short msX, short msY, short msZ, char cLB)
 			break;
 
 		case 9: // elvine
-			if (m_pGame->m_bDialogTrans)
+			if (dialogTrans)
 				m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS5]->PutTransSprite2(sX, sY, 1, dwTime);
 			else m_pGame->m_pSprite[DEF_SPRID_INTERFACE_NEWMAPS5]->PutSpriteFast(sX, sY, 1, dwTime);
 			dX = 40;

@@ -1,9 +1,12 @@
 #include "CmdShowFrame.h"
 #include "Game.h"
+#include "ConfigManager.h"
 
 bool CmdShowFrame::Execute(CGame* pGame, const char* pArgs)
 {
+	(void)pGame;
 	(void)pArgs;
-	pGame->m_bShowFPS = !pGame->m_bShowFPS;
+	bool enabled = ConfigManager::Get().IsShowFpsEnabled();
+	ConfigManager::Get().SetShowFpsEnabled(!enabled);
 	return true;
 }

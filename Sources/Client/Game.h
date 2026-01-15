@@ -816,15 +816,11 @@ public:
 	bool m_bCitizen;
 	//v2.183 Hunter Mode;
 
-	bool m_bZoomMap;
 	bool m_bIsProgramActive;
 	bool m_bCommandAvailable;
 	bool m_bIsItemEquipped[DEF_MAXITEMS];
 	bool m_bIsItemDisabled[DEF_MAXITEMS];
 	bool m_bIsGetPointingMode;
-	bool m_bRunningMode;
-
-	bool m_bDialogTrans;
 	bool m_bIsCombatMode;
 	bool m_bIsSafeAttackMode;
 	bool m_bSkillUsingStatus;
@@ -840,7 +836,6 @@ public:
 	bool m_bIsCrusadeMode;
 	bool m_bIsSpecialAbilityEnabled;
 	bool m_bInputStatus;
-	bool m_bToggleScreen;
 	bool m_bIsSpecial;
 
 	bool m_bIsF1HelpWindowEnabled;
@@ -855,7 +850,6 @@ public:
 	short m_sFrameCount;
 	short m_sFPS;
 	uint32_t m_dwFPStime;
-	bool  m_bShowFPS;
 
 	int m_iFightzoneNumber;
 	int m_iFightzoneNumberTemp;
@@ -995,7 +989,6 @@ public:
 	char m_cMagicMastery[DEF_MAXMAGICTYPE];
 	unsigned char m_cSkillMastery[DEF_MAXSKILLTYPE]; // v1.4
 	char m_cWorldServerName[32];
-	char m_cDetailLevel;
 	char m_cMenuDir, m_cMenuDirCnt, m_cMenuFrame;
 	char m_cWhetherEffectType;
 	char m_cWhetherStatus;

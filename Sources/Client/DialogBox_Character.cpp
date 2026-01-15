@@ -1,4 +1,5 @@
 #include "DialogBox_Character.h"
+#include "ConfigManager.h"
 #include "Game.h"
 #include "lan_eng.h"
 
@@ -75,8 +76,9 @@ void DialogBox_Character::DrawHoverButton(int sX, int sY, int btnX, int btnY,
 {
 	bool bHover = (msX >= sX + btnX) && (msX <= sX + btnX + DEF_BTNSZX) &&
 	              (msY >= sY + btnY) && (msY <= sY + btnY + DEF_BTNSZY);
+	const bool dialogTrans = ConfigManager::Get().IsDialogTransparencyEnabled();
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_BUTTON, sX + btnX, sY + btnY,
-		bHover ? hoverFrame : normalFrame, false, m_pGame->m_bDialogTrans);
+		bHover ? hoverFrame : normalFrame, false, dialogTrans);
 }
 
 void DialogBox_Character::OnDraw(short msX, short msY, short msZ, char cLB)
@@ -85,8 +87,9 @@ void DialogBox_Character::OnDraw(short msX, short msY, short msZ, char cLB)
 	short sY = Info().sY;
 	char cEquipPoiStatus[DEF_MAXITEMEQUIPPOS];
 	char cCollison = -1;
+	const bool dialogTrans = ConfigManager::Get().IsDialogTransparencyEnabled();
 
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 0, false, m_pGame->m_bDialogTrans);
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 0, false, dialogTrans);
 
 	// Player name and PK/contribution
 	std::memset(m_pGame->G_cTxt, 0, sizeof(m_pGame->G_cTxt));

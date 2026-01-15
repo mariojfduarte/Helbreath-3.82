@@ -54,6 +54,21 @@ public:
 	int GetWindowHeight() const { return m_windowHeight; }
 	void SetWindowSize(int width, int height);
 
+	// Display/Detail settings
+	bool IsShowFpsEnabled() const { return m_bShowFPS; }
+	int GetDetailLevel() const { return m_cDetailLevel; }
+	bool IsZoomMapEnabled() const { return m_bZoomMap; }
+	bool IsDialogTransparencyEnabled() const { return m_bDialogTrans; }
+	bool IsRunningModeEnabled() const { return m_bRunningMode; }
+	bool IsFullscreenEnabled() const { return m_bFullscreen; }
+
+	void SetShowFpsEnabled(bool enabled);
+	void SetDetailLevel(int level);
+	void SetZoomMapEnabled(bool enabled);
+	void SetDialogTransparencyEnabled(bool enabled);
+	void SetRunningModeEnabled(bool enabled);
+	void SetFullscreenEnabled(bool enabled);
+
 	// Dirty flag - indicates unsaved changes
 	bool IsDirty() const { return m_bDirty; }
 	void MarkClean() { m_bDirty = false; }
@@ -86,6 +101,14 @@ private:
 	// Window/Resolution
 	int m_windowWidth;
 	int m_windowHeight;
+
+	// Display/Detail
+	bool m_bShowFPS;
+	int m_cDetailLevel;
+	bool m_bZoomMap;
+	bool m_bDialogTrans;
+	bool m_bRunningMode;
+	bool m_bFullscreen;
 
 	// State
 	bool m_bDirty;

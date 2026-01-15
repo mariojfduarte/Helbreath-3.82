@@ -32,5 +32,6 @@ private:
 	void DrawMiscSettings(short sX, short sY);
 	void DrawServerName(short sX, short sY);
 	void DrawButtons(short sX, short sY, short msX, short msY);
+	void DrawDisplayModeButtons(short sX, short sY, short msX, short msY);
 	void DrawResolutionButton(short sX, short sY, short msX, short msY);
 };

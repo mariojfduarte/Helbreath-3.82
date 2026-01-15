@@ -1,4 +1,5 @@
 #include "DialogBox_GuideMap.h"
+#include "ConfigManager.h"
 #include "Game.h"
 #include "GlobalDef.h"
 #include "lan_eng.h"
@@ -42,7 +43,7 @@ void DialogBox_GuideMap::DrawZoomedMap(short sX, short sY)
 	if (shX > m_pGame->m_pMapData->m_sMapSizeX - 128) shX = m_pGame->m_pMapData->m_sMapSizeX - 128;
 	if (shY > m_pGame->m_pMapData->m_sMapSizeY - 128) shY = m_pGame->m_pMapData->m_sMapSizeY - 128;
 
-	if (m_pGame->m_bDialogTrans)
+	if (ConfigManager::Get().IsDialogTransparencyEnabled())
 		m_pGame->m_pSprite[m_iMaxMapIndex]->PutShiftTransSprite2(sX, sY, shX, shY, 0, dwTime);
 	else
 		m_pGame->m_pSprite[m_iMaxMapIndex]->PutShiftSpriteFast(sX, sY, shX, shY, 0, dwTime);
@@ -81,7 +82,7 @@ void DialogBox_GuideMap::DrawFullMap(short sX, short sY)
 		m_iMinMapSquare = m_pGame->m_cMapIndex - 35;
 	}
 
-	if (m_pGame->m_bDialogTrans)
+	if (ConfigManager::Get().IsDialogTransparencyEnabled())
 		m_pGame->m_pSprite[m_iMinMapIndex]->PutTransSprite2(sX, sY, m_iMinMapSquare, dwTime);
 	else
 		m_pGame->m_pSprite[m_iMinMapIndex]->PutSpriteFastNoColorKey(sX, sY, m_iMinMapSquare, dwTime);
@@ -111,7 +112,7 @@ void DialogBox_GuideMap::DrawLocationTooltip(short msX, short msY, short sX, sho
 	short shX, shY;
 	short szY = Info().sSizeY;
 
-	if (m_pGame->m_bZoomMap)
+	if (ConfigManager::Get().IsZoomMapEnabled())
 	{
 		shX = m_pGame->m_sPlayerX - 64;
 		shY = m_pGame->m_sPlayerY - 64;
@@ -205,7 +206,7 @@ void DialogBox_GuideMap::OnDraw(short msX, short msY, short msZ, char cLB)
 
 	DrawBorder(sX, sY);
 
-	if (m_pGame->m_bZoomMap)
+	if (ConfigManager::Get().IsZoomMapEnabled())
 		DrawZoomedMap(sX, sY);
 	else
 		DrawFullMap(sX, sY);
@@ -219,7 +220,7 @@ void DialogBox_GuideMap::OnDraw(short msX, short msY, short msZ, char cLB)
 		if (sY > 213) shY = sY - 17;
 		else shY = sY + szY + 4;
 
-		if (m_pGame->m_bZoomMap)
+		if (ConfigManager::Get().IsZoomMapEnabled())
 			PutString(sX, shY, DEF_MSG_GUIDEMAP_MIN, RGB(200, 200, 120));
 		else
 			PutString(sX, shY, DEF_MSG_GUIDEMAP_MAX, RGB(200, 200, 120));
@@ -243,7 +244,8 @@ bool DialogBox_GuideMap::OnClick(short msX, short msY)
 	if (msX >= sX && msX < sX + szY && msY >= sY && msY < sY + szY)
 	{
 		// Toggle zoom mode
-		m_pGame->m_bZoomMap = !m_pGame->m_bZoomMap;
+		bool zoomMap = ConfigManager::Get().IsZoomMapEnabled();
+		ConfigManager::Get().SetZoomMapEnabled(!zoomMap);
 		m_pGame->PlaySound('E', 14, 5);
 		return true;
 	}

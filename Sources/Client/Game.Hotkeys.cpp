@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "AudioManager.h"
+#include "ConfigManager.h"
 #include "HotkeyManager.h"
 #include "LAN_ENG.H"
 
@@ -60,9 +61,11 @@ void CGame::Hotkey_CycleDetailLevel()
 	if (!InputManager::Get().IsCtrlDown() || m_cGameMode != DEF_GAMEMODE_ONMAINGAME || m_bInputStatus) {
 		return;
 	}
-	m_cDetailLevel++;
-	if (m_cDetailLevel > 2) m_cDetailLevel = 0;
-	switch (m_cDetailLevel) {
+	int detailLevel = ConfigManager::Get().GetDetailLevel();
+	detailLevel++;
+	if (detailLevel > 2) detailLevel = 0;
+	ConfigManager::Get().SetDetailLevel(detailLevel);
+	switch (detailLevel) {
 	case 0:
 		AddEventList(NOTIFY_MSG_DETAIL_LEVEL_LOW, 10);
 		break;
@@ -94,7 +97,8 @@ void CGame::Hotkey_ToggleDialogTransparency()
 	if (!InputManager::Get().IsCtrlDown() || m_cGameMode != DEF_GAMEMODE_ONMAINGAME || m_bInputStatus) {
 		return;
 	}
-	m_bDialogTrans = !m_bDialogTrans;
+	bool enabled = ConfigManager::Get().IsDialogTransparencyEnabled();
+	ConfigManager::Get().SetDialogTransparencyEnabled(!enabled);
 }
 
 void CGame::Hotkey_ToggleSystemMenu()
@@ -133,14 +137,15 @@ void CGame::Hotkey_ToggleRunningMode()
 	if (!InputManager::Get().IsCtrlDown() || m_cGameMode != DEF_GAMEMODE_ONMAINGAME || m_bInputStatus) {
 		return;
 	}
-	if (m_bRunningMode)
+	bool runningMode = ConfigManager::Get().IsRunningModeEnabled();
+	if (runningMode)
 	{
-		m_bRunningMode = false;
+		ConfigManager::Get().SetRunningModeEnabled(false);
 		AddEventList(NOTIFY_MSG_CONVERT_WALKING_MODE, 10);
 	}
 	else
 	{
-		m_bRunningMode = true;
+		ConfigManager::Get().SetRunningModeEnabled(true);
 		AddEventList(NOTIFY_MSG_CONVERT_RUNNING_MODE, 10);
 	}
 }
@@ -538,10 +543,10 @@ void CGame::Hotkey_Simple_SpecialAbility()
 
 void CGame::Hotkey_Simple_ZoomIn()
 {
-	if (m_bInputStatus == false) m_bZoomMap = true;
+	if (m_bInputStatus == false) ConfigManager::Get().SetZoomMapEnabled(true);
 }
 
 void CGame::Hotkey_Simple_ZoomOut()
 {
-	if (m_bInputStatus == false) m_bZoomMap = false;
+	if (m_bInputStatus == false) ConfigManager::Get().SetZoomMapEnabled(false);
 }

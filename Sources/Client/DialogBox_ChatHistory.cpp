@@ -1,4 +1,5 @@
 #include "DialogBox_ChatHistory.h"
+#include "ConfigManager.h"
 #include "Game.h"
 #include "InputManager.h"
 
@@ -16,8 +17,9 @@ void DialogBox_ChatHistory::OnDraw(short msX, short msY, short msZ, char cLB)
 	short sX = m_pGame->m_dialogBoxManager.Info(DialogBoxId::ChatHistory).sX;
 	short sY = m_pGame->m_dialogBoxManager.Info(DialogBoxId::ChatHistory).sY;
 
-	m_pGame->DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME2, sX, sY, 4, false, m_pGame->m_bDialogTrans);
-	m_pGame->DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 22, false, m_pGame->m_bDialogTrans);
+	const bool dialogTrans = ConfigManager::Get().IsDialogTransparencyEnabled();
+	m_pGame->DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME2, sX, sY, 4, false, dialogTrans);
+	m_pGame->DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 22, false, dialogTrans);
 
 	HandleScrollInput(sX, sY, msX, msY, msZ, cLB);
 	DrawScrollBar(sX, sY);

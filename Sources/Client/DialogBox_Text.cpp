@@ -1,4 +1,5 @@
 #include "DialogBox_Text.h"
+#include "ConfigManager.h"
 #include "Game.h"
 #include "InputManager.h"
 #define DEF_TEXTDLGMAXLINES 300
@@ -64,7 +65,7 @@ void DialogBox_Text::OnDraw(short msX, short msY, short msZ, char cLB)
 		if (m_pGame->m_pMsgTextList[i + sView] != nullptr)
 		{
 			char* pMsg = m_pGame->m_pMsgTextList[i + sView]->m_pMsg;
-			if (m_pGame->m_bDialogTrans == false)
+			if (ConfigManager::Get().IsDialogTransparencyEnabled() == false)
 			{
 				switch (pMsg[0])
 				{

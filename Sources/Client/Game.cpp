@@ -108,17 +108,9 @@ CGame::CGame()
 	ReadSettings();
 	RegisterHotkeys();
 
-#ifdef _DEBUG
-	m_bToggleScreen = true;
-#else
-	m_bToggleScreen = false;
-#endif
 	iMaxStats = 0;
 	iMaxLevel = 0;
-	m_bShowFPS = false;
-	m_cDetailLevel = 2;
 	m_cLoading = 0;
-	m_bZoomMap = true;
 	m_bIsFirstConn = true;
 	m_iItemDropCnt = 0;
 	m_bItemDrop = false;
@@ -1967,7 +1959,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 							break;
 						}
 					}
-					if (m_cDetailLevel == 0) // Special Grass & Flowers
+					if (ConfigManager::Get().GetDetailLevel() == 0) // Special Grass & Flowers
 					{
 						if ((sObjSpr != 6) && (sObjSpr != 9))
 							m_pTileSpr[sObjSpr]->PutSpriteFast(ix - 16, iy - 16, sObjSprFrame, dwTime);
@@ -2030,7 +2022,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 				else // sprites 100..199: Trees and tree shadows
 				{
 					m_pTileSpr[sObjSpr]->_GetSpriteRect(ix - 16, iy - 16, sObjSprFrame);
-					if (m_cDetailLevel == 0)
+					if (ConfigManager::Get().GetDetailLevel() == 0)
 					{
 						if (sObjSpr < 100 + 11) m_pTileSpr[100 + 4]->PutSpriteFast(ix - 16, iy - 16, sObjSprFrame, dwTime);
 						else if (sObjSpr < 100 + 23) m_pTileSpr[100 + 9]->PutSpriteFast(ix - 16, iy - 16, sObjSprFrame, dwTime);
@@ -2040,7 +2032,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 					else
 					{
 						if ((bIsPlayerDrawed == true) && (m_pTileSpr[sObjSpr]->m_rcBound.top <= m_rcPlayerRect.top) && (m_pTileSpr[sObjSpr]->m_rcBound.bottom >= m_rcPlayerRect.bottom) &&
-							(m_cDetailLevel >= 2) && (m_pTileSpr[sObjSpr]->m_rcBound.left <= m_rcPlayerRect.left) && (m_pTileSpr[sObjSpr]->m_rcBound.right >= m_rcPlayerRect.right))
+							(ConfigManager::Get().GetDetailLevel() >= 2) && (m_pTileSpr[sObjSpr]->m_rcBound.left <= m_rcPlayerRect.left) && (m_pTileSpr[sObjSpr]->m_rcBound.right >= m_rcPlayerRect.right))
 						{
 							m_pTileSpr[sObjSpr + 50]->PutFadeSprite(ix, iy, sObjSprFrame, dwTime);
 							m_pTileSpr[sObjSpr]->PutTransSprite2(ix - 16, iy - 16, sObjSprFrame, dwTime);
@@ -2129,7 +2121,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 				break;
 
 				case DEF_DYNAMICOBJECT_MINERAL1:		// 4
-					if (m_cDetailLevel != 0) m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->PutShadowSprite(ix, iy, 0, dwTime);
+					if (ConfigManager::Get().GetDetailLevel() != 0) m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->PutShadowSprite(ix, iy, 0, dwTime);
 					m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->PutSpriteFast(ix, iy, 0, dwTime);
 					if ((m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->m_rcBound.top != -1)
 						&& (m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->m_rcBound.top < msY)
@@ -2146,7 +2138,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 					break;
 
 				case DEF_DYNAMICOBJECT_MINERAL2:		// 5
-					if (m_cDetailLevel != 0) m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->PutShadowSprite(ix, iy, 1, dwTime);
+					if (ConfigManager::Get().GetDetailLevel() != 0) m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->PutShadowSprite(ix, iy, 1, dwTime);
 					m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->PutSpriteFast(ix, iy, 1, dwTime);
 					if ((m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->m_rcBound.top != -1)
 						&& (m_pSprite[DEF_SPRID_ITEMDYNAMIC_PIVOTPOINT + 1]->m_rcBound.top < msY)
@@ -4309,7 +4301,6 @@ void CGame::InitGameSettings()
 	m_iPointCommandType = -1; //v2.15 0 -> -1
 
 	m_bIsCombatMode = false;
-	m_bRunningMode = false;
 
 	m_stMCursor.cPrevStatus = DEF_CURSORSTATUS_NULL;
 	m_stMCursor.dwSelectClickTime = 0;
@@ -4453,7 +4444,6 @@ void CGame::InitGameSettings()
 
 	m_iLU_Point = 0;
 	m_cLU_Str = m_cLU_Vit = m_cLU_Dex = m_cLU_Int = m_cLU_Mag = m_cLU_Char = 0;
-	m_bDialogTrans = false;
 	m_cWhetherStatus = 0;
 	m_cLogOutCount = -1;
 	m_dwLogOutCountTime = 0;
@@ -5103,7 +5093,7 @@ void CGame::bAddNewEffect(short sType, int sX, int sY, int dX, int dY, char cSta
 	short sAbsX, sAbsY, sDist;
 	long lPan;
 	int  iV2 = 0;
-	if (m_cDetailLevel == 0) // Detail Level Low
+	if (ConfigManager::Get().GetDetailLevel() == 0) // Detail Level Low
 	{
 		switch (sType) {
 		case 8:
@@ -7889,7 +7879,7 @@ bool   CGame::DrawObject_OnAttack(int indexX, int indexY, int sX, int sY, bool b
 
 	if (_tmp_sOwnerType == 35 || _tmp_sOwnerType == 81 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/) bInv = true; //Energy-Ball,Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -8132,7 +8122,7 @@ bool   CGame::DrawObject_OnAttack(int indexX, int indexY, int sX, int sY, bool b
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, _tmp_cFrame, dwTime);
@@ -8263,7 +8253,7 @@ bool   CGame::DrawObject_OnAttack(int indexX, int indexY, int sX, int sY, bool b
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, _tmp_cFrame, dwTime);
@@ -8482,7 +8472,7 @@ bool   CGame::DrawObject_OnAttackMove(int indexX, int indexY, int sX, int sY, bo
 
 	if (_tmp_sOwnerType == 35 || _tmp_sOwnerType == 81 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/) bInv = true; //Energy-Ball,Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -8781,7 +8771,7 @@ bool   CGame::DrawObject_OnAttackMove(int indexX, int indexY, int sX, int sY, bo
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX + dx, sY + dy, _tmp_cFrame, dwTime);
@@ -8893,7 +8883,7 @@ bool   CGame::DrawObject_OnAttackMove(int indexX, int indexY, int sX, int sY, bo
 				break;
 
 			default:
-				if (m_cDetailLevel != 0 && !bInv) {
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv) {
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX + dx, sY + dy, _tmp_cFrame, dwTime);
 					else m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSprite(sX + dx, sY + dy, _tmp_cFrame, dwTime);
@@ -9056,7 +9046,7 @@ bool   CGame::DrawObject_OnMagic(int indexX, int indexY, int sX, int sY, bool bT
 
 	if (_tmp_sOwnerType == 35 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/) bInv = true; //Energy-Ball,Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -9219,7 +9209,7 @@ bool   CGame::DrawObject_OnMagic(int indexX, int indexY, int sX, int sY, bool bT
 		case 91: // Gate
 			break;
 		default:
-			if (m_cDetailLevel != 0 && !bInv) {
+			if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv) {
 				if (sX < 50)
 					m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, _tmp_cFrame, dwTime);
 				else m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSprite(sX, sY, _tmp_cFrame, dwTime);
@@ -9334,7 +9324,7 @@ bool   CGame::DrawObject_OnGetItem(int indexX, int indexY, int sX, int sY, bool 
 
 	if (_tmp_sOwnerType == 35 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/) bInv = true; //Energy-Ball,Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -9459,7 +9449,7 @@ bool   CGame::DrawObject_OnGetItem(int indexX, int indexY, int sX, int sY, bool 
 		case 91: // Gate
 			break;
 		default:
-			if (m_cDetailLevel != 0 && !bInv)
+			if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 			{
 				if (sX < 50)
 					m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, _tmp_cFrame, dwTime);
@@ -9610,7 +9600,7 @@ bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTr
 
 	if (_tmp_sOwnerType == 35 || _tmp_sOwnerType == 81 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/) bInv = true; //Energy-Ball,Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -9890,7 +9880,7 @@ bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTr
 				case 91: // Gate
 					break;
 				default:
-					if (m_cDetailLevel != 0 && !bInv) {
+					if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv) {
 						if (sX < 50)
 							m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, cFrame, dwTime);
 						else m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSprite(sX, sY, cFrame, dwTime);
@@ -10015,7 +10005,7 @@ bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTr
 				case 91: // Gate
 					break;
 				default:
-					if (m_cDetailLevel != 0 && !bInv) {
+					if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv) {
 						if (sX < 50)
 							m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, cFrame, dwTime);
 						else m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSprite(sX, sY, cFrame, dwTime);
@@ -10176,7 +10166,7 @@ bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTr
 				case 91: // Gate
 					break;
 				default:
-					if (m_cDetailLevel != 0 && !bInv)
+					if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 					{
 						if (sX < 50)
 							m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, _tmp_cFrame, dwTime);
@@ -10299,7 +10289,7 @@ bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTr
 				case 91: // Gate
 					break;
 				default:
-					if (m_cDetailLevel != 0 && !bInv) {
+					if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv) {
 						if (sX < 50)
 							m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, cFrame, dwTime);
 						else m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSprite(sX, sY, cFrame, dwTime);
@@ -10509,7 +10499,7 @@ bool CGame::DrawObject_OnDying(int indexX, int indexY, int sX, int sY, bool bTra
 	char cFrame;
 	int randFrame;
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -10747,7 +10737,7 @@ bool CGame::DrawObject_OnDying(int indexX, int indexY, int sX, int sY, bool bTra
 		case 91: // Gate
 			break;
 		default:
-			if (m_cDetailLevel != 0)
+			if (ConfigManager::Get().GetDetailLevel() != 0)
 			{
 				if (sX < 50)
 					m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, cFrame, dwTime);
@@ -10901,7 +10891,7 @@ bool   CGame::DrawObject_OnDead(int indexX, int indexY, int sX, int sY, bool bTr
 
 	if (_tmp_sOwnerType == 66) return false;
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -11214,7 +11204,7 @@ bool   CGame::DrawObject_OnMove(int indexX, int indexY, int sX, int sY, bool bTr
 
 	if (_tmp_sOwnerType == 35 /* || _tmp_sOwnerType == 66 || _tmp_sOwnerType == 73*/)	bInv = true; //Energy-Ball, Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -11555,7 +11545,7 @@ bool   CGame::DrawObject_OnMove(int indexX, int indexY, int sX, int sY, bool bTr
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv) {
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv) {
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(fix_x, fix_y, _tmp_cFrame, dwTime);
 					else m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSprite(fix_x, fix_y, _tmp_cFrame, dwTime);
@@ -11726,7 +11716,7 @@ bool   CGame::DrawObject_OnMove(int indexX, int indexY, int sX, int sY, bool bTr
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(fix_x, fix_y, _tmp_cFrame, dwTime);
@@ -11995,7 +11985,7 @@ bool CGame::DrawObject_OnDamageMove(int indexX, int indexY, int sX, int sY, bool
 	if (_tmp_sOwnerType == 67 || _tmp_sOwnerType == 68 || _tmp_sOwnerType == 69 || _tmp_sOwnerType == 81) return false;
 	if (_tmp_sOwnerType == 35 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/) bInv = true; //Energy-Ball,Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -12195,7 +12185,7 @@ bool CGame::DrawObject_OnDamageMove(int indexX, int indexY, int sX, int sY, bool
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(fix_x, fix_y, cFrame, dwTime);
@@ -12320,7 +12310,7 @@ bool CGame::DrawObject_OnDamageMove(int indexX, int indexY, int sX, int sY, bool
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(fix_x, fix_y, cFrame, dwTime);
@@ -12683,7 +12673,7 @@ bool CGame::DrawObject_OnMove_ForMenu(int indexX, int indexY, int sX, int sY, bo
 		case 91: // Gate
 			break;
 		default:
-			if (m_cDetailLevel != 0 && !bInv)
+			if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 			{
 				if (sX < 50)
 					m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX + dx, sY + dy, _tmp_cFrame, dwTime);
@@ -12784,7 +12774,7 @@ bool CGame::DrawObject_OnMove_ForMenu(int indexX, int indexY, int sX, int sY, bo
 		case 91: // Gate
 			break;
 		default:
-			if (m_cDetailLevel != 0 && !bInv)
+			if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 			{
 				if (sX < 50)
 					m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX + dx, sY + dy, _tmp_cFrame, dwTime);
@@ -12905,7 +12895,7 @@ bool   CGame::DrawObject_OnStop(int indexX, int indexY, int sX, int sY, bool bTr
 	int iSkirtDraw = 0;
 
 	if (_tmp_sOwnerType == 35 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/ || _tmp_sOwnerType == 81) bInv = true; //Energy-Ball, Wyvern
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -13172,7 +13162,7 @@ bool   CGame::DrawObject_OnStop(int indexX, int indexY, int sX, int sY, bool bTr
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, _tmp_cFrame, dwTime);
@@ -13343,7 +13333,7 @@ bool   CGame::DrawObject_OnStop(int indexX, int indexY, int sX, int sY, bool bTr
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(sX, sY, _tmp_cFrame, dwTime);
@@ -15523,7 +15513,7 @@ bool   CGame::DrawObject_OnRun(int indexX, int indexY, int sX, int sY, bool bTra
 
 	if (_tmp_sOwnerType == 35 /*|| _tmp_sOwnerType == 73 || _tmp_sOwnerType == 66*/) bInv = true; //Energy-Ball,Wyvern
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 	{
 		iWeaponColor = 0;
 		iShieldColor = 0;
@@ -15718,7 +15708,7 @@ bool   CGame::DrawObject_OnRun(int indexX, int indexY, int sX, int sY, bool bTra
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(fix_x, fix_y, _tmp_cFrame, dwTime);
@@ -15883,7 +15873,7 @@ bool   CGame::DrawObject_OnRun(int indexX, int indexY, int sX, int sY, bool bTra
 			case 91: // Gate
 				break;
 			default:
-				if (m_cDetailLevel != 0 && !bInv)
+				if (ConfigManager::Get().GetDetailLevel() != 0 && !bInv)
 				{
 					if (sX < 50)
 						m_pSprite[iBodyIndex + (_tmp_cDir - 1)]->PutShadowSpriteClip(fix_x, fix_y, _tmp_cFrame, dwTime);
@@ -18819,7 +18809,7 @@ void CGame::DrawChatMsgBox(short sX, short sY, int iChatIndex, bool bIsPreDC)
 		break;
 	}
 
-	if (m_cDetailLevel == 0)
+	if (ConfigManager::Get().GetDetailLevel() == 0)
 		bIsTrans = false;
 	else bIsTrans = true;
 
@@ -25088,45 +25078,7 @@ void CGame::UpdateScreen_OnSelectCharacter(short sX, short sY, short msX, short 
 		PutAlignedString(98 + SCREENX, 357 + SCREENX, 415 + 10 + SCREENY, G_cTxt);
 	}
 
-#ifdef _DEBUG
 	PutAlignedString(122, 315, 456, UPDATE_SCREEN_ON_SELECT_CHARACTER36);//"Test Server"
-#else
-	if (strcmp(m_cWorldServerName, NAME_WORLDNAME1) == 0)
-		PutAlignedString(129 + SCREENX, 321 + SCREENX, 456 + SCREENY, MSG_WORLDNAME1);//"ABADDON Server"
-	else if (strcmp(m_cWorldServerName, "WS2") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME2);//"APOCALYPSE Server"
-	else if (strcmp(m_cWorldServerName, "WS3") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME3);//"3rd Server"
-	else if (strcmp(m_cWorldServerName, "WS4") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME4);//"4th Server"
-	else if (strcmp(m_cWorldServerName, "WS5") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME5);//"5th Server"
-	else if (strcmp(m_cWorldServerName, "WS6") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME6);//"6th Server"
-	else if (strcmp(m_cWorldServerName, "WS7") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME7);//"7th Server"
-	else if (strcmp(m_cWorldServerName, "WS8") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME8);//"8th Server"
-	else if (strcmp(m_cWorldServerName, "WS9") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME9);//"9th Server"
-	else if (strcmp(m_cWorldServerName, "WS10") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME10);//"10th Server"
-	else if (strcmp(m_cWorldServerName, "WS11") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME11);//"11th Server"
-	else if (strcmp(m_cWorldServerName, "WS12") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME12);//"12th Server"
-	else if (strcmp(m_cWorldServerName, "WS13") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME13);//"13th Server"
-	else if (strcmp(m_cWorldServerName, "WS14") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME14);//"14th Server"
-	else if (strcmp(m_cWorldServerName, "WS15") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME15);//"15th Server"
-	else if (strcmp(m_cWorldServerName, "WS16") == 0)
-		PutAlignedString(129, 321, 456, MSG_WORLDNAME16);//"16th Server"
-#endif
-
-
-
 }
 
 
@@ -27618,7 +27570,7 @@ void CGame::DlbBoxDoubleClick_GuideMap(short msX, short msY)
 	if (sY < 20) sY = 0;
 	if (sX > LOGICAL_MAX_X - 128 - 20) sX = LOGICAL_MAX_X - 128;
 	if (sY > 547 - 128 - 20) sY = 547 - 128;
-	if (m_bZoomMap)
+	if (ConfigManager::Get().IsZoomMapEnabled())
 	{
 		shX = m_sPlayerX - 64;
 		shY = m_sPlayerY - 64;
@@ -27636,7 +27588,7 @@ void CGame::DlbBoxDoubleClick_GuideMap(short msX, short msY)
 	}
 	if (shX < 30 || shY < 30) return;
 	if (shX > m_pMapData->m_sMapSizeX - 30 || shY > m_pMapData->m_sMapSizeY - 30) return;
-	if ((m_bRunningMode == true) && (m_iSP > 0))
+	if ((ConfigManager::Get().IsRunningModeEnabled() == true) && (m_iSP > 0))
 		m_cCommand = DEF_OBJECTRUN;
 	else m_cCommand = DEF_OBJECTMOVE;
 	m_sCommX = shX;
@@ -29743,7 +29695,7 @@ void CGame::DrawScreen_OnGame()
 	else m_pSprite[DEF_SPRID_MOUSECURSOR]->PutSpriteFast(s_sOnGameMsX, s_sOnGameMsY, m_stMCursor.sCursorFrame, s_dwOnGameTime);
 
 	// FPS display
-	if (m_bShowFPS) {
+	if (ConfigManager::Get().IsShowFpsEnabled()) {
 		wsprintf(G_cTxt, "fps : %u", FrameTiming::GetFPS());
 		PutString(10, 100, G_cTxt, RGB(255, 255, 255));
 	}
@@ -30303,7 +30255,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 						case 7: // SS
 							if (((absX == 2) && (absY == 2)) || ((absX == 0) && (absY == 2)) || ((absX == 2) && (absY == 0)))
 							{
-								if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+								if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 								{
 									if (m_cSkillMastery[_iGetWeaponSkillType()] == 100)
 									{
@@ -30328,7 +30280,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							}
 							else
 							{
-								if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0)
+								if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0)
 									&& (m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 									m_cCommand = DEF_OBJECTRUN;	// Staminar
 								else m_cCommand = DEF_OBJECTMOVE;
@@ -30368,7 +30320,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 								if (((absX == 2) && (absY == 2)) || ((absX == 0) && (absY == 2)) || ((absX == 2) && (absY == 0))
 									&& (_iGetAttackType() != 5)) // no Dash possible with StormBlade
 								{
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 									{
 										if (m_cSkillMastery[_iGetWeaponSkillType()] == 100)
 										{
@@ -30393,7 +30345,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 								}
 								else
 								{
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0)
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0)
 										&& (m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 										m_cCommand = DEF_OBJECTRUN;
 									else m_cCommand = DEF_OBJECTMOVE;
@@ -30414,7 +30366,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							}
 							else {
 								if (((absX == 2) && (absY == 2)) || ((absX == 0) && (absY == 2)) || ((absX == 2) && (absY == 0))) {
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0)) {
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0)) {
 										if (m_cSkillMastery[_iGetWeaponSkillType()] == 100) {
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 											wType = _iGetAttackType();
@@ -30434,7 +30386,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									}
 								}
 								else {
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 										(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 										m_cCommand = DEF_OBJECTRUN;
 									else m_cCommand = DEF_OBJECTMOVE;
@@ -30457,7 +30409,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							{
 								if (((absX == 2) && (absY == 2)) || ((absX == 0) && (absY == 2)) || ((absX == 2) && (absY == 0)))
 								{
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 									{
 										if (m_cSkillMastery[_iGetWeaponSkillType()] == 100)
 										{
@@ -30482,7 +30434,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 								}
 								else
 								{
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 										(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 										m_cCommand = DEF_OBJECTRUN;
 									else m_cCommand = DEF_OBJECTMOVE;
@@ -30501,7 +30453,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							}
 							else {
 								if (((absX == 2) && (absY == 2)) || ((absX == 0) && (absY == 2)) || ((absX == 2) && (absY == 0))) {
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0)) {
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0)) {
 										if (m_cSkillMastery[_iGetWeaponSkillType()] == 100) {
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 											wType = _iGetAttackType();
@@ -30521,7 +30473,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									}
 								}
 								else {
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 										(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 										m_cCommand = DEF_OBJECTRUN;
 									else m_cCommand = DEF_OBJECTMOVE;
@@ -30540,7 +30492,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 							}
 							else {
 								if (((absX == 2) && (absY == 2)) || ((absX == 0) && (absY == 2)) || ((absX == 2) && (absY == 0))) {
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0)) {
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0)) {
 										if (m_cSkillMastery[_iGetWeaponSkillType()] == 100) {
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 											wType = _iGetAttackType();
@@ -30560,7 +30512,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									}
 								}
 								else {
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 										(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 										m_cCommand = DEF_OBJECTRUN;
 									else m_cCommand = DEF_OBJECTMOVE;
@@ -30787,7 +30739,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 
 								case 5: // Boxe
 								case 7: // SS
-									if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0)
+									if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0)
 										&& (m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 										m_cCommand = DEF_OBJECTRUN;
 									else m_cCommand = DEF_OBJECTMOVE;
@@ -30800,7 +30752,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									if ((absX <= 3) && (absY <= 3) && (m_iSuperAttackLeft > 0) && (m_bSuperAttackMode == true)
 										&& (_iGetAttackType() != 30)) // Crit without StormBlade by Snoopy
 									{
-										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 										else m_cCommand = DEF_OBJECTATTACK;
 										m_sCommX = m_sMCX;
@@ -30810,7 +30762,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									else if ((absX <= 5) && (absY <= 5) && (m_iSuperAttackLeft > 0) && (m_bSuperAttackMode == true)
 										&& (_iGetAttackType() == 30)) // Crit with StormBlade by Snoopy
 									{
-										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 										else m_cCommand = DEF_OBJECTATTACK;
 										m_sCommX = m_sMCX;
@@ -30827,7 +30779,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									}
 									else
 									{
-										if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+										if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 											(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 											m_cCommand = DEF_OBJECTRUN;
 										else m_cCommand = DEF_OBJECTMOVE;
@@ -30840,7 +30792,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 								case 9: // Fencing
 									if ((absX <= 4) && (absY <= 4) && (m_iSuperAttackLeft > 0) && (m_bSuperAttackMode == true))
 									{
-										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 										else m_cCommand = DEF_OBJECTATTACK;
 										m_sCommX = m_sMCX;
@@ -30849,7 +30801,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									}
 									else
 									{
-										if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+										if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 											(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 											m_cCommand = DEF_OBJECTRUN;
 										else m_cCommand = DEF_OBJECTMOVE;
@@ -30861,7 +30813,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 
 								case 10: //
 									if ((absX <= 2) && (absY <= 2) && (m_iSuperAttackLeft > 0) && (m_bSuperAttackMode == true)) {
-										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 										else m_cCommand = DEF_OBJECTATTACK;
 										m_sCommX = m_sMCX;
@@ -30869,7 +30821,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 										wType = _iGetAttackType();
 									}
 									else {
-										if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+										if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 											(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 											m_cCommand = DEF_OBJECTRUN;
 										else m_cCommand = DEF_OBJECTMOVE;
@@ -30880,7 +30832,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									break;
 								case 14: //
 									if ((absX <= 2) && (absY <= 2) && (m_iSuperAttackLeft > 0) && (m_bSuperAttackMode == true)) {
-										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 										else m_cCommand = DEF_OBJECTATTACK;
 										m_sCommX = m_sMCX;
@@ -30888,7 +30840,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 										wType = _iGetAttackType();
 									}
 									else {
-										if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+										if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 											(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 											m_cCommand = DEF_OBJECTRUN;
 										else m_cCommand = DEF_OBJECTMOVE;
@@ -30899,7 +30851,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 									break;
 								case 21: //
 									if ((absX <= 2) && (absY <= 2) && (m_iSuperAttackLeft > 0) && (m_bSuperAttackMode == true)) {
-										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0))
+										if ((absX <= 1) && (absY <= 1) && (InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0))
 											m_cCommand = DEF_OBJECTATTACKMOVE;
 										else m_cCommand = DEF_OBJECTATTACK;
 										m_sCommX = m_sMCX;
@@ -30907,7 +30859,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 										wType = _iGetAttackType();
 									}
 									else {
-										if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+										if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 											(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 											m_cCommand = DEF_OBJECTRUN;
 										else m_cCommand = DEF_OBJECTMOVE;
@@ -30922,7 +30874,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 						}
 					}
 					else {
-						if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+						if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 							(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 							m_cCommand = DEF_OBJECTRUN;
 						else m_cCommand = DEF_OBJECTMOVE;
@@ -30934,7 +30886,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 			}
 			else
 			{
-				if ((InputManager::Get().IsShiftDown() || m_bRunningMode) && (m_iSP > 0) &&
+				if ((InputManager::Get().IsShiftDown() || ConfigManager::Get().IsRunningModeEnabled()) && (m_iSP > 0) &&
 					(m_sPlayerType >= 1) && (m_sPlayerType <= 6))
 					m_cCommand = DEF_OBJECTRUN;
 				else m_cCommand = DEF_OBJECTMOVE;
@@ -31298,11 +31250,11 @@ MOTION_COMMAND_PROCESS:;
 			{
 				if (m_cCommand == DEF_OBJECTMOVE)
 				{
-					if (m_bRunningMode || InputManager::Get().IsShiftDown()) m_cCommand = DEF_OBJECTRUN;
+					if (ConfigManager::Get().IsRunningModeEnabled() || InputManager::Get().IsShiftDown()) m_cCommand = DEF_OBJECTRUN;
 				}
 				if (m_cCommand == DEF_OBJECTRUN)
 				{
-					if ((m_bRunningMode == false) && (InputManager::Get().IsShiftDown() == false)) m_cCommand = DEF_OBJECTMOVE;
+					if ((ConfigManager::Get().IsRunningModeEnabled() == false) && (InputManager::Get().IsShiftDown() == false)) m_cCommand = DEF_OBJECTMOVE;
 					if (m_iSP < 1) m_cCommand = DEF_OBJECTMOVE;
 				}
 
@@ -36580,8 +36532,8 @@ void CGame::DrawDialogBox_Commander(int msX, int msY) // Snoopy: Fixed for 351
 		m_dwCommanderCommandRequestedTime = dwTime;
 	}
 
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY - 5, 0, false, m_bDialogTrans); // Main image
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 15, false, m_bDialogTrans);
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY - 5, 0, false, ConfigManager::Get().IsDialogTransparencyEnabled()); // Main image
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 15, false, ConfigManager::Get().IsDialogTransparencyEnabled());
 
 	switch (m_dialogBoxManager.Info(DialogBoxId::CrusadeCommander).cMode) {
 	case 0: // Main dlg
@@ -36622,7 +36574,7 @@ void CGame::DrawDialogBox_Commander(int msX, int msY) // Snoopy: Fixed for 351
 			m_pSprite[DEF_SPRID_INTERFACE_ND_CRUSADE]->PutSpriteFast(sX + 20 + 150 + 74, sY + 340, 18, dwTime);
 			PutString2(msX + 20, msY + 35, DRAW_DIALOGBOX_COMMANDER6, 255, 255, 255);//"Commander's duty help"
 		}
-		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, m_bDialogTrans);// Map
+		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, ConfigManager::Get().IsDialogTransparencyEnabled());// Map
 		break;
 
 	case 1: // Set TP
@@ -36642,7 +36594,7 @@ void CGame::DrawDialogBox_Commander(int msX, int msY) // Snoopy: Fixed for 351
 			m_pSprite[DEF_SPRID_INTERFACE_ND_CRUSADE]->PutSpriteFast(sX + 20 + 150 + 74, sY + 340, 18, dwTime);
 			PutString2(msX + 20, msY + 35, DRAW_DIALOGBOX_COMMANDER9, 255, 255, 255);
 		}
-		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, m_bDialogTrans);
+		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, ConfigManager::Get().IsDialogTransparencyEnabled());
 
 		if ((msX >= sX + 15) && (msX <= sX + 15 + 278)
 			&& (msY >= sY + 60) && (msY <= sY + 60 + 272)) // shows TP posit on map following the mouse
@@ -36675,7 +36627,7 @@ void CGame::DrawDialogBox_Commander(int msX, int msY) // Snoopy: Fixed for 351
 			m_pSprite[DEF_SPRID_INTERFACE_ND_CRUSADE]->PutSpriteFast(sX + 20 + 150 + 74, sY + 340, 18, dwTime);
 			PutString2(msX + 20, msY + 35, DRAW_DIALOGBOX_COMMANDER13, 255, 255, 255);
 		}
-		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, m_bDialogTrans);
+		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, ConfigManager::Get().IsDialogTransparencyEnabled());
 		break;
 
 	case 3: // Choose summon
@@ -37002,8 +36954,8 @@ void CGame::DrawDialogBox_Constructor(int msX, int msY) // Snoopy: Fixed for 351
 		m_dwCommanderCommandRequestedTime = dwTime;
 	}
 
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY - 5, 0, false, m_bDialogTrans); // Main image
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 16, false, m_bDialogTrans);
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY - 5, 0, false, ConfigManager::Get().IsDialogTransparencyEnabled()); // Main image
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 16, false, ConfigManager::Get().IsDialogTransparencyEnabled());
 
 	switch (m_dialogBoxManager.Info(DialogBoxId::CrusadeConstructor).cMode) {
 	case 0: // Main dlg
@@ -37015,7 +36967,7 @@ void CGame::DrawDialogBox_Constructor(int msX, int msY) // Snoopy: Fixed for 351
 			PutAlignedString(sX, sX + szX, sY + 40, G_cTxt);
 		}
 		else PutAlignedString(sX, sX + szX, sY + 40, DRAW_DIALOGBOX_CONSTRUCTOR2); //"Construction unavailable: Unable to construct"
-		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, m_bDialogTrans); // Map
+		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, ConfigManager::Get().IsDialogTransparencyEnabled()); // Map
 
 		if ((msX >= sX + 20) && (msX <= sX + 20 + 46)
 			&& (msY >= sY + 340) && (msY <= sY + 340 + 52))
@@ -37128,7 +37080,7 @@ void CGame::DrawDialogBox_Constructor(int msX, int msY) // Snoopy: Fixed for 351
 
 	case 2: // Teleport
 		PutAlignedString(sX, sX + szX, sY + 40, DRAW_DIALOGBOX_CONSTRUCTOR19); //"Teleport to position that commander pointed"
-		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, m_bDialogTrans); // map
+		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, ConfigManager::Get().IsDialogTransparencyEnabled()); // map
 
 		if ((msX >= sX + 20 + 50) && (msX <= sX + 20 + 46 + 50)
 			&& (msY >= sY + 340) && (msY <= sY + 340 + 52))
@@ -37287,9 +37239,9 @@ void CGame::DrawDialogBox_Soldier(int msX, int msY) // Snoopy: Fixed for 351
 		m_dwCommanderCommandRequestedTime = dwTime;
 	}
 
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY - 5, 0, false, m_bDialogTrans);
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, m_bDialogTrans);
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 17, false, m_bDialogTrans); // Crusade Soldier Menu Text
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY - 5, 0, false, ConfigManager::Get().IsDialogTransparencyEnabled());
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_CRUSADE, sX, sY, 21, false, ConfigManager::Get().IsDialogTransparencyEnabled());
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 17, false, ConfigManager::Get().IsDialogTransparencyEnabled()); // Crusade Soldier Menu Text
 
 	switch (m_dialogBoxManager.Info(DialogBoxId::CrusadeSoldier).cMode) {
 	case 0: // Main dlg, Map

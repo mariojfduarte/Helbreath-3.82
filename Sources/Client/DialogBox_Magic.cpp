@@ -1,4 +1,5 @@
 #include "DialogBox_Magic.h"
+#include "ConfigManager.h"
 #include "Game.h"
 #include "InputManager.h"
 #include "Misc.h"
@@ -18,6 +19,7 @@ void DialogBox_Magic::OnDraw(short msX, short msY, short msZ, char cLB)
 {
 	short sX, sY, sMagicCircle, sLevelMagic;
 	int  iCPivot, i, iYloc, iResult, iManaCost;
+	const bool dialogTrans = ConfigManager::Get().IsDialogTransparencyEnabled();
 	char cTxt[120], cMana[10];
 	uint32_t dwTime = m_pGame->m_dwCurTime;
 	double dV1, dV2, dV3, dV4;
@@ -25,8 +27,8 @@ void DialogBox_Magic::OnDraw(short msX, short msY, short msZ, char cLB)
 	sX = Info().sX;
 	sY = Info().sY;
 
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME1, sX, sY, 1, false, m_pGame->m_bDialogTrans);
-	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 7, false, m_pGame->m_bDialogTrans);
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME1, sX, sY, 1, false, dialogTrans);
+	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 7, false, dialogTrans);
 
 	if (m_pGame->m_dialogBoxManager.iGetTopDialogBoxIndex() == DialogBoxId::Magic && msZ != 0)
 	{
@@ -184,8 +186,8 @@ void DialogBox_Magic::OnDraw(short msX, short msY, short msZ, char cLB)
 
 	// v2.15
 	if ((msX >= sX + DEF_RBTNPOSX) && (msX <= sX + DEF_RBTNPOSX + DEF_BTNSZX) && (msY >= sY + 285) && (msY <= sY + 285 + DEF_BTNSZY))
-		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_BUTTON, sX + DEF_RBTNPOSX, sY + 285, 49, false, m_pGame->m_bDialogTrans);
-	else DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_BUTTON, sX + DEF_RBTNPOSX, sY + 285, 48, false, m_pGame->m_bDialogTrans);
+		DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_BUTTON, sX + DEF_RBTNPOSX, sY + 285, 49, false, dialogTrans);
+	else DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_BUTTON, sX + DEF_RBTNPOSX, sY + 285, 48, false, dialogTrans);
 }
 
 bool DialogBox_Magic::OnClick(short msX, short msY)
