@@ -4,7 +4,11 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
+
 #include <windows.h>
+#include "CommonTypes.h"
 
 #define DEF_DELAYEVENTTYPE_DAMAGEOBJECT				1
 #define DEF_DELAYEVENTTYPE_MAGICRELEASE				2
@@ -35,5 +39,5 @@ public:
 	char m_cTargetType;
 	int m_iV1, m_iV2, m_iV3;
 
-	DWORD m_dwTriggerTime;
+	uint32_t m_dwTriggerTime;
 };

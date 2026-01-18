@@ -4,7 +4,11 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
+
 #include <windows.h>
+#include "CommonTypes.h"
 
 class CGuildsMan
 {
@@ -12,7 +16,7 @@ public:
 
 	inline CGuildsMan()
 	{
-		ZeroMemory(m_cName, sizeof(m_cName));
+		std::memset(m_cName, 0, sizeof(m_cName));
 	}
 
 	inline virtual ~CGuildsMan()

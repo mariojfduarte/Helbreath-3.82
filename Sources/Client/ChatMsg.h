@@ -7,31 +7,35 @@
 #include <windows.h>
 #include <string.h>
 #include <winbase.h>
+#include "CommonTypes.h"
 
 class CMsg
 {
 public:
-	inline CMsg(char cType, char * pMsg, DWORD dwTime)
+	inline CMsg(char cType, char * pMsg, uint32_t dwTime)
 	{
 		m_cType = cType;
 
 		m_pMsg = 0;
-		m_pMsg = new char [strlen(pMsg) + 1];
-		ZeroMemory(m_pMsg, strlen(pMsg) + 1);
-		strcpy(m_pMsg, pMsg);
+		const size_t msgLen = (pMsg != 0) ? strlen(pMsg) : 0;
+		m_pMsg = new char [msgLen + 1];
+		std::memset(m_pMsg, 0, msgLen + 1);
+		if (pMsg != 0) {
+			std::memcpy(m_pMsg, pMsg, msgLen);
+		}
 		m_dwTime = dwTime;
 		m_iObjectID = -1;
 	}
 
 	inline virtual ~CMsg()
 	{
-		if (m_pMsg != 0) delete m_pMsg;
+		if (m_pMsg != 0) delete[] m_pMsg;
 	}
 
 	char   m_cType;
 	char * m_pMsg;
 	short  m_sX, m_sY;
-	DWORD  m_dwTime;
+	uint32_t  m_dwTime;
 
 	int    m_iObjectID;
 

@@ -1,9 +1,15 @@
+#include "CommonTypes.h"
 #include "LoginServer.h"
 #include <string>
 #include <vector>
 #include <iostream>
-#include <fstream>
+#include <cstring>
+#include <cstdlib>
 using namespace std;
+
+#include "AccountSqliteStore.h"
+#include "sqlite3.h"
+#include "../../Dependencies/Shared/Packet/SharedPackets.h"
 
 extern char	G_cData50000[50000];
 //extern void PutLogList(char* cMsg);
@@ -41,6 +47,29 @@ bool IsValidName(char* pStr)
 	return true;
 }
 
+void FormatTimestamp(const SYSTEMTIME& sysTime, char* outBuffer, size_t outBufferSize)
+{
+	std::snprintf(outBuffer, outBufferSize, "%04d-%02d-%02d %02d:%02d:%02d",
+		sysTime.wYear, sysTime.wMonth, sysTime.wDay, sysTime.wHour, sysTime.wMinute, sysTime.wSecond);
+}
+
+bool AccountDbExists(const char* accountName)
+{
+	char dbPath[MAX_PATH] = {};
+	std::snprintf(dbPath, sizeof(dbPath), "Accounts\\%s.db", accountName);
+	DWORD attrs = GetFileAttributes(dbPath);
+	return (attrs != INVALID_FILE_ATTRIBUTES) && ((attrs & FILE_ATTRIBUTE_DIRECTORY) == 0);
+}
+
+bool OpenAccountDatabaseIfExists(const char* accountName, sqlite3** outDb)
+{
+	if (!AccountDbExists(accountName)) {
+		return false;
+	}
+	std::string dbPath;
+	return EnsureAccountDatabase(accountName, outDb, dbPath);
+}
+
 void LoginServer::Activated()
 {
 	
@@ -55,10 +84,12 @@ void LoginServer::RequestLogin(int h, char* pData)
 	char cPassword[11] = {};
 	char world_name[32] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, world_name, 30);
+	const auto* req = hb::net::PacketCast<hb::net::LoginRequest>(pData, sizeof(hb::net::LoginRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(world_name, req->world_name, 30);
 
 	if (string(world_name) != WORLDNAMELS)
 		return;
@@ -66,10 +97,10 @@ void LoginServer::RequestLogin(int h, char* pData)
 	if (!IsValidName(cName) || !IsValidName(cPassword) || !IsValidName(world_name))
 		return;
 
-	wsprintf(G_cTxt, "(!) Account Request Login: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Account Request Login: %s", cName);
 	PutLogList(G_cTxt);
 
-	std::vector<string> chars;
+	std::vector<AccountDbCharacterSummary> chars;
 	auto status = AccountLogIn(cName, cPassword, chars);
 	switch (status)
 	{
@@ -96,260 +127,62 @@ void LoginServer::RequestLogin(int h, char* pData)
 	}
 }
 
-void LoginServer::GetCharList(string acc, char*& cp2, std::vector<string> chars)
+void LoginServer::GetCharList(string acc, char*& cp2, const std::vector<AccountDbCharacterSummary>& chars)
 {
-	for (int i = 0; i < chars.size(); i++)
+	for (const auto& entry : chars)
 	{
-		char seps[] = "= \t\r\n";
-		char cFileName[112] = {};
-		char cDir[112] = {};
-		mkdir("Characters");
-		ZeroMemory(cFileName, sizeof(cFileName));
-		strcat(cFileName, "Characters");
-		strcat(cFileName, "\\");
-		strcat(cFileName, "\\");
-		wsprintf(cDir, "AscII%d", chars[i][0]);
-		strcat(cFileName, cDir);
-		strcat(cFileName, "\\");
-		strcat(cFileName, "\\");
-		strcat(cFileName, (char*)chars[i].c_str());
-		strcat(cFileName, ".txt");
-
-		DWORD lpNumberOfBytesRead;
-		HANDLE  hFile = CreateFile(cFileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-		if (hFile == INVALID_HANDLE_VALUE)
-		{
-			CloseHandle(hFile);
-			return;
-		}
-		auto dwFileSize = GetFileSize(hFile, 0);
-		auto cp = new char[dwFileSize + 1];
-		ZeroMemory(cp, dwFileSize + 1);
-		ReadFile(hFile, cp, dwFileSize, &lpNumberOfBytesRead, 0);
-		CloseHandle(hFile);
-		int cReadModeA = 0;
-		char* token = strtok(cp, seps);
-
-		short sAppr1 = 0, sAppr2 = 0, sAppr3 = 0, sAppr4 = 0;
-		WORD cSex = 0, cSkin = 0;
-		WORD iLevel = 0;
-		DWORD iExp = 0;
-		DWORD iApprColor = 0; // Antes ten�as u64, pero el cliente espera DWORD (4 bytes)
-		char cMapName[11] = {}; // Siempre tama�o 11 para forzar terminador
-
-		while (token != 0)
-		{
-			if (cReadModeA != 0)
-			{
-				switch (cReadModeA)
-				{
-				case 1: sAppr1 = atoi(token); cReadModeA = 0; break;
-				case 2: sAppr2 = atoi(token); cReadModeA = 0; break;
-				case 3: sAppr3 = atoi(token); cReadModeA = 0; break;
-				case 4: sAppr4 = atoi(token); cReadModeA = 0; break;
-				case 5: cSex = atoi(token); cReadModeA = 0; break;
-				case 6: cSkin = atoi(token); cReadModeA = 0; break;
-				case 7: iLevel = atoi(token); cReadModeA = 0; break;
-				case 14: iExp = atoi(token); cReadModeA = 0; break;
-				case 15: iApprColor = (DWORD)strtoul(token, nullptr, 10); cReadModeA = 0; break;
-				case 17: ZeroMemory(cMapName, sizeof(cMapName)); strncpy(cMapName, token, 10); cMapName[10] = 0; cReadModeA = 0; break;
-				}
-			}
-			else {
-				if (memcmp(token, "appr1", 5) == 0) cReadModeA = 1;
-				if (memcmp(token, "appr2", 5) == 0) cReadModeA = 2;
-				if (memcmp(token, "appr3", 5) == 0) cReadModeA = 3;
-				if (memcmp(token, "appr4", 5) == 0) cReadModeA = 4;
-				if (memcmp(token, "sex-status", 10) == 0) cReadModeA = 5;
-				if (memcmp(token, "skin-status", 11) == 0) cReadModeA = 6;
-				if (memcmp(token, "character-LEVEL", 15) == 0) cReadModeA = 7;
-				if (memcmp(token, "character-EXP", 13) == 0) cReadModeA = 14;
-				if (memcmp(token, "appr-color-new", 14) == 0) cReadModeA = 15;
-				if (memcmp(token, "character-loc-map", 17) == 0) cReadModeA = 17;
-			}
-			token = strtok(NULL, seps);
-		}
-
-		delete[] cp;
-
-		// Nombre
-		char cName[11] = {};
-		ZeroMemory(cName, sizeof(cName));
-		strncpy(cName, chars[i].c_str(), 10); // Solo 10 bytes
-		cName[10] = 0;
-
-		Push(cp2, cName, 10);          // <- SOLO 10 bytes, sin null extra
-		Push(cp2, sAppr1);             // short
-		Push(cp2, sAppr2);
-		Push(cp2, sAppr3);
-		Push(cp2, sAppr4);
-		Push(cp2, cSex);               // WORD
-		Push(cp2, cSkin);              // WORD
-		Push(cp2, iLevel);             // WORD
-		Push(cp2, iExp);               // DWORD
-		Push(cp2, iApprColor);         // DWORD
-		Push(cp2, cMapName, 10);       // SOLO 10 BYTES del mapname, igual que nombre
+		Push(cp2, entry.characterName, 10);
+		Push(cp2, entry.appr1);
+		Push(cp2, entry.appr2);
+		Push(cp2, entry.appr3);
+		Push(cp2, entry.appr4);
+		Push(cp2, entry.sex);
+		Push(cp2, entry.skin);
+		Push(cp2, entry.level);
+		Push(cp2, entry.exp);
+		Push(cp2, entry.apprColor);
+		Push(cp2, entry.mapName, 10);
 	}
 }
 
 
-LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<string>& chars)
+LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<AccountDbCharacterSummary>& chars)
 {
-	char file_name[255], cDir[63], cTxt[50];
-	char* cp, * token, cReadModeA, cReadModeB;
-	char seps[] = "= \t\r\n";
-
-	cReadModeA = cReadModeB = 0;
-
-	ZeroMemory(cTxt, sizeof(cTxt));
-	wsprintf(cTxt, "account-character");
-
 	if (acc.size() == 0)
 		return LogIn::NoAcc;
 
 	if (pass.size() == 0)
 		return LogIn::NoPass;
 
-	ZeroMemory(file_name, sizeof(file_name));
-	ZeroMemory(cDir, sizeof(cDir));
-	strcat(file_name, "Accounts");
-	strcat(file_name, "\\");
-	strcat(file_name, "\\");
-	wsprintf(cDir, "AscII%d", acc[0]);
-	strcat(file_name, cDir);
-	strcat(file_name, "\\");
-	strcat(file_name, "\\");
-	strcat(file_name, (char*)acc.c_str());
-	strcat(file_name, ".txt");
-
-
-	HANDLE file_handle = CreateFile(file_name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	DWORD file_sz = 0;
-	if (file_handle == INVALID_HANDLE_VALUE)
-	{
-		CloseHandle(file_handle);
-		wsprintf(G_cTxt, "(!) Account Does not Exist [invalid handle] (%s)", file_name);
-		PutLogList(G_cTxt);
+	sqlite3* db = nullptr;
+	if (!OpenAccountDatabaseIfExists(acc.c_str(), &db)) {
 		return LogIn::NoAcc;
 	}
 
-	file_sz = GetFileSize(file_handle, 0);
-	CloseHandle(file_handle);
-
-	if (file_sz == 0)
-	{
-		wsprintf(G_cTxt, "(!) Login File sz = 0 (%s)", file_name);
-		PutLogList(G_cTxt);
+	AccountDbAccountData account = {};
+	if (!LoadAccountRecord(db, acc.c_str(), account)) {
+		CloseAccountDatabase(db);
 		return LogIn::NoAcc;
 	}
 
-	auto file = fopen(file_name, "rt");
-	if (file == 0)
-	{
-		wsprintf(G_cTxt, "(!) Account Does not Exist (%s)", file_name);
-		PutLogList(G_cTxt);
+	if (pass != account.password) {
+		CloseAccountDatabase(db);
+		return LogIn::NoPass;
+	}
+
+	chars.clear();
+	if (!ListCharacterSummaries(db, acc.c_str(), chars)) {
+		CloseAccountDatabase(db);
 		return LogIn::NoAcc;
 	}
 
-	struct Acc
-	{
-		string name;
-		string pass;
-	} account;
-
-	cp = new char[file_sz + 1];
-	ZeroMemory(cp, file_sz + 1);
-	fread(cp, file_sz, 1, file);
-	token = strtok(cp, seps);
-	while (token != 0)
-	{
-		if (cReadModeA != 0)
-		{
-			switch (cReadModeA)
-			{
-			case 1:
-				if (strlen(token) <= 0)
-				{
-
-					delete[] cp;
-
-					fclose(file);
-					return LogIn::NoAcc;
-				}
-
-				if (acc != token)
-				{
-					PutLogList("(!) Wrong Acc name");
-
-					delete[] cp;
-
-					fclose(file);
-					return LogIn::NoAcc;
-				}
-				cReadModeA = 0;
-				cReadModeA = 0;
-				break;
-			case 2:
-				if (strlen(token) <= 0)
-				{
-					delete[] cp;
-					return LogIn::NoAcc;
-				}
-				if (pass != token)
-				{
-					PutLogList("(!) Wrong pass");
-
-					delete[] cp;
-
-					fclose(file);
-					return LogIn::NoPass;
-
-				}
-				cReadModeA = 0;
-				break;
-
-			case 3:
-			{
-				string tok = token;
-				chars.push_back(tok);
-				if (chars.size() > 4)
-				{
-					PutLogList("(!) Charlist exceeds 4 in acc cfg!");
-
-					delete[] cp;
-
-					fclose(file);
-					return LogIn::NoAcc;
-				}
-				cReadModeA = 0;
-				break;
-			}
-			}
-		}
-		else {
-			if (memcmp(token, "account-name", 12) == 0)
-				cReadModeA = 1;
-
-			if (memcmp(token, "account-password", 16) == 0)
-				cReadModeA = 2;
-
-			if (memcmp(token, cTxt, strlen(cTxt)) == 0)
-				cReadModeA = 3;
-		}
-		token = strtok(NULL, seps);
-	}
-
-	delete[] cp;
-
-	fclose(file);
-
+	CloseAccountDatabase(db);
 	PutLogList("Account Login!");
 	return LogIn::Ok;
 }
 
 void LoginServer::ResponseCharacter(int h, char* pData)
 {
-
 	char cName[11] = {};
 	char cAcc[11] = {};
 	char cPassword[11] = {};
@@ -357,30 +190,32 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 
 	char gender, skin, hairstyle, haircolor, under, str, vit, dex, intl, mag, chr;
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, world_name, 30);
-	Pop(cp, gender);
-	Pop(cp, skin);
-	Pop(cp, hairstyle);
-	Pop(cp, haircolor);
-	Pop(cp, under);
-	Pop(cp, str);
-	Pop(cp, vit);
-	Pop(cp, dex);
-	Pop(cp, intl);
-	Pop(cp, mag);
-	Pop(cp, chr);
+	const auto* req = hb::net::PacketCast<hb::net::CreateCharacterRequest>(pData, sizeof(hb::net::CreateCharacterRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->character_name, 10);
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(world_name, req->world_name, 30);
+	gender = static_cast<char>(req->gender);
+	skin = static_cast<char>(req->skin);
+	hairstyle = static_cast<char>(req->hairstyle);
+	haircolor = static_cast<char>(req->haircolor);
+	under = static_cast<char>(req->underware);
+	str = static_cast<char>(req->str);
+	vit = static_cast<char>(req->vit);
+	dex = static_cast<char>(req->dex);
+	intl = static_cast<char>(req->intl);
+	mag = static_cast<char>(req->mag);
+	chr = static_cast<char>(req->chr);
 
 	if (string(world_name) != WORLDNAMELS)
 		return;
 
-	wsprintf(G_cTxt, "(!) Request create new Character: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request create new Character: %s", cName);
 	PutLogList(G_cTxt);
 
-	std::vector<string> chars;
+	std::vector<AccountDbCharacterSummary> chars;
 	auto status = AccountLogIn(cAcc, cPassword, chars);
 	if (status != LogIn::Ok)
 		return;
@@ -391,291 +226,259 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 	if (!IsValidName(cAcc) || !IsValidName(cPassword) || !IsValidName(cName))
 		return;
 
-	char seps[] = "= \t\r\n";
-	char cFileName[112] = {};
-	char cDir[112] = {};
+	for (const auto& entry : chars) {
+		if (std::strncmp(entry.characterName, cName, 10) == 0) {
+			SendLoginMsg(DEF_LOGRESMSGTYPE_NEWCHARACTERFAILED, DEF_LOGRESMSGTYPE_NEWCHARACTERFAILED, 0, 0, h);
+			return;
+		}
+	}
 
-	ZeroMemory(cFileName, sizeof(cFileName));
-	strcat(cFileName, "Characters");
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", cName[0]);
-	strcat(cFileName, cDir);
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	strcat(cFileName, cName);
-	strcat(cFileName, ".txt");
-	//wsprintf(G_cTxt, "(!) Getting character file %s", cFileName);
-	//PutLogList(G_cTxt);
-
-	HANDLE  hFile = CreateFile(cFileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	auto dwFileSize = GetFileSize(hFile, 0);
-
-	CloseHandle(hFile);
-
-	if (hFile != INVALID_HANDLE_VALUE)
-	{
+	sqlite3* db = nullptr;
+	std::string dbPath;
+	if (!EnsureAccountDatabase(cAcc, &db, dbPath)) {
 		SendLoginMsg(DEF_LOGRESMSGTYPE_NEWCHARACTERFAILED, DEF_LOGRESMSGTYPE_NEWCHARACTERFAILED, 0, 0, h);
 		return;
 	}
 
-	_mkdir("Characters");
-	_mkdir(string(string("Characters\\") + cDir).c_str());
-	auto file = fopen(cFileName, "wt");
-	if (!file)
-	{
+	AccountDbCharacterState state = {};
+	std::snprintf(state.accountName, sizeof(state.accountName), "%s", cAcc);
+	std::snprintf(state.characterName, sizeof(state.characterName), "%s", cName);
+	std::snprintf(state.profile, sizeof(state.profile), "__________");
+	std::snprintf(state.location, sizeof(state.location), "NONE");
+	std::snprintf(state.guildName, sizeof(state.guildName), "NONE");
+	state.guildGuid = -1;
+	state.guildRank = -1;
+	std::snprintf(state.mapName, sizeof(state.mapName), "default");
+	state.mapX = -1;
+	state.mapY = -1;
+	state.hp = vit * 3 + 1 * 2 + str / 2;
+	state.mp = (mag) * 2 + 1 * 2 + (intl) / 2;
+	state.sp = 1 * 2 + str * 2;
+	state.level = 1;
+	state.rating = 0;
+	state.str = str;
+	state.intl = intl;
+	state.vit = vit;
+	state.dex = dex;
+	state.mag = mag;
+	state.chr = chr;
+	state.luck = 10;
+	state.exp = 0;
+	state.luPool = 0;
+	state.enemyKillCount = 0;
+	state.pkCount = 0;
+	state.rewardGold = 0;
+	state.downSkillIndex = -1;
+	state.idnum1 = 0;
+	state.idnum2 = 0;
+	state.idnum3 = 0;
+	state.sex = gender;
+	state.skin = skin;
+	state.hairStyle = hairstyle;
+	state.hairColor = haircolor;
+	state.underwear = under;
+	state.hungerStatus = 100;
+	state.timeleftShutup = 0;
+	state.timeleftRating = 0;
+	state.timeleftForceRecall = 0;
+	state.timeleftFirmStaminar = 0;
+	state.adminUserLevel = 0;
+	state.penaltyBlockYear = 0;
+	state.penaltyBlockMonth = 0;
+	state.penaltyBlockDay = 0;
+	state.questNumber = 0;
+	state.questId = 0;
+	state.currentQuestCount = 0;
+	state.questRewardType = 0;
+	state.questRewardAmount = 0;
+	state.contribution = 0;
+	state.warContribution = 0;
+	state.questCompleted = 0;
+	state.specialEventId = 200081;
+	state.superAttackLeft = 0;
+	state.fightzoneNumber = 0;
+	state.reserveTime = 0;
+	state.fightzoneTicketNumber = 0;
+	state.specialAbilityTime = DEF_SPECABLTYTIMESEC;
+	std::snprintf(state.lockedMapName, sizeof(state.lockedMapName), "NONE");
+	state.lockedMapTime = 0;
+	state.crusadeJob = 0;
+	state.crusadeGuid = 0;
+	state.constructPoint = 0;
+	state.deadPenaltyTime = 0;
+	state.partyId = 0;
+	state.gizonItemUpgradeLeft = 0;
+	state.appr1 = 1187;
+	state.appr2 = 0;
+	state.appr3 = 0;
+	state.appr4 = 0;
+	state.apprColor = 0;
+
+	bool ok = InsertCharacterState(db, state);
+
+	// Starter item IDs from GameConfigs.db
+	constexpr int ITEM_DAGGER = 1;
+	constexpr int ITEM_BIG_RED_POTION = 92;    // Health potion
+	constexpr int ITEM_BIG_BLUE_POTION = 94;   // Mana potion
+	constexpr int ITEM_MAP = 104;
+	constexpr int ITEM_RECALL_SCROLL = 114;
+	constexpr int ITEM_KNEE_TROUSERS_M = 460;  // Shorts for males
+	constexpr int ITEM_BODICE_W = 473;         // Bodice for females
+
+	std::vector<AccountDbItemRow> items;
+	auto addItem = [&](int itemId, int itemColor) {
+		AccountDbItemRow item = {};
+		item.slot = static_cast<int>(items.size());
+		item.itemId = itemId;
+		item.count = 1;
+		item.touchEffectType = 0;
+		item.touchEffectValue1 = 0;
+		item.touchEffectValue2 = 0;
+		item.touchEffectValue3 = 0;
+		item.itemColor = itemColor;
+		item.specEffectValue1 = 0;
+		item.specEffectValue2 = 0;
+		item.specEffectValue3 = 0;
+		item.curLifeSpan = 300;
+		item.attribute = 0;
+		item.posX = 40;
+		item.posY = 30;
+		item.isEquipped = 0;
+		items.push_back(item);
+	};
+
+	addItem(ITEM_DAGGER, 0);
+	addItem(ITEM_RECALL_SCROLL, 0);
+	addItem(ITEM_BIG_RED_POTION, 0);
+	addItem(ITEM_BIG_BLUE_POTION, 0);
+	addItem(ITEM_MAP, 0);
+
+	// Gender-specific clothing: males get shorts, females get bodice
+	if (gender == 1) {
+		addItem(ITEM_KNEE_TROUSERS_M, 0);
+	} else {
+		addItem(ITEM_BODICE_W, 0);
+	}
+
+	const char* equipStatus = "00000110000000000000000000000000000000000000000000";
+	const size_t equipLen = std::strlen(equipStatus);
+	for (auto& item : items) {
+		if (item.slot < static_cast<int>(equipLen) && equipStatus[item.slot] == '1') {
+			item.isEquipped = 1;
+		}
+	}
+
+	std::vector<AccountDbIndexedValue> positionsX;
+	std::vector<AccountDbIndexedValue> positionsY;
+	std::vector<AccountDbIndexedValue> equips;
+	for (int i = 0; i < DEF_MAXITEMS; i++) {
+		AccountDbIndexedValue posX = {};
+		AccountDbIndexedValue posY = {};
+		AccountDbIndexedValue equip = {};
+		posX.index = i;
+		posY.index = i;
+		equip.index = i;
+		posX.value = 40;
+		posY.value = 30;
+		equip.value = (i < static_cast<int>(equipLen) && equipStatus[i] == '1') ? 1 : 0;
+		positionsX.push_back(posX);
+		positionsY.push_back(posY);
+		equips.push_back(equip);
+	}
+
+	std::vector<AccountDbIndexedValue> magicMastery;
+	for (int i = 0; i < DEF_MAXMAGICTYPE; i++) {
+		AccountDbIndexedValue entry = {};
+		entry.index = i;
+		entry.value = 0;
+		magicMastery.push_back(entry);
+	}
+
+	std::vector<AccountDbIndexedValue> skillMastery;
+	std::vector<AccountDbIndexedValue> skillSsn;
+	const char* skillSeed = "0 0 0 3 20 24 0 24 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0";
+	char skillBuf[512] = {};
+	std::snprintf(skillBuf, sizeof(skillBuf), "%s", skillSeed);
+	char* token = std::strtok(skillBuf, " " );
+	int skillIndex = 0;
+	while (token != nullptr && skillIndex < DEF_MAXSKILLTYPE) {
+		AccountDbIndexedValue entry = {};
+		entry.index = skillIndex;
+		entry.value = std::atoi(token);
+		skillMastery.push_back(entry);
+		skillIndex++;
+		token = std::strtok(nullptr, " " );
+	}
+	for (; skillIndex < DEF_MAXSKILLTYPE; skillIndex++) {
+		AccountDbIndexedValue entry = {};
+		entry.index = skillIndex;
+		entry.value = 0;
+		skillMastery.push_back(entry);
+	}
+	for (int i = 0; i < DEF_MAXSKILLTYPE; i++) {
+		AccountDbIndexedValue entry = {};
+		entry.index = i;
+		entry.value = 0;
+		skillSsn.push_back(entry);
+	}
+
+	if (ok) {
+		ok &= InsertCharacterItems(db, cName, items);
+		ok &= InsertCharacterItemPositions(db, cName, positionsX, positionsY);
+		ok &= InsertCharacterItemEquips(db, cName, equips);
+		ok &= InsertCharacterMagicMastery(db, cName, magicMastery);
+		ok &= InsertCharacterSkillMastery(db, cName, skillMastery);
+		ok &= InsertCharacterSkillSSN(db, cName, skillSsn);
+	}
+
+	CloseAccountDatabase(db);
+
+	if (!ok) {
 		SendLoginMsg(DEF_LOGRESMSGTYPE_NEWCHARACTERFAILED, DEF_LOGRESMSGTYPE_NEWCHARACTERFAILED, 0, 0, h);
 		return;
 	}
 
-	SYSTEMTIME SysTime;
-	GetLocalTime(&SysTime);
-
-	char cBuffer[112] = {};
-	char cFile[2048] = {};
-
-	ZeroMemory(cFile, sizeof(cFile));
-
-	strcat(cFile, "[FILE-DATE]");
-	strcat(cFile, "\n\n");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "file-saved-date: %d %d %d %d %d", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n\n");
-
-	strcat(cFile, "[NAME-ACCOUNT]");
-	strcat(cFile, "\n\n");
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-name = %s\n", cName);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "account-name = %s\n", cAcc);
-	strcat(cFile, cBuffer);
-
-	strcat(cFile, "\n\n");
-	strcat(cFile, "[STATUS]\n\n");
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-location = NONE\n");
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-guild-name = NONE\n");
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-guild-rank = -1\n");
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-loc-map = default\n");
-	strcat(cFile, cBuffer);
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-loc-x = -1\n");
-	strcat(cFile, cBuffer);
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-loc-y = -1\n");
-	strcat(cFile, cBuffer);
-
-	int hp = vit * 3 + 1 * 2 + str / 2;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-HP = %d\n", hp);
-	strcat(cFile, cBuffer);
-
-	int mp = (mag) * 2 + 1 * 2 + (intl) / 2;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-MP = %d\n", mp);
-	strcat(cFile, cBuffer);
-
-	int sp = 1 * 2 + str * 2;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-SP = %d\n", sp);
-	strcat(cFile, cBuffer);
-
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-DefenseRatio = %d\n", 14);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-LEVEL = 1\n");
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-STR = %d\n", str);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-INT = %d\n", intl);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-VIT = %d\n", vit);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-DEX = %d\n", dex);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-MAG = %d\n", mag);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-CHARISMA = %d\n", chr);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-LUCK = %d\n", 10);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-EXP = %d\n", 0);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-Lu_Pool = %d\n", 0);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-EK-Count = %d\n", 0);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-PK-Count = %d\n", 0);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "sex-status = %d\n", gender);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "skin-status = %d\n", skin);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "hairstyle-status = %d\n", hairstyle);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "haircolor-status = %d\n", haircolor);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "underwear-status = %d\n", under);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr1 = %d\n", 1187);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr2 = %d\n", 0);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr3 = %d\n", 0);
-	strcat(cFile, cBuffer);
-
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr4 = %d\n", 0);
-	strcat(cFile, cBuffer);
-
-	strcat(cFile, "\n\n[ITEMLIST]\n\n");
-
-	strcat(pData, "character-item = Dagger               1 0 0 0 0 0 0 0 0 300 0\n");
-	strcat(pData, "character-item = RecallScroll         1 0 0 0 0 0 0 0 0 300 0\n");
-	strcat(pData, "character-item = BigRedPotion         1 0 0 0 0 0 0 0 0 300 0\n");
-	strcat(pData, "character-item = BigGreenPotion	     1 0 0 0 0 0 0 0 0 300 0\n");
-	strcat(pData, "character-item = BigBluePotion        1 0 0 0 0 0 0 0 0 300 0\n");
-	strcat(pData, "character-item = Map			         1 0 0 0 0 0 0 0 0 300 0\n");
-
-	int iRand = (rand() % 16);
-	char cTxt[120];
-	switch (iRand) {
-	case 1:
-	case 2:
-	case 3:
-	case 4:
-	case 7:
-	case 8:
-	case 15:
-		strcat(pData, "character-item = WoodShield           1 0 0 0 0 0 0 0 0 300 0\n");
-		break;
-
-	default:
-		if (gender == 1) {
-			wsprintf(cTxt, "character-item = KneeTrousers(M)     1 0 0 0 0 %d 0 0 0 300 0\n", iRand);
-		}
-		else {
-			wsprintf(cTxt, "character-item = Chemise(W)	         1 0 0 0 0 %d 0 0 0 300 0\n", iRand);
-		}
-		strcat(pData, cTxt);
-		strcat(pData, "\n");
-		break;
-	}
-
-	strcat(pData, "[MAGIC-SKILL-MASTERY]\n\n");
-	strcat(pData, "magic-mastery     = 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
-	strcat(pData, "\n\n");
-
-	strcat(pData, "skill-mastery     = 0 0 0 3 20 24 0 24 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-	//	for (i = 0; i < 60; i++) {
-			//ZeroMemory(cTxt, sizeof(cTxt));
-			//wsprintf(cTxt, "0 0 0 3 20 24 0 24 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
-			//strcat(pData, cTxt);
-	//	}
-	strcat(pData, "\n");
-
-	strcat(pData, "skill-SSN     = ");
-	for (int i = 0; i < 60; i++) {
-		strcat(pData, "0 ");
-	}
-	strcat(pData, "\n\n");
-
-	strcat(pData, "[ITEM-EQUIP-STATUS]\n\n");
-	strcat(pData, "item-equip-status = 00000110000000000000000000000000000000000000000000");
-	strcat(pData, "\n\n");
-
-	strcat(pData, "[EOF]");
-	strcat(pData, "\n\n\n\n");
-
-	fwrite(cFile, 1, strlen(cFile), file);
-	fclose(file);
-
-	SaveAccountInfo(0, cAcc, nullptr, cName, 1, h);
+	AccountDbCharacterSummary summary = {};
+	std::snprintf(summary.characterName, sizeof(summary.characterName), "%s", cName);
+	summary.appr1 = state.appr1;
+	summary.appr2 = state.appr2;
+	summary.appr3 = state.appr3;
+	summary.appr4 = state.appr4;
+	summary.apprColor = state.apprColor;
+	summary.sex = static_cast<uint16_t>(state.sex);
+	summary.skin = static_cast<uint16_t>(state.skin);
+	summary.level = static_cast<uint16_t>(state.level);
+	summary.exp = state.exp;
+	std::snprintf(summary.mapName, sizeof(summary.mapName), "%s", state.mapName);
+	chars.push_back(summary);
 
 	char cData[512] = {};
 	char* cp2 = cData;
 	Push(cp2, cName, 10);
-	chars.push_back(cName);
 	Push(cp2, (int)chars.size());
 	GetCharList(cAcc, cp2, chars);
 	SendLoginMsg(DEF_LOGRESMSGTYPE_NEWCHARACTERCREATED, DEF_LOGRESMSGTYPE_NEWCHARACTERCREATED, cData, cp2 - cData, h);
 }
 
-#include <sstream>
 void LoginServer::DeleteCharacter(int h, char* pData)
 {
-	//PutLogList("DeleteCharacter()");
-
 	char cName[11] = {};
 	char cAcc[11] = {};
 	char cPassword[11] = {};
 	char world_name[32] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, world_name, 30);
+	const auto* req = hb::net::PacketCast<hb::net::DeleteCharacterRequest>(pData, sizeof(hb::net::DeleteCharacterRequest));
+	if (!req) return;
 
-	wsprintf(G_cTxt, "(!) Request delete Character: %s", cName);
+	std::memcpy(cName, req->character_name, 10);
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(world_name, req->world_name, 30);
+
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request delete Character: %s", cName);
 	PutLogList(G_cTxt);
 
-	std::vector<string> chars;
+	std::vector<AccountDbCharacterSummary> chars;
 	auto status = AccountLogIn(cAcc, cPassword, chars);
 	if (status != LogIn::Ok)
 		return;
@@ -683,99 +486,31 @@ void LoginServer::DeleteCharacter(int h, char* pData)
 	if (chars.size() == 0)
 		return;
 
-	char cDir[112] = {};
-	char cTxt[112] = {};
-	char cFileName[112] = {};
-	strcat(cFileName, "Characters");
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	wsprintf(cTxt, "AscII%d", *cName);
-	strcat(cFileName, cTxt);
-	strcpy(cDir, cFileName);
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	strcat(cFileName, cName);
-	strcat(cFileName, ".txt");
-
-	DeleteFile(cFileName);
-
-
-	ZeroMemory(cFileName, sizeof(cFileName));
-	ZeroMemory(cDir, sizeof(cDir));
-	strcat(cFileName, "Accounts");
-	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", *cAcc);
-	strcat(cFileName, cDir);
-	strcat(cFileName, "\\");
-	strcat(cFileName, cAcc);
-	strcat(cFileName, ".txt");
-
-	ifstream in(cFileName, ios::in);
-	if (!in.is_open())
-	{
-		PutLogList("in is_opem = false");
+	sqlite3* db = nullptr;
+	if (!OpenAccountDatabaseIfExists(cAcc, &db)) {
 		return;
 	}
-	string wordToReplace("account-character = ");
-	wordToReplace.append(cName);
 
-	string wordToReplace2("account-character = ");
-	wordToReplace2.append(cName);
-	string wordToReplaceWith("");
-
-	stringstream ss;
-	bool done = false;
-	string line;
-	size_t len = wordToReplace.length();
-	while (getline(in, line))
-	{
-		string repl = wordToReplace;
-		size_t pos = line.find(repl);
-		len = repl.length();
-		if (pos == string::npos)
-		{
-			repl = wordToReplace2;
-			pos = line.find(repl);
-			len = repl.length();
-		}
-
-		if (pos != string::npos)
-		{
-			line.replace(pos, len, wordToReplaceWith);
-			done = true;
-		}
-
-		ss << line << '\n';
+	if (!DeleteCharacterData(db, cName)) {
+		CloseAccountDatabase(db);
+		return;
 	}
-	in.close();
 
-	ofstream out(cFileName);
-	out << ss.str();
+	CloseAccountDatabase(db);
 
-
-	if (done)
-	{
-		char cData[512] = {};
-		char* cp2 = cData;
-		for (auto it = chars.begin(); it != chars.end();)
-		{
-			if (cName == *it)
-			{
-				it = chars.erase(it);
-				continue;
-			}
-			else ++it;
+	for (auto it = chars.begin(); it != chars.end();) {
+		if (std::strncmp(it->characterName, cName, 10) == 0) {
+			it = chars.erase(it);
+			continue;
 		}
-		Push(cp2, (int)chars.size());
-		GetCharList(cAcc, cp2, chars);
-		SendLoginMsg(DEF_LOGRESMSGTYPE_CHARACTERDELETED, DEF_LOGRESMSGTYPE_CHARACTERDELETED, cData, cp2 - cData, h);
+		++it;
 	}
-	/*
 
-		if (SaveAccountInfo(0, cAcc, nullptr, cName, 3, h) )
-		{
-
-		}*/
+	char cData[512] = {};
+	char* cp2 = cData;
+	Push(cp2, (int)chars.size());
+	GetCharList(cAcc, cp2, chars);
+	SendLoginMsg(DEF_LOGRESMSGTYPE_CHARACTERDELETED, DEF_LOGRESMSGTYPE_CHARACTERDELETED, cData, cp2 - cData, h);
 }
 
 void LoginServer::ChangePassword(int h, char* pData)
@@ -785,141 +520,45 @@ void LoginServer::ChangePassword(int h, char* pData)
 	char cNewPw[11] = {};
 	char cNewPwConf[11] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, cNewPw, 10);
-	Pop(cp, cNewPwConf, 10);
+	const auto* req = hb::net::PacketCast<hb::net::ChangePasswordRequest>(pData, sizeof(hb::net::ChangePasswordRequest));
+	if (!req) return;
 
-	wsprintf(G_cTxt, "(!) Request change password: %s", cAcc);
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(cNewPw, req->new_password, 10);
+	std::memcpy(cNewPwConf, req->new_password_confirm, 10);
+
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request change password: %s", cAcc);
 	PutLogList(G_cTxt);
 
-	std::vector<string> chars;
+	std::vector<AccountDbCharacterSummary> chars;
 	auto status = AccountLogIn(cAcc, cPassword, chars);
 	if (status != LogIn::Ok)
 		return;
 
-	if (string(cNewPw) != cNewPwConf)
-	{
+	if (string(cNewPw) != cNewPwConf) {
 		SendLoginMsg(DEF_LOGRESMSGTYPE_PASSWORDCHANGEFAIL, DEF_LOGRESMSGTYPE_PASSWORDCHANGEFAIL, 0, 0, h);
 		return;
 	}
 
-
-	char cBuffer[1024] = {};
-	char cBuffer2[1024] = {};
-	char cTmp[1024] = {};
-	char cTxt[1024] = {};
-	char cTxt2[1024] = {};
-	int iTest = -1;
-	wsprintf(cTmp, "Accounts\\AscII%d\\%s.txt", cAcc[0], cAcc);
-	HANDLE  hFile = CreateFile(cTmp, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
+	sqlite3* db = nullptr;
+	if (!OpenAccountDatabaseIfExists(cAcc, &db)) {
 		SendLoginMsg(DEF_LOGRESMSGTYPE_PASSWORDCHANGEFAIL, DEF_LOGRESMSGTYPE_PASSWORDCHANGEFAIL, 0, 0, h);
-		CloseHandle(hFile);
 		return;
 	}
-	auto iSize = GetFileSize(hFile, 0);
-	CloseHandle(hFile);
 
-	char cFileName[512] = {};
-	char cDir[112] = {};
-	ZeroMemory(cFileName, sizeof(cFileName));
-	ZeroMemory(cDir, sizeof(cDir));
-	strcat(cFileName, "Accounts");
-	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", *cAcc);
-	strcat(cFileName, cDir);
-	strcat(cFileName, "\\");
-	strcat(cFileName, cAcc);
-	strcat(cFileName, ".txt");
-
-	ifstream in(cFileName, ios::in);
-	if (!in.is_open())
-	{
-		PutLogList("in is_opem = false");
-		return;
-	}
-	string wordToReplace("account-password = ");
-	wordToReplace.append(cPassword);
-
-	string wordToReplaceWith("account-password = ");
-	wordToReplaceWith.append(cNewPw);
-
-	stringstream ss;
-	bool done = false;
-	string line;
-	size_t len = wordToReplace.length();
-	while (getline(in, line))
-	{
-		string repl = wordToReplace;
-		size_t pos = line.find(repl);
-		len = repl.length();
-
-		if (pos != string::npos)
-		{
-			line.replace(pos, len, wordToReplaceWith);
-			done = true;
-		}
-
-		ss << line << '\n';
-	}
-	in.close();
-
-	ofstream out(cFileName);
-	out << ss.str();
-	if (done)
-	{
+	if (UpdateAccountPassword(db, cAcc, cNewPw)) {
 		SendLoginMsg(DEF_LOGRESMSGTYPE_PASSWORDCHANGESUCCESS, DEF_LOGRESMSGTYPE_PASSWORDCHANGESUCCESS, 0, 0, h);
 	}
-	/*
+	else {
+		SendLoginMsg(DEF_LOGRESMSGTYPE_PASSWORDCHANGEFAIL, DEF_LOGRESMSGTYPE_PASSWORDCHANGEFAIL, 0, 0, h);
+	}
 
-		fpos_t pos;
-		fgetpos(pFile, &pos);
-		iSize = fread(cBuffer, 1, iSize, pFile);
-
-		wsprintf(cTxt, "account-password = %s", cPassword);
-
-		for (int i = 0; i < iSize; i++)
-		{
-			if (memcmp((char*)cBuffer + i, cTxt, strlen(cTxt)) == 0)
-			{
-				iTest = i;
-				break;
-			}
-		}
-
-		if (iTest != -1)
-		{
-			memcpy_secure(cBuffer2, cBuffer, iTest);
-			wsprintf(cTxt2, "account-password = %s", cNewPw);
-			strcat(cBuffer2, cTxt2);
-			memcpy_secure(cBuffer2 + iTest + strlen(cTxt2), cBuffer + iTest + strlen(cTxt), iSize - strlen(cTxt) - iTest);
-			fsetpos(pFile, &pos);
-			fwrite(cBuffer2, 1, iSize - strlen(cTxt) + strlen(cTxt2), pFile);
-			fclose(pFile);
-		}
-		else
-		{
-			SendLoginMsg(LOGRESMSGTYPE_PASSWORDCHANGEFAIL, LOGRESMSGTYPE_PASSWORDCHANGEFAIL, 0, 0, h);
-			fclose(pFile);
-			return;
-		}
-	*/
-
-
-
+	CloseAccountDatabase(db);
 }
 
 void LoginServer::CreateNewAccount(int h, char* pData)
 {
-	char* cp;
-	FILE* pFile;
-	HANDLE hFile;
-	DWORD  dwFileSize;
-	SYSTEMTIME SysTime;
-	char cFile[20000], cBuffer[1024], cFn[1024];
 	char cName[12] = {};
 	char cPassword[12] = {};
 	char cEmailAddr[52] = {};
@@ -929,296 +568,85 @@ void LoginServer::CreateNewAccount(int h, char* pData)
 	if (G_pGame->_lclients[h] == 0)
 		return;
 
-	GetLocalTime(&SysTime);
+	const auto* req = hb::net::PacketCast<hb::net::CreateAccountRequest>(pData, sizeof(hb::net::CreateAccountRequest));
+	if (!req) return;
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, cEmailAddr, 50);
-	Pop(cp, cQuiz, 45);
-	Pop(cp, cAnswer, 25);
+	std::memcpy(cName, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(cEmailAddr, req->email, 50);
+	std::memcpy(cQuiz, req->quiz, 45);
+	std::memcpy(cAnswer, req->answer, 25);
 
 	if ((strlen(cName) == 0) || (strlen(cPassword) == 0) ||
 		(strlen(cEmailAddr) == 0) || (strlen(cQuiz) == 0) ||
 		(strlen(cAnswer) == 0))
 		return;
 
-	wsprintf(G_cTxt, "(!) Request create new Account: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request create new Account: %s", cName);
 	PutLogList(G_cTxt);
 
 	if (!IsValidName(cName) || !IsValidName(cPassword))
 		return;
 
-	ZeroMemory(cFn, sizeof(cFn));
-	wsprintf(cFn, "Accounts\\AscII%d\\%s.txt", cName[0], cName);
-	hFile = CreateFile(cFn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	dwFileSize = GetFileSize(hFile, 0);
-	if (hFile == INVALID_HANDLE_VALUE)
-	{
-		CloseHandle(hFile);
-	}
-	else
-	{
-		CloseHandle(hFile);
+	if (AccountDbExists(cName)) {
 		SendLoginMsg(DEF_LOGRESMSGTYPE_NEWACCOUNTFAILED, DEF_LOGRESMSGTYPE_NEWACCOUNTFAILED, 0, 0, h);
 		return;
 	}
 
-	//mkdir("DataBase");
-	mkdir("Accounts");
-	char Aux = 0;
-	Aux = cName[0];
-	ZeroMemory(cFn, sizeof(cFn));
-	wsprintf(cFn, "Accounts\\AscII%d", Aux);
-	_mkdir(cFn);
-
-	ZeroMemory(cFn, sizeof(cFn));
-	wsprintf(cFn, "Accounts\\AscII%d\\%s.txt", Aux, cName);
-	pFile = fopen(cFn, "wt");
-	if (pFile == 0)
-	{
+	sqlite3* db = nullptr;
+	std::string dbPath;
+	if (!EnsureAccountDatabase(cName, &db, dbPath)) {
 		SendLoginMsg(DEF_LOGRESMSGTYPE_NEWACCOUNTFAILED, DEF_LOGRESMSGTYPE_NEWACCOUNTFAILED, 0, 0, h);
 		return;
 	}
 
+	AccountDbAccountData data = {};
+	std::snprintf(data.name, sizeof(data.name), "%s", cName);
+	std::snprintf(data.password, sizeof(data.password), "%s", cPassword);
+	std::snprintf(data.email, sizeof(data.email), "%s", cEmailAddr);
+	std::snprintf(data.quiz, sizeof(data.quiz), "%s", cQuiz);
+	std::snprintf(data.answer, sizeof(data.answer), "%s", cAnswer);
+
+	SYSTEMTIME sysTime;
+	GetLocalTime(&sysTime);
+	FormatTimestamp(sysTime, data.createdAt, sizeof(data.createdAt));
+	FormatTimestamp(sysTime, data.passwordChangedAt, sizeof(data.passwordChangedAt));
+	std::snprintf(data.lastIp, sizeof(data.lastIp), "%s", G_pGame->_lclients[h]->_ip);
+
+	if (!InsertAccountRecord(db, data)) {
+		CloseAccountDatabase(db);
+		SendLoginMsg(DEF_LOGRESMSGTYPE_NEWACCOUNTFAILED, DEF_LOGRESMSGTYPE_NEWACCOUNTFAILED, 0, 0, h);
+		return;
+	}
+
+	CloseAccountDatabase(db);
 	SendLoginMsg(DEF_LOGRESMSGTYPE_NEWACCOUNTCREATED, DEF_LOGRESMSGTYPE_NEWACCOUNTCREATED, 0, 0, h);
-
-	ZeroMemory(cFile, sizeof(cFile));
-	strcat(cFile, "Account-generated: ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "Time(%d:%d/%d/%d/%d) IP(%s)", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute, G_pGame->_lclients[h]->_ip);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n");
-
-	strcat(cFile, "[Account Info]");
-	strcat(cFile, "\n");
-
-	strcat(cFile, "account-name = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	memcpy(cBuffer, cName, 10);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n");
-
-	strcat(cFile, "account-password = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	memcpy(cBuffer, cPassword, 10);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n");
-
-	strcat(cFile, "account-Email = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%s", cEmailAddr);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n");
-
-	strcat(cFile, "account-Quiz = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%s", cQuiz);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n");
-
-	strcat(cFile, "account-Answer = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%s", cAnswer);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n");
-
-	strcat(cFile, "account-change-password = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%d %d %d", SysTime.wYear, SysTime.wMonth, SysTime.wDay);
-	strcat(cFile, cBuffer);
-	strcat(cFile, "\n");
-	strcat(cFile, "\n");
-
-	strcat(cFile, "[CHARACTERS]");
-	strcat(cFile, "\n");
-
-	fwrite(cFile, 1, strlen(cFile), pFile);
-	fclose(pFile);
 }
 
-
-bool LoginServer::SaveAccountInfo(int iAccount, char* cAccountName, char* cTemp, char* cCharName, char cMode, int h)
-{
-	char* g_txt = &G_cTxt[0];
-
-	char cFileName[255], cDir[63], cTxt[50], cTxt2[2000], cData[2000];
-	int iLine, i;
-	int    iSize;
-	short iMinus;
-	int    iCharPos = -1;
-	int    iTest = -1;
-	bool bDeleteLine;
-	HANDLE hFile;
-	fpos_t pos;
-	DWORD  dwSize = 0;
-	DWORD dwFileSize;
-	FILE* pFile;
-
-	memset(cData, 0, 2000);
-	memset(cTxt2, 0, 2000);
-	dwFileSize = 0;
-	iLine = 0;
-	bDeleteLine = false;
-	iMinus = 0;
-	ZeroMemory(cTxt, sizeof(cTxt));
-	ZeroMemory(cTxt2, sizeof(cTxt2));
-	ZeroMemory(cData, sizeof(cData));
-
-	ZeroMemory(cFileName, sizeof(cFileName));
-	ZeroMemory(cDir, sizeof(cDir));
-	strcat(cFileName, "Accounts");
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", *cAccountName);
-	strcat(cFileName, cDir);
-	strcat(cFileName, "\\");
-	strcat(cFileName, "\\");
-	strcat(cFileName, cAccountName);
-	strcat(cFileName, ".txt");
-
-	hFile = CreateFile(cFileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	iSize = GetFileSize(hFile, 0);
-	if (hFile != INVALID_HANDLE_VALUE) CloseHandle(hFile);
-
-	//char cTxt3[112] = {};
-
-	switch (cMode) {
-	case 1: //save new character
-		pFile = fopen(cFileName, "at");
-		if (pFile == 0) {
-			wsprintf(g_txt, "(X) Account none exist: Name(%s)", cAccountName);
-			PutLogList(g_txt);
-			return false;
-		}
-		wsprintf(cTxt, "\naccount-character = %s", cCharName);
-		fwrite(cTxt, 1, strlen(cTxt), pFile);
-		fclose(pFile);
-		break;
-
-	case 2: //password change
-		wsprintf(g_txt, "(X) PasswordChange(%s)", cTemp);
-		PutLogList(g_txt);
-		wsprintf(cTxt, "account-password = %s", cTemp);
-		pFile = fopen(cFileName, "rt");
-		if (pFile == 0) {
-			SendLoginMsg(DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, 0, 0, h);
-			return false;
-		}
-		fgetpos(pFile, &pos);
-		iSize = fread(cData, 1, iSize, pFile);
-		fread(cData, dwFileSize, 1, pFile);
-		for (i = 0; i < iSize; i++)
-		{
-			if (memcmp((char*)cData + i, "[CHARACTERS]", 12) == 0)
-			{
-				iCharPos = i;
-			}
-			if (memcmp((char*)cData + i, "account-password = ", 19) == 0)
-			{
-				iTest = i;
-			}
-		}
-		if (iTest == -1)
-		{
-			SendLoginMsg(DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, 0, 0, h);
-		}
-		else
-		{
-			memcpy(cTxt2, cData, iTest + 19);
-			memcpy(cTxt2 + iTest + 19, cTxt, strlen(cTxt));
-			memcpy(cTxt2 + iTest + 19 + strlen(cTxt), cData + iTest + 19 + strlen(cTemp), iSize - 19 - iTest - strlen(cTemp));
-			SaveInfo(cFileName, cTxt2, 1);
-		}
-		fclose(pFile);
-		break;
-
-	case 3: //delete character
-		wsprintf(g_txt, "(X) Character Delete(%s)", cCharName);
-		PutLogList(g_txt);
-		wsprintf(cTxt, "account-character = %s", cCharName);
-		//wsprintf(cTxt3, "account-character = %s", cCharName);
-		pFile = fopen(cFileName, "rt");
-		if (pFile == 0) {
-			SendLoginMsg(DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, 0, 0, h);
-			return false;
-		}
-		fgetpos(pFile, &pos);
-		iSize = fread(cData, 1, iSize, pFile);
-		fread(cData, dwFileSize, 1, pFile);
-		for (int i = 0; i < iSize; i++)
-		{
-			if (memcmp((char*)cData + i, "[CHARACTERS]", 12) == 0)
-			{
-				iCharPos = i;
-			}
-			if (memcmp((char*)cData + i, cTxt, strlen(cTxt)) == 0)
-			{
-				iTest = i;
-			}
-			/*if (memcmp((char*)cData + i, cTxt3, strlen(cTxt3)) == 0)
-			{
-				iTest = i;
-			}*/
-		}
-		if (iTest == -1)
-		{
-			SendLoginMsg(DEF_LOGRESMSGTYPE_NOTEXISTINGCHARACTER, DEF_LOGRESMSGTYPE_NOTEXISTINGCHARACTER, 0, 0, h);
-		}
-		else
-		{
-			memcpy(cTxt2, cData, iTest - 1);
-			memcpy(cTxt2 + iTest - 1, cData + iTest + strlen(cTxt), iSize - strlen(cTxt) - iTest);
-			SaveInfo(cFileName, cTxt2, 1);
-		}
-		fclose(pFile);
-		break;
-	}
-	return false;
-}
-void LoginServer::SaveInfo(char cFileName[255], char* pData, DWORD dwStartSize)
-{
-	FILE* pFile;
-
-	pFile = fopen(cFileName, "wt");
-	if (pFile != 0)
-	{
-		if (sizeof(pData) > 0) fwrite(pData, dwStartSize, strlen(pData), pFile);
-		fclose(pFile);
-	}
-}
-
-void LoginServer::SendLoginMsg(DWORD msg_id, WORD msg_type, char* data, int sz, int h)
+void LoginServer::SendLoginMsg(uint32_t msg_id, uint16_t msg_type, char* data, int sz, int h)
 {
 
 	int iRet;
-	DWORD* dwp;
 	char* cp;
-	WORD* wp;
 	int index = h;
 
 	if (!G_pGame->_lclients[h])
 		return;
 
-	ZeroMemory(G_cData50000, sizeof(G_cData50000));
+	std::memset(G_cData50000, 0, sizeof(G_cData50000));
 
-	dwp = (DWORD*)(G_cData50000 + DEF_INDEX4_MSGID);
-	*dwp = msg_id;
-	wp = (WORD*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
-	*wp = msg_type;
+	auto* header = reinterpret_cast<hb::net::PacketHeader*>(G_cData50000);
+	header->msg_id = msg_id;
+	header->msg_type = msg_type;
 
-	cp = (char*)(G_cData50000 + DEF_INDEX2_MSGTYPE + 2);
+	cp = reinterpret_cast<char*>(G_cData50000) + sizeof(hb::net::PacketHeader);
 
 	memcpy((char*)cp, data, sz);
 
 	//if is registered
 	if (true)
 	{
-		switch (msg_id) {
-		default:
-			iRet = G_pGame->_lclients[index]->_sock->iSendMsg(G_cData50000, sz + 6);
-			break;
-		}
+		iRet = G_pGame->_lclients[index]->_sock->iSendMsg(G_cData50000, sz + 6);
 
 		switch (iRet)
 		{
@@ -1226,7 +654,7 @@ void LoginServer::SendLoginMsg(DWORD msg_id, WORD msg_type, char* data, int sz, 
 		case DEF_XSOCKEVENT_SOCKETERROR:
 		case DEF_XSOCKEVENT_CRITICALERROR:
 		case DEF_XSOCKEVENT_SOCKETCLOSED:
-			wsprintf(G_cTxt, "(!) Login Connection Lost on Send (%d)", index);
+			std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Login Connection Lost on Send (%d)", index);
 			PutLogList(G_cTxt);
 			delete G_pGame->_lclients[index];
 			G_pGame->_lclients[index] = 0;
@@ -1247,14 +675,16 @@ void LoginServer::RequestEnterGame(int h, char* pData)
 	char ws_name[31] = {};
 	char cmd_line[121] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cMapName, 10);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPass, 10);
-	Pop(cp, lvl);
-	Pop(cp, ws_name, 10);
-	Pop(cp, cmd_line, 120);
+	const auto* req = hb::net::PacketCast<hb::net::EnterGameRequest>(pData, sizeof(hb::net::EnterGameRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->character_name, 10);
+	std::memcpy(cMapName, req->map_name, 10);
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPass, req->password, 10);
+	lvl = req->level;
+	std::memcpy(ws_name, req->world_name, 10);
+	std::memcpy(cmd_line, req->cmd_line, 120);
 
 	char cData[112] = {};
 	char* cp2 = cData;
@@ -1264,10 +694,10 @@ void LoginServer::RequestEnterGame(int h, char* pData)
 		return;
 	}
 
-	wsprintf(G_cTxt, "(!) Request enter Game: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request enter Game: %s", cName);
 	PutLogList(G_cTxt);
 
-	std::vector<string> chars;
+	std::vector<AccountDbCharacterSummary> chars;
 	auto status = AccountLogIn(cAcc, cPass, chars);
 	if (status != LogIn::Ok)
 		return;
@@ -1286,71 +716,44 @@ void LoginServer::RequestEnterGame(int h, char* pData)
 
 	cp2 = (char*)cData; //outgoing messag - to Client
 
-	memcpy(cp2, (char*)G_pGame->m_cGameServerAddr, 16);
+	memcpy(cp2, (char*)G_pGame->m_cGameListenIP, 16);
 	cp2 += 16;
 
-	auto wp = (WORD*)cp2;
-	*wp = (WORD)G_pGame->m_iLogServerPort;
+	auto wp = (uint16_t*)cp2;
+	*wp = (uint16_t)G_pGame->m_iGameListenPort;
 	cp2 += 2;
 
 	char sv_name[21] = {};
-	wsprintf(sv_name, "%s", WORLDNAMELS2);
+	std::snprintf(sv_name, sizeof(sv_name), "%s", WORLDNAMELS2);
 	memcpy(cp2, sv_name, 20);
 	cp2 += 20;
 
-	PutLogList("Send DEF_ENTERGAMERESTYPE_CONFIRM");
 	SendLoginMsg(DEF_ENTERGAMERESTYPE_CONFIRM, DEF_ENTERGAMERESTYPE_CONFIRM, cData, 38, h);
 }
 
 
 void LoginServer::LocalSavePlayerData(int h)
 {
-	char* pData, * cp, cFn[256], cDir[256], cTxt[256], cCharDir[256];
-	int    iSize;
-	FILE* pFile;
-	SYSTEMTIME SysTime;
-
-
 	if (G_pGame->m_pClientList[h] == 0) return;
 
-	pData = new char[30000];
-	ZeroMemory(pData, 30000);
-
-	cp = (char*)(pData);
-	iSize = G_pGame->_iComposePlayerDataFileContents(h, cp);
-
-	GetLocalTime(&SysTime);
-	ZeroMemory(cCharDir, sizeof(cDir));
-	wsprintf(cCharDir, "Characters");
-	ZeroMemory(cDir, sizeof(cDir));
-	ZeroMemory(cFn, sizeof(cFn));
-	strcat(cFn, cCharDir);
-	strcat(cFn, "\\");
-	strcat(cFn, "\\");
-	wsprintf(cTxt, "AscII%d", (unsigned char)G_pGame->m_pClientList[h]->m_cCharName[0]);
-	strcat(cFn, cTxt);
-	strcpy(cDir, cFn);
-	strcat(cFn, "\\");
-	strcat(cFn, "\\");
-	strcat(cFn, G_pGame->m_pClientList[h]->m_cCharName);
-	strcat(cFn, ".txt");
-
-
-	_mkdir(cCharDir);
-	_mkdir(cDir);
-
-
-	if (iSize == 0) {
-		//	PutLogList("(!) Character data body empty: Cannot create & save temporal player data file.");
-		delete[]pData;
-		return;
+	sqlite3* db = nullptr;
+	std::string dbPath;
+	if (EnsureAccountDatabase(G_pGame->m_pClientList[h]->m_cAccountName, &db, dbPath)) {
+		if (!SaveCharacterSnapshot(db, G_pGame->m_pClientList[h])) {
+			char logMsg[256] = {};
+			std::snprintf(logMsg, sizeof(logMsg),
+				"(SQLITE) SaveCharacterSnapshot failed: Account(%s) Char(%s) Error(%s)",
+				G_pGame->m_pClientList[h]->m_cAccountName,
+				G_pGame->m_pClientList[h]->m_cCharName,
+				sqlite3_errmsg(db));
+			PutLogList(logMsg);
+		}
+		CloseAccountDatabase(db);
+	} else {
+		char logMsg[256] = {};
+		std::snprintf(logMsg, sizeof(logMsg),
+			"(SQLITE) EnsureAccountDatabase failed: Account(%s)",
+			G_pGame->m_pClientList[h]->m_cAccountName);
+		PutLogList(logMsg);
 	}
-
-	pFile = fopen(cFn, "wt");
-	if (pFile != 0) {
-		fwrite(cp, iSize, 1, pFile);
-		fclose(pFile);
-	}
-
-	delete[]pData;
 }

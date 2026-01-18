@@ -10,6 +10,11 @@
 *.userosscache
 *.sln.docstates
 
+# Project-local docs/plans
+PLANS/
+*.md
+!**/README.md
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
@@ -361,3 +366,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Claude AI - auto-generated files
+tmpclaude*cwd

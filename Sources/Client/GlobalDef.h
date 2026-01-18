@@ -18,17 +18,35 @@
 *****************************************************************/
 
 /*** Put here global data for your server ***/
+#include "Version.h"
+
 #define NAME_WORLDNAME1			"WS1" // Name for default (1st) server
-#define MSG_WORLDNAME1			"ABADDON Server" // Long name for 1st server...
-#define MSG_HOMEPAGE			"http://www.helbreath.com/"
-#define DEF_UPPERVERSION		3
-#define DEF_LOWERVERSION		51
 #define DEF_SERVER_IP			"127.0.0.1"
 #define DEF_SERVER_PORT			2500
 #define DEF_GSERVER_PORT		9907
 
-#define SCREENX					80
-#define SCREENY					60
+#define LOGICAL_WIDTH			640
+#define LOGICAL_HEIGHT			480
+// Window size is now in settings.json (ConfigManager)
+#define BASE_SCREEN_WIDTH		LOGICAL_WIDTH
+#define BASE_SCREEN_HEIGHT		LOGICAL_HEIGHT
+#define SCREENX					((LOGICAL_WIDTH - BASE_SCREEN_WIDTH) / 2)
+#define SCREENY					((LOGICAL_HEIGHT - BASE_SCREEN_HEIGHT) / 2)
+#define LOGICAL_MAX_X			(LOGICAL_WIDTH - 1)
+#define LOGICAL_MAX_Y			(LOGICAL_HEIGHT - 1)
+#define VIEW_TILE_WIDTH			(LOGICAL_WIDTH / 32)
+#define VIEW_TILE_HEIGHT		(LOGICAL_HEIGHT / 32)
+#define VIEW_CENTER_TILE_X		(VIEW_TILE_WIDTH / 2)
+#define VIEW_CENTER_TILE_Y		(VIEW_TILE_HEIGHT / 2)
+#define ICON_PANEL_WIDTH		LOGICAL_WIDTH
+#define ICON_PANEL_HEIGHT		53
+#define ICON_PANEL_OFFSET_X		((LOGICAL_WIDTH - ICON_PANEL_WIDTH) / 2)
+
+#define CHAT_INPUT_X			10
+#define CHAT_INPUT_Y			(LOGICAL_HEIGHT - ICON_PANEL_HEIGHT - 16)
+#define EVENTLIST2_BASE_Y		(CHAT_INPUT_Y - (6 * 15) - 4)
+#define LEVELUP_TEXT_X			(LOGICAL_WIDTH - 90)
+#define LEVELUP_TEXT_Y			(EVENTLIST2_BASE_Y + (5 * 15))
 
 
 /*** Some more compilation options ***/

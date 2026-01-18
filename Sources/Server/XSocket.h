@@ -2,22 +2,26 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-// ����� Ȯ���ڵ�� 1����Ʈ, ũ��� WORD�� ����Ǿ���. �� ����� �� 3����Ʈ 
+// ����� Ȯ���ڵ�� 1����Ʈ, ũ��� uint16_t�� ����Ǿ���. �� ����� �� 3����Ʈ
 
 
 #pragma once
 
-#define _WINSOCK2API_
+// MODERNIZED: Prevent old winsock.h from loading (conflicts with winsock2.h)
+#define _WINSOCKAPI_   // Stops windows.h from including winsock.h
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
 //#define  FD_SETSIZE 2000
+#include <winsock2.h>  // MUST be before windows.h to use WSAEventSelect
 #include <windows.h>
+#include "CommonTypes.h"
 #include <windowsx.h>
-#include <winsock2.h>
 //#include <winsock.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <memory.h>
 #include <malloc.h>
-#include "DebugDialog.h"
+// #include "DebugDialog.h" - REMOVED: No longer needed for console mode
 #include <iostream>
 #include <strstream>
 #include <string>
@@ -48,19 +52,19 @@
 
 #define DEF_XSOCKBLOCKLIMIT						300		// �� Ŭ���� ������ ?���̻� ���ϵǸ� ���̻� �����͸� ������ �� ����. 	
 
-class XSocket  
+class XSocket
 {
 public:
 	int iGetPeerAddress(char * pAddrString);
-	char * pGetRcvDataPointer(DWORD * pMsgSize, char * pKey = 0);
+	char * pGetRcvDataPointer(uint32_t * pMsgSize, char * pKey = 0);
 	SOCKET iGetSocket();
-	bool bAccept(class XSocket * pXSock, unsigned int uiMsg);
-	bool bListen(char * pAddr, int iPort, unsigned int uiMsg);
-	int iSendMsg(char * cData, DWORD dwSize, char cKey = 0);
-	bool bConnect(char * pAddr, int iPort, unsigned int uiMsg);
-	int  iOnSocketEvent(WPARAM wParam, LPARAM lParam);
-	bool bInitBufferSize(DWORD dwBufferSize);
-	XSocket(HWND hWnd, int iBlockLimit);
+	bool bAccept(class XSocket * pXSock);  // MODERNIZED: Removed uiMsg parameter
+	bool bListen(char * pAddr, int iPort);  // MODERNIZED: Removed uiMsg parameter
+	int iSendMsg(char * cData, uint32_t dwSize, char cKey = 0);
+	bool bConnect(char * pAddr, int iPort);  // MODERNIZED: Removed uiMsg parameter
+	int  Poll();  // MODERNIZED: Replaces iOnSocketEvent, polls for network events
+	bool bInitBufferSize(uint32_t dwBufferSize);
+	XSocket(int iBlockLimit);  // MODERNIZED: Removed HWND parameter
 	virtual ~XSocket();
 
 	int  m_WSAErr;
@@ -80,12 +84,12 @@ private:
 	char   m_cType;
 	char * m_pRcvBuffer;
 	char * m_pSndBuffer;
-	DWORD  m_dwBufferSize;
+	uint32_t  m_dwBufferSize;
 	
 	SOCKET m_Sock;
 	char   m_cStatus;
-	DWORD  m_dwReadSize;
-	DWORD  m_dwTotalReadSize;
+	uint32_t  m_dwReadSize;
+	uint32_t  m_dwTotalReadSize;
 	char   m_pAddr[30];
 	int    m_iPortNum;
 
@@ -93,8 +97,7 @@ private:
 	int    m_iUnsentDataSize[DEF_XSOCKBLOCKLIMIT];
 	short  m_sHead, m_sTail;
 
-	unsigned int m_uiMsg;
-	HWND         m_hWnd;
+	WSAEVENT     m_hEvent;  // MODERNIZED: WSAEventSelect event handle instead of window messages
 
 	int			 m_iBlockLimit;
 };

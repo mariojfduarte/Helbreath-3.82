@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "CommonTypes.h"
 #include "Map.h"
 
 extern void PutLogFileList(char* cStr);
@@ -70,6 +71,7 @@ CMap::CMap(class CGame* pGame)
 	m_bIsHeldenianMap = false;
 	m_iTotalActiveObject = 0;
 	m_iTotalAliveObject = 0;
+	m_iMaximumObject = 1000;  // Default max objects per map (can be overridden by config)
 	m_iTotalItemEvents = 0;
 	sMobEventAmount = 15;
 	//m_sInitialPointX = 0;
@@ -144,7 +146,7 @@ CMap::CMap(class CGame* pGame)
 		m_stStrikePoint[i].dY = 0;
 		m_stStrikePoint[i].iHP = 0;
 		m_stStrikePoint[i].iMapIndex = -1;
-		ZeroMemory(m_stStrikePoint[i].cRelatedMapName, sizeof(m_stStrikePoint[i].cRelatedMapName));
+		std::memset(m_stStrikePoint[i].cRelatedMapName, 0, sizeof(m_stStrikePoint[i].cRelatedMapName));
 	}
 	m_iTotalStrikePoints = 0;
 	m_bIsDisabled = false;
@@ -169,7 +171,7 @@ CMap::CMap(class CGame* pGame)
 		m_stDynamicGateCoords[i].m_bIsGateMap = false;
 		m_stDynamicGateCoords[i].m_iDynamicGateX = 0;
 		m_stDynamicGateCoords[i].m_iDynamicGateY = 0;
-		ZeroMemory(m_stDynamicGateCoords[i].m_cDynamicGateMap, sizeof(m_stDynamicGateCoords[i].m_cDynamicGateMap));
+		std::memset(m_stDynamicGateCoords[i].m_cDynamicGateMap, 0, sizeof(m_stDynamicGateCoords[i].m_cDynamicGateMap));
 	}
 }
 
@@ -197,7 +199,7 @@ void CMap::SetOwner(short sOwner, char cOwnerClass, short sX, short sY)
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	pTile->m_sOwner = sOwner;
 	pTile->m_cOwnerClass = cOwnerClass;
 }
@@ -213,7 +215,7 @@ bool CMap::bCheckFlySpaceAvailable(short sX, char sY, char cDir, short sOwner)
 	dX = _tmp_cMoveDirX[cDir] + sX;
 	dY = _tmp_cMoveDirY[cDir] + sY;
 	if ((dX < 20) || (dX >= m_sSizeX - 20) || (dY < 20) || (dY >= m_sSizeY - 20)) return 0;
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	if (pTile->m_sOwner != 0) return 0;
 	pTile->m_sOwner = sOwner;
 	return 1;
@@ -225,7 +227,7 @@ void CMap::SetDeadOwner(short sOwner, char cOwnerClass, short sX, short sY)
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	pTile->m_sDeadOwner = sOwner;
 	pTile->m_cDeadOwnerClass = cOwnerClass;
 }
@@ -248,7 +250,7 @@ void CMap::GetOwner(short* pOwner, char* pOwnerClass, short sX, short sY)
 		return;
 	}
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	*pOwner = pTile->m_sOwner;
 	*pOwnerClass = pTile->m_cOwnerClass;
 
@@ -277,7 +279,7 @@ void CMap::GetDeadOwner(short* pOwner, char* pOwnerClass, short sX, short sY)
 		return;
 	}
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	*pOwner = pTile->m_sDeadOwner;
 	*pOwnerClass = pTile->m_cDeadOwnerClass;
 }
@@ -288,7 +290,7 @@ bool CMap::bGetMoveable(short dX, short dY, short* pDOtype, short* pTopItem)
 	class CTile* pTile;
 
 	if ((dX < 20) || (dX >= m_sSizeX - 20) || (dY < 20) || (dY >= m_sSizeY - 20)) return false;
-	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeX);
 
 	if (pDOtype != 0) *pDOtype = pTile->m_sDynamicObjectType;
 	if (pTopItem != 0) *pTopItem = pTile->m_cTotalItem;
@@ -306,7 +308,7 @@ bool CMap::bGetIsMoveAllowedTile(short dX, short dY)
 
 	if ((dX < 20) || (dX >= m_sSizeX - 20) || (dY < 20) || (dY >= m_sSizeY - 20)) return false;
 
-	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeX);
 
 	if (pTile->m_bIsMoveAllowed == false) return false;
 	if (pTile->m_bIsTempMoveAllowed == false) return false;
@@ -332,7 +334,7 @@ bool CMap::bGetIsTeleport(short dX, short dY)
 
 	if ((dX < 14) || (dX >= m_sSizeX - 16) || (dY < 12) || (dY >= m_sSizeY - 14)) return false;
 
-	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeX);
 
 	if (pTile->m_bIsTeleport == false) return false;
 
@@ -345,7 +347,7 @@ void CMap::ClearOwner(int iDebugCode, short sOwnerH, char cOwnerType, short sX, 
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 
 	// �� ��ġ�� �ڵ��� ��ġ�ϸ� ��� Ŭ�����Ѵ�. 
 	if ((pTile->m_sOwner == sOwnerH) && (pTile->m_cOwnerClass == cOwnerType)) {
@@ -366,7 +368,7 @@ void CMap::ClearDeadOwner(short sX, short sY)
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	pTile->m_sDeadOwner = 0;
 	pTile->m_cDeadOwnerClass = 0;
 }
@@ -378,7 +380,7 @@ bool CMap::bSetItem(short sX, short sY, class CItem* pItem)
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return 0;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 
 	// v1.4 ������ Ÿ�Ͽ� �������� �ִٸ� ������Ű�� �̵��Ѵ�. 
 	if (pTile->m_pItem[DEF_TILE_PER_ITEMS - 1] != 0)
@@ -394,7 +396,7 @@ bool CMap::bSetItem(short sX, short sY, class CItem* pItem)
 }
 
 
-class CItem* CMap::pGetItem(short sX, short sY, short* pRemainItemID, char* pRemainItemColor, DWORD* pRemainItemAttr) //v1.4 color
+class CItem* CMap::pGetItem(short sX, short sY, short* pRemainItemID, char* pRemainItemColor, uint32_t* pRemainItemAttr) //v1.4 color
 {
 	class CTile* pTile;
 	class CItem* pItem;
@@ -402,7 +404,7 @@ class CItem* CMap::pGetItem(short sX, short sY, short* pRemainItemID, char* pRem
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return 0;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	pItem = pTile->m_pItem[0];
 	if (pTile->m_cTotalItem == 0) return 0;
 
@@ -434,7 +436,7 @@ int CMap::iCheckItem(short sX, short sY)
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return 0;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 	pItem = pTile->m_pItem[0];
 	if (pTile->m_cTotalItem == 0) return 0;
 
@@ -452,10 +454,10 @@ bool CMap::bInit(char* pName)
 {
 	int i;
 	// �������� �ε��Ѵ�.
-	ZeroMemory(m_cName, sizeof(m_cName));
+	std::memset(m_cName, 0, sizeof(m_cName));
 	strcpy(m_cName, pName);
 
-	ZeroMemory(m_cLocationName, sizeof(m_cLocationName));
+	std::memset(m_cLocationName, 0, sizeof(m_cLocationName));
 
 	if (_bDecodeMapDataFileContents() == false)
 		return false;
@@ -477,7 +479,7 @@ bool CMap::_bDecodeMapDataFileContents()
 	class CTile* pTile;
 	short* sp;
 
-	ZeroMemory(cMapFileName, sizeof(cMapFileName));
+	std::memset(cMapFileName, 0, sizeof(cMapFileName));
 	strcat(cMapFileName, "mapdata\\");
 	strcat(cMapFileName, m_cName);
 	strcat(cMapFileName, ".amd");
@@ -486,7 +488,7 @@ bool CMap::_bDecodeMapDataFileContents()
 	if (hFile == INVALID_HANDLE_VALUE) return false;
 	dwFileSize = GetFileSize(hFile, 0);
 
-	ZeroMemory(cHeader, sizeof(cHeader));
+	std::memset(cHeader, 0, sizeof(cHeader));
 	ReadFile(hFile, (char*)cHeader, 256, &nRead, 0);
 
 	// ��������� �м��Ѵ�.
@@ -532,7 +534,7 @@ bool CMap::_bDecodeMapDataFileContents()
 	for (iy = 0; iy < m_sSizeY; iy++)
 		for (ix = 0; ix < m_sSizeX; ix++) {
 			ReadFile(hFile, (char*)cTemp, m_sTileDataSize, &nRead, 0);
-			pTile = (class CTile*)(m_pTile + ix + iy * m_sSizeY);
+			pTile = (class CTile*)(m_pTile + ix + iy * m_sSizeX);
 			if ((cTemp[8] & 0x80) != 0) {
 				// �������� �Ӽ��� ��Ʈ�Ǿ� �ִ�.
 				pTile->m_bIsMoveAllowed = false;
@@ -583,28 +585,28 @@ bool CMap::bSearchTeleportDest(int sX, int sY, char* pMapName, int* pDx, int* pD
 	return false;
 }
 
-void CMap::SetDynamicObject(WORD wID, short sType, short sX, short sY, DWORD dwRegisterTime)
+void CMap::SetDynamicObject(uint16_t wID, short sType, short sX, short sY, uint32_t dwRegisterTime)
 {
 	class CTile* pTile;
 
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 
 	pTile->m_wDynamicObjectID = wID;
 	pTile->m_sDynamicObjectType = sType;
 	pTile->m_dwDynamicObjectRegisterTime = dwRegisterTime;
 }
 
-bool CMap::bGetDynamicObject(short sX, short sY, short* pType, DWORD* pRegisterTime, int* pIndex)
+bool CMap::bGetDynamicObject(short sX, short sY, short* pType, uint32_t* pRegisterTime, int* pIndex)
 {
 	class CTile* pTile;
 
 
 	if ((sX < 0) || (sX >= m_sSizeX) || (sY < 0) || (sY >= m_sSizeY)) return false;
 
-	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + sX + sY * m_sSizeX);
 
 	*pType = pTile->m_sDynamicObjectType;
 	*pRegisterTime = pTile->m_dwDynamicObjectRegisterTime;
@@ -638,7 +640,7 @@ bool CMap::bGetIsWater(short dX, short dY)
 
 	if ((dX < 14) || (dX >= m_sSizeX - 16) || (dY < 12) || (dY >= m_sSizeY - 14)) return false;
 
-	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeX);
 
 	if (pTile->m_bIsWater == false) return false;
 
@@ -677,7 +679,7 @@ bool CMap::bGetIsFarm(short tX, short tY)
 
 	if ((tX < 14) || (tX >= m_sSizeX - 16) || (tY < 12) || (tY >= m_sSizeY - 14)) return false;
 
-	pTile = (class CTile*)(m_pTile + tX + tY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + tX + tY * m_sSizeX);
 
 	if (pTile->m_bIsFarm == false) return false;
 
@@ -707,7 +709,7 @@ void CMap::SetTempMoveAllowedFlag(int dX, int dY, bool bFlag)
 
 	if ((dX < 20) || (dX >= m_sSizeX - 20) || (dY < 20) || (dY >= m_sSizeY - 20)) return;
 
-	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeX);
 	pTile->m_bIsTempMoveAllowed = bFlag;
 }
 
@@ -768,7 +770,7 @@ void CMap::_SetupNoAttackArea()
 			// No-Magic-Area�� ���ǵǾ� �ִ�.
 			for (ix = m_rcNoAttackRect[i].left; ix <= m_rcNoAttackRect[i].right; ix++)
 				for (iy = m_rcNoAttackRect[i].top; iy <= m_rcNoAttackRect[i].bottom; iy++) {
-					pTile = (class CTile*)(m_pTile + ix + iy * m_sSizeY);
+					pTile = (class CTile*)(m_pTile + ix + iy * m_sSizeX);
 					pTile->m_iAttribute = pTile->m_iAttribute | 0x00000004;		// 3��° ��Ʈ�� �����Ѵ�. �������� 
 				}
 		}
@@ -776,7 +778,7 @@ void CMap::_SetupNoAttackArea()
 			// �� ���� ���� ������.	
 			for (ix = 0; ix < m_sSizeX; ix++)
 				for (iy = 0; iy < m_sSizeY; iy++) {
-					pTile = (class CTile*)(m_pTile + ix + iy * m_sSizeY);
+					pTile = (class CTile*)(m_pTile + ix + iy * m_sSizeX);
 					pTile->m_iAttribute = pTile->m_iAttribute | 0x00000004;		// 3��° ��Ʈ�� �����Ѵ�. ��������
 				}
 		}
@@ -795,7 +797,7 @@ int CMap::iGetAttribute(int dX, int dY, int iBitMask)
 
 	if ((dX < 20) || (dX >= m_sSizeX - 20) || (dY < 20) || (dY >= m_sSizeY - 20)) return -1;
 
-	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeY);
+	pTile = (class CTile*)(m_pTile + dX + dY * m_sSizeX);
 	return (pTile->m_iAttribute & iBitMask);
 }
 

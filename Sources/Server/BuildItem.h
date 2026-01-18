@@ -4,7 +4,11 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
+
 #include <windows.h>
+#include "CommonTypes.h"
 
 class CBuildItem  
 {
@@ -13,7 +17,7 @@ public:
 	{
 		int i;
 
-		ZeroMemory(m_cName, sizeof(m_cName));
+		std::memset(m_cName, 0, sizeof(m_cName));
 		m_sItemID = -1;
 
 		m_iSkillLimit = 0;
@@ -49,6 +53,6 @@ public:
 	int	 m_iMaxValue;
 	int  m_iAverageValue;	
 	int   m_iMaxSkill;					// �� �������� �����ؼ� �ø� �� �ִ� �ִ� ��ų
-	WORD  m_wAttribute;					// �������� �Ӽ��� �ο��� �� �ִ�.
+	uint16_t  m_wAttribute;					// �������� �Ӽ��� �ο��� �� �ִ�.
 };
 

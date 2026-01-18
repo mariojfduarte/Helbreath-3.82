@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "CommonTypes.h"
 #include "Npc.h"
 
 //////////////////////////////////////////////////////////////////////
@@ -11,7 +12,7 @@
 CNpc::CNpc(char * pName5)
 {
  int i;
-	ZeroMemory(m_cName, sizeof(m_cName));
+	std::memset(m_cName, 0, sizeof(m_cName));
 	memcpy(m_cName, pName5, 5);
 	
 	for (i = 0; i < DEF_MAXWAYPOINTS; i++)			  
@@ -51,6 +52,11 @@ CNpc::CNpc(char * pName5)
 
 	m_iNpcItemType = 0;
 	m_iNpcItemMax = 0;
+	m_iDropTableId = 0;
+
+	// OPTIMIZATION FIX #3: Initialize previous position for delta detection
+	m_sPrevX = -1;
+	m_sPrevY = -1;
 
 }
 
