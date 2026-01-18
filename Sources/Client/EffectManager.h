@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include "SpriteCollection.h"
+#include "EffectType.h"
 
 // Forward declarations only - avoid including heavy headers
 class CGame;
@@ -30,7 +31,7 @@ public:
 	void SetEffectSprites(SpriteLib::SpriteCollection& effectSpr);
 
 	// Main API
-	void AddEffect(short sType, int sX, int sY, int dX, int dY, char cStartFrame, int iV1 = 1);
+	void AddEffect(EffectType sType, int sX, int sY, int dX, int dY, char cStartFrame, int iV1 = 1);
 	void Update();   // Updates effect frames, removes finished effects
 	
 	// Render methods (separate for correct draw order: lights before objects, effects after)
@@ -42,7 +43,7 @@ public:
 
 private:
 	// Private implementation methods (defined in separate .cpp files)
-	void AddEffectImpl(short sType, int sX, int sY, int dX, int dY, char cStartFrame, int iV1 = 0);
+	void AddEffectImpl(EffectType sType, int sX, int sY, int dX, int dY, char cStartFrame, int iV1 = 0);
 	void UpdateEffectsImpl();
 	void DrawEffectsImpl();
 	void DrawEffectLightsImpl();
