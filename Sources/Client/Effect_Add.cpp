@@ -4,7 +4,7 @@
 
 #include "EffectManager.h"
 #include "Game.h"
-#include "Sprite.h"
+#include "ISprite.h"
 #include "Effect.h"
 #include "GlobalDef.h"
 #include "Misc.h"
@@ -747,8 +747,7 @@ void EffectManager::AddEffectImpl(short sType, int sX, int sY, int dX, int dY, c
 				AddEffectImpl( 69 + (rand() % 2), dX * 32 + 20 - (rand() % 40), dY * 32 + 20 - (rand() % 40), 0, 0, -6, 0);
 				AddEffectImpl( 69 + (rand() % 2), dX * 32 + 20 - (rand() % 40), dY * 32 + 20 - (rand() % 40), 0, 0, -3, 0);
 				AddEffectImpl( 69 + (rand() % 2), dX * 32 + 20 - (rand() % 40), dY * 32 + 20 - (rand() % 40), 0, 0, 0, 0);
-				delete m_pEffectSpr[i];
-				m_pEffectSpr[i] = 0;
+				m_pEffectSpr->remove(i);
 				break;
 
 			case 120: // Fire Ball
@@ -765,15 +764,13 @@ void EffectManager::AddEffectImpl(short sType, int sX, int sY, int dX, int dY, c
 			case 124: // Protect form N.M
 			case 133: // Protection from Magic
 				AddEffectImpl( 52, dX * 32, dY * 32, 0, 0, 0, 0);
-				delete m_pEffectSpr[i];
-				m_pEffectSpr[i] = 0;
+				m_pEffectSpr->remove(i);
 				break;
 
 			case 125: // Hold Person
 			case 135: // Paralyze
 				AddEffectImpl( 53, dX * 32, dY * 32, 0, 0, 0, 0);
-				delete m_pEffectSpr[i];
-				m_pEffectSpr[i] = 0;
+				m_pEffectSpr->remove(i);
 				break;
 
 			case 130: // Fire Strike
@@ -1048,11 +1045,10 @@ void EffectManager::AddEffectImpl(short sType, int sX, int sY, int dX, int dY, c
 				break;
 
 			default:
-				delete m_pEffectSpr[i];
-				m_pEffectSpr[i] = 0;
+				m_pEffectSpr->remove(i);
 				break;
 			}
-			if (m_pEffectSpr[i] != 0)
+			if ((*m_pEffectSpr)[i] != 0)
 			{
 				m_pEffectList[i]->m_mX2 = m_pEffectList[i]->m_mX;
 				m_pEffectList[i]->m_mY2 = m_pEffectList[i]->m_mY;

@@ -19,6 +19,17 @@ struct SpriteRect {
     int16_t pivotY;
 };
 
+// Bounding rectangle from last draw operation
+// Used for hit testing and collision detection
+struct BoundRect {
+    int left = 0;
+    int top = -1;  // -1 indicates invalid/not drawn
+    int right = 0;
+    int bottom = 0;
+
+    bool IsValid() const { return top != -1; }
+};
+
 // Alpha blend presets matching legacy transparency levels
 enum class AlphaPreset {
     Opaque = 100,   // No transparency

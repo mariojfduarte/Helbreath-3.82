@@ -102,6 +102,10 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     // Cleanup
     _StopTimer(G_mmTimer);
 
+    // Clear event handler from window BEFORE deleting it
+    // This prevents dangling pointer access during window destruction
+    Window::Get()->SetEventHandler(nullptr);
+
     delete g_pWindowHandler;
     g_pWindowHandler = nullptr;
 

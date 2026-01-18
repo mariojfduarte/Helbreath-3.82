@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "ISpriteFactory.h"
+#include <cstdio>
 
 namespace SpriteLib {
 
@@ -21,6 +22,7 @@ ISprite* Sprites::Create(const std::string& pakName, int spriteIndex, bool alpha
     if (s_pFactory) {
         return s_pFactory->CreateSprite(pakName, spriteIndex, alphaEffect);
     }
+    printf("[Sprites::Create] ERROR: No factory set! Cannot create sprite %s[%d]\n", pakName.c_str(), spriteIndex);
     return nullptr;
 }
 
@@ -41,6 +43,13 @@ int Sprites::GetAlphaDegree() {
         return s_pFactory->GetGlobalAlphaDegree();
     }
     return 1;
+}
+
+int Sprites::GetSpriteCount(const std::string& pakName) {
+    if (s_pFactory) {
+        return s_pFactory->GetSpriteCount(pakName);
+    }
+    return 0;
 }
 
 } // namespace SpriteLib

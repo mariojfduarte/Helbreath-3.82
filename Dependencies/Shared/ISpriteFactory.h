@@ -6,6 +6,7 @@
 #pragma once
 
 #include "ISprite.h"
+#include "PAK.h"
 #include <string>
 
 namespace SpriteLib {
@@ -24,6 +25,11 @@ public:
     // alphaEffect: Whether this sprite supports alpha degree changes
     virtual ISprite* CreateSprite(const std::string& pakName, int spriteIndex, bool alphaEffect = true) = 0;
 
+    // Create a sprite from pre-loaded PAK sprite data (used by SpriteLoader for batch loading)
+    // spriteData: Pre-loaded sprite data from PAKLib
+    // alphaEffect: Whether this sprite supports alpha degree changes
+    virtual ISprite* CreateSpriteFromData(const PAKLib::sprite& spriteData, bool alphaEffect = true) = 0;
+
     // Destroy a sprite and free its resources
     virtual void DestroySprite(ISprite* sprite) = 0;
 
@@ -35,6 +41,14 @@ public:
     // Degree 1 = normal, Degree 2 = night/dark mode
     virtual void SetGlobalAlphaDegree(int degree) = 0;
     virtual int GetGlobalAlphaDegree() const = 0;
+
+    //------------------------------------------------------------------
+    // PAK File Information
+    //------------------------------------------------------------------
+
+    // Get the number of sprites in a PAK file
+    // Returns 0 if the file cannot be opened or is invalid
+    virtual int GetSpriteCount(const std::string& pakName) const = 0;
 };
 
 //------------------------------------------------------------------
@@ -56,6 +70,9 @@ public:
     // Global alpha degree
     static void SetAlphaDegree(int degree);
     static int GetAlphaDegree();
+
+    // PAK file information
+    static int GetSpriteCount(const std::string& pakName);
 
 private:
     static ISpriteFactory* s_pFactory;

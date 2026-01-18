@@ -15,8 +15,12 @@
 
 class DDrawSprite : public SpriteLib::ISprite {
 public:
-    // Construction/Destruction
+    // Construction from file path (opens file, reads sprite data)
     DDrawSprite(DXC_ddraw* pDDraw, const std::string& pakFilePath, int spriteIndex, bool alphaEffect = true);
+
+    // Construction from pre-loaded PAK data (no file I/O - used by SpriteLoader)
+    DDrawSprite(DXC_ddraw* pDDraw, const PAKLib::sprite& spriteData, bool alphaEffect = true);
+
     virtual ~DDrawSprite();
 
     //------------------------------------------------------------------
@@ -33,6 +37,9 @@ public:
     int GetFrameCount() const override;
     SpriteLib::SpriteRect GetFrameRect(int frame) const override;
     void GetBoundingRect(int x, int y, int frame, int& left, int& top, int& right, int& bottom) override;
+    void CalculateBounds(int x, int y, int frame) override;
+    bool GetLastDrawBounds(int& left, int& top, int& right, int& bottom) const override;
+    SpriteLib::BoundRect GetBoundRect() const override;
 
     // Collision detection
     bool CheckCollision(int spriteX, int spriteY, int frame, int pointX, int pointY) override;
@@ -42,6 +49,8 @@ public:
     void Unload() override;
     bool IsLoaded() const override;
     void Restore() override;
+    bool IsInUse() const override;
+    uint32_t GetLastAccessTime() const override;
 
     //------------------------------------------------------------------
     // DDraw-Specific Methods (for legacy compatibility during transition)
@@ -78,6 +87,7 @@ private:
 
     // CPU-based transparent drawing
     void DrawTransparent(int x, int y, int frame, float alpha, bool useColorKey);
+    void DrawShiftedTransparent(int x, int y, int shiftX, int shiftY, int frame, float alpha, bool useColorKey);
 
     // CPU-based tinted drawing
     void DrawTinted(int x, int y, int frame, int16_t r, int16_t g, int16_t b, bool useColorKey);
@@ -134,4 +144,5 @@ private:
     RECT m_rcBound;
     int16_t m_sPivotX;
     int16_t m_sPivotY;
+    uint32_t m_dwRefTime;
 };

@@ -20,10 +20,13 @@ public:
     //------------------------------------------------------------------
 
     SpriteLib::ISprite* CreateSprite(const std::string& pakName, int spriteIndex, bool alphaEffect = true) override;
+    SpriteLib::ISprite* CreateSpriteFromData(const PAKLib::sprite& spriteData, bool alphaEffect = true) override;
     void DestroySprite(SpriteLib::ISprite* sprite) override;
 
     void SetGlobalAlphaDegree(int degree) override;
     int GetGlobalAlphaDegree() const override;
+
+    int GetSpriteCount(const std::string& pakName) const override;
 
     //------------------------------------------------------------------
     // Additional Methods

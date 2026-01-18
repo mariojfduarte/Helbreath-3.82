@@ -8,6 +8,7 @@
 
 #include "ISprite.h"
 #include "ISpriteFactory.h"
+#include "NullSprite.h"
 #include <unordered_map>
 #include <memory>
 #include <functional>
@@ -38,6 +39,12 @@ public:
 
     // Boolean conversion (check if sprite exists)
     explicit operator bool() const;
+
+    // Comparison operators for null checks (defined after SpriteCollection)
+    bool operator==(std::nullptr_t) const;
+    bool operator!=(std::nullptr_t) const;
+    bool operator==(int zero) const;
+    bool operator!=(int zero) const;
 
     // Get raw pointer
     ISprite* get();
@@ -164,22 +171,26 @@ inline SpriteProxy::SpriteProxy(SpriteCollection& collection, size_t index)
 
 inline ISprite* SpriteProxy::operator->()
 {
-    return m_collection.get(m_index);
+    ISprite* sprite = m_collection.get(m_index);
+    return sprite ? sprite : GetNullSprite();
 }
 
 inline const ISprite* SpriteProxy::operator->() const
 {
-    return m_collection.get(m_index);
+    const ISprite* sprite = m_collection.get(m_index);
+    return sprite ? sprite : GetNullSprite();
 }
 
 inline ISprite& SpriteProxy::operator*()
 {
-    return *m_collection.get(m_index);
+    ISprite* sprite = m_collection.get(m_index);
+    return sprite ? *sprite : NullSprite::Instance();
 }
 
 inline const ISprite& SpriteProxy::operator*() const
 {
-    return *m_collection.get(m_index);
+    const ISprite* sprite = m_collection.get(m_index);
+    return sprite ? *sprite : NullSprite::Instance();
 }
 
 inline SpriteProxy& SpriteProxy::operator=(ISprite* sprite)
@@ -191,6 +202,26 @@ inline SpriteProxy& SpriteProxy::operator=(ISprite* sprite)
 inline SpriteProxy::operator bool() const
 {
     return m_collection.get(m_index) != nullptr;
+}
+
+inline bool SpriteProxy::operator==(std::nullptr_t) const
+{
+    return m_collection.get(m_index) == nullptr;
+}
+
+inline bool SpriteProxy::operator!=(std::nullptr_t) const
+{
+    return m_collection.get(m_index) != nullptr;
+}
+
+inline bool SpriteProxy::operator==(int zero) const
+{
+    return zero == 0 && m_collection.get(m_index) == nullptr;
+}
+
+inline bool SpriteProxy::operator!=(int zero) const
+{
+    return zero == 0 && m_collection.get(m_index) != nullptr;
 }
 
 inline ISprite* SpriteProxy::get()

@@ -37,6 +37,7 @@ DDrawSprite::DDrawSprite(DXC_ddraw* pDDraw, const std::string& pakFilePath, int 
     , m_bOnCriticalSection(false)
     , m_sPivotX(0)
     , m_sPivotY(0)
+    , m_dwRefTime(0)
 {
     std::memset(&m_rcBound, 0, sizeof(m_rcBound));
     m_rcBound.top = -1;
@@ -50,12 +51,53 @@ DDrawSprite::DDrawSprite(DXC_ddraw* pDDraw, const std::string& pakFilePath, int 
 
         // Keep image data for surface creation
         m_imageData = std::move(spriteData.image_data);
+
+        static int s_loadSuccessCount = 0;
+        s_loadSuccessCount++;
+        if (s_loadSuccessCount <= 3) {
+            printf("[DDrawSprite] Loaded %s[%d]: %zu frames, %zu bytes image\n",
+                   pakFilePath.c_str(), spriteIndex, m_frames.size(), m_imageData.size());
+        }
     }
-    catch (const std::exception&) {
+    catch (const std::exception& e) {
         // Failed to load sprite - leave empty
         m_frames.clear();
         m_imageData.clear();
+        static int s_loadFailCount = 0;
+        s_loadFailCount++;
+        if (s_loadFailCount <= 5) {
+            printf("[DDrawSprite] FAILED to load %s[%d]: %s\n", pakFilePath.c_str(), spriteIndex, e.what());
+        }
     }
+}
+
+// Constructor from pre-loaded PAK sprite data (no file I/O)
+DDrawSprite::DDrawSprite(DXC_ddraw* pDDraw, const PAKLib::sprite& spriteData, bool alphaEffect)
+    : m_pDDraw(pDDraw)
+    , m_pakFilePath()
+    , m_spriteIndex(-1)
+    , m_lpSurface(nullptr)
+    , m_pSurfaceAddr(nullptr)
+    , m_sPitch(0)
+    , m_wColorKey(0)
+    , m_wBitmapSizeX(0)
+    , m_wBitmapSizeY(0)
+    , m_bSurfaceLoaded(false)
+    , m_bAlphaEffect(alphaEffect)
+    , m_cAlphaDegree(1)
+    , m_bOnCriticalSection(false)
+    , m_sPivotX(0)
+    , m_sPivotY(0)
+    , m_dwRefTime(0)
+{
+    std::memset(&m_rcBound, 0, sizeof(m_rcBound));
+    m_rcBound.top = -1;
+
+    // Copy frame rectangles from pre-loaded data
+    m_frames = spriteData.sprite_rectangles;
+
+    // Copy image data for surface creation
+    m_imageData = spriteData.image_data;
 }
 
 DDrawSprite::~DDrawSprite()
@@ -134,6 +176,16 @@ void DDrawSprite::Restore()
         m_pSurfaceAddr = reinterpret_cast<uint16_t*>(ddsd.lpSurface);
         m_lpSurface->Unlock(nullptr);
     }
+}
+
+bool DDrawSprite::IsInUse() const
+{
+    return m_bOnCriticalSection;
+}
+
+uint32_t DDrawSprite::GetLastAccessTime() const
+{
+    return m_dwRefTime;
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -363,6 +415,45 @@ void DDrawSprite::GetBoundingRect(int x, int y, int frame, int& left, int& top, 
     bottom = top + f.height;
 }
 
+void DDrawSprite::CalculateBounds(int x, int y, int frame)
+{
+    if (frame < 0 || frame >= static_cast<int>(m_frames.size())) {
+        m_rcBound.left = m_rcBound.right = m_rcBound.bottom = 0;
+        m_rcBound.top = -1;  // Invalid
+        return;
+    }
+
+    const auto& f = m_frames[frame];
+    m_rcBound.left = x + f.pivotX;
+    m_rcBound.top = y + f.pivotY;
+    m_rcBound.right = m_rcBound.left + f.width;
+    m_rcBound.bottom = m_rcBound.top + f.height;
+}
+
+bool DDrawSprite::GetLastDrawBounds(int& left, int& top, int& right, int& bottom) const
+{
+    if (m_rcBound.top == -1) {
+        left = top = right = bottom = 0;
+        return false;
+    }
+
+    left = m_rcBound.left;
+    top = m_rcBound.top;
+    right = m_rcBound.right;
+    bottom = m_rcBound.bottom;
+    return true;
+}
+
+SpriteLib::BoundRect DDrawSprite::GetBoundRect() const
+{
+    SpriteLib::BoundRect rect;
+    rect.left = m_rcBound.left;
+    rect.top = m_rcBound.top;
+    rect.right = m_rcBound.right;
+    rect.bottom = m_rcBound.bottom;
+    return rect;
+}
+
 //////////////////////////////////////////////////////////////////////
 // Internal Clipping Helper
 //////////////////////////////////////////////////////////////////////
@@ -402,12 +493,29 @@ bool DDrawSprite::ClipCoordinates(int& dX, int& dY, int& sx, int& sy, int& szx, 
 
 void DDrawSprite::Draw(int x, int y, int frame, const SpriteLib::DrawParams& params)
 {
+    static int s_drawCallCount = 0;
+    static int s_lastReportTime = 0;
+    s_drawCallCount++;
+    int now = GetTickCount();
+    if (now - s_lastReportTime > 2000) {
+        printf("[DDrawSprite::Draw] %d calls in last 2 sec, frames=%d, surface=%d\n",
+               s_drawCallCount, (int)m_frames.size(), m_bSurfaceLoaded ? 1 : 0);
+        s_drawCallCount = 0;
+        s_lastReportTime = now;
+    }
+
     if (m_frames.empty()) return;
     if (frame < 0 || frame >= static_cast<int>(m_frames.size())) return;
 
+    // Update last access time for cache eviction
+    m_dwRefTime = GetTickCount();
+
     // Ensure surface is loaded
     if (!m_bSurfaceLoaded) {
-        if (!CreateSurface()) return;
+        if (!CreateSurface()) {
+            printf("[DDrawSprite::Draw] CreateSurface failed!\n");
+            return;
+        }
     }
     else if (m_bAlphaEffect && m_cAlphaDegree != G_cSpriteAlphaDegree) {
         if (G_cSpriteAlphaDegree == 2) {
@@ -497,8 +605,102 @@ void DDrawSprite::DrawWidth(int x, int y, int frame, int width, bool vertical)
 
 void DDrawSprite::DrawShifted(int x, int y, int shiftX, int shiftY, int frame, const SpriteLib::DrawParams& params)
 {
-    // Draw at shifted position
-    Draw(x + shiftX, y + shiftY, frame, params);
+    // DrawShifted draws a 128x128 subregion of the sprite starting at (shiftX, shiftY)
+    // This is used for the guide map to show a window into a large map sprite
+    // Matches original CSprite::PutShiftSpriteFast / PutShiftTransSprite2
+
+    if (m_frames.empty()) return;
+    if (frame < 0 || frame >= static_cast<int>(m_frames.size())) return;
+
+    m_rcBound.top = -1;
+    m_bOnCriticalSection = true;
+
+    const auto& f = m_frames[frame];
+
+    // Source position within the sprite surface
+    int sx = f.x;
+    int sy = f.y;
+    int szx = 128;  // Guide map is always 128x128
+    int szy = 128;
+
+    // Apply shift to source
+    sx += shiftX;
+    sy += shiftY;
+
+    // Destination position with pivot offsets (matching original)
+    int dX = x + f.pivotX;
+    int dY = y + f.pivotY;
+
+    // Clip to screen boundaries
+    RECT& clipArea = m_pDDraw->m_rcClipArea;
+
+    if (dX < clipArea.left) {
+        int diff = clipArea.left - dX;
+        sx += diff;
+        szx -= diff;
+        if (szx <= 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+        dX = clipArea.left;
+    }
+    else if (dX + szx > clipArea.right) {
+        szx -= (dX + szx) - clipArea.right;
+        if (szx <= 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+    }
+
+    if (dY < clipArea.top) {
+        int diff = clipArea.top - dY;
+        sy += diff;
+        szy -= diff;
+        if (szy <= 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+        dY = clipArea.top;
+    }
+    else if (dY + szy > clipArea.bottom) {
+        szy -= (dY + szy) - clipArea.bottom;
+        if (szy <= 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+    }
+
+    // Ensure surface is loaded
+    if (!m_bSurfaceLoaded) {
+        if (!CreateSurface()) {
+            m_bOnCriticalSection = false;
+            return;
+        }
+    }
+    if (m_lpSurface == nullptr) {
+        m_bOnCriticalSection = false;
+        return;
+    }
+
+    // Set bounding rect
+    m_rcBound = { dX, dY, dX + szx, dY + szy };
+
+    // Check if we need transparency
+    if (params.alpha < 1.0f) {
+        // CPU-based transparent drawing using G_lTransRB2/G2 tables (matches PutShiftTransSprite2)
+        DrawShiftedTransparent(x, y, shiftX, shiftY, frame, params.alpha, params.useColorKey);
+    }
+    else {
+        // Hardware blit with NO color key (matches original PutShiftSpriteFast)
+        RECT rcSrc = { sx, sy, sx + szx, sy + szy };
+        m_pDDraw->m_lpBackB4->BltFast(dX, dY, m_lpSurface, &rcSrc, DDBLTFAST_NOCOLORKEY | DDBLTFAST_WAIT);
+    }
+
+    m_bOnCriticalSection = false;
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -507,6 +709,16 @@ void DDrawSprite::DrawShifted(int x, int y, int shiftX, int shiftY, int frame, c
 
 void DDrawSprite::DrawBltFast(int x, int y, int frame, bool useColorKey, LPDIRECTDRAWSURFACE7 destSurface)
 {
+    // Validate frame bounds
+    if (m_frames.empty()) return;
+    if (frame < 0 || frame >= static_cast<int>(m_frames.size())) return;
+
+    // Ensure surface is loaded
+    if (!m_bSurfaceLoaded) {
+        if (!CreateSurface()) return;
+    }
+    if (m_lpSurface == nullptr) return;
+
     m_rcBound.top = -1;
     m_bOnCriticalSection = true;
 
@@ -527,6 +739,11 @@ void DDrawSprite::DrawBltFast(int x, int y, int frame, bool useColorKey, LPDIREC
     m_rcBound = { dX, dY, dX + szx, dY + szy };
 
     LPDIRECTDRAWSURFACE7 dest = destSurface ? destSurface : m_pDDraw->m_lpBackB4;
+    if (dest == nullptr) {
+        m_bOnCriticalSection = false;
+        return;
+    }
+
     DWORD flags = useColorKey ? (DDBLTFAST_SRCCOLORKEY | DDBLTFAST_WAIT) : (DDBLTFAST_NOCOLORKEY | DDBLTFAST_WAIT);
 
     dest->BltFast(dX, dY, m_lpSurface, &rcRect, flags);
@@ -608,6 +825,123 @@ void DDrawSprite::DrawTransparent(int x, int y, int frame, float alpha, bool use
                         (pTransRB[(pDst[ix] & 0x7C00) >> 10][(pSrc[ix] & 0x7C00) >> 10] << 10) |
                         (pTransG[(pDst[ix] & 0x3E0) >> 5][(pSrc[ix] & 0x3E0) >> 5] << 5) |
                         pTransRB[(pDst[ix] & 0x1F)][(pSrc[ix] & 0x1F)]
+                    );
+                }
+            }
+            pSrc += m_sPitch;
+            pDst += m_pDDraw->m_sBackB4Pitch;
+        }
+        break;
+    }
+
+    m_bOnCriticalSection = false;
+}
+
+void DDrawSprite::DrawShiftedTransparent(int x, int y, int shiftX, int shiftY, int frame, float alpha, bool useColorKey)
+{
+    // Matches original CSprite::PutShiftTransSprite2
+    // Uses G_lTransRB2/G_lTransG2 tables for light transparency effect
+    if (m_frames.empty()) return;
+    if (frame < 0 || frame >= static_cast<int>(m_frames.size())) return;
+
+    m_rcBound.top = -1;
+    m_bOnCriticalSection = true;
+
+    const auto& f = m_frames[frame];
+
+    // Source position within the sprite surface
+    int sx = f.x;
+    int sy = f.y;
+    int szx = 128;  // Guide map is always 128x128
+    int szy = 128;
+
+    // Apply shift to source
+    sx += shiftX;
+    sy += shiftY;
+
+    // Destination position with pivot offsets (matching original)
+    int dX = x + f.pivotX;
+    int dY = y + f.pivotY;
+
+    // Clip to screen boundaries (matching original logic)
+    RECT& clipArea = m_pDDraw->m_rcClipArea;
+
+    if (dX < clipArea.left) {
+        int diff = clipArea.left - dX;
+        sx += diff;
+        szx -= diff;
+        if (szx < 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+        dX = clipArea.left;
+    }
+    else if (dX + szx > clipArea.right) {
+        szx -= (dX + szx) - clipArea.right;
+        if (szx < 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+    }
+
+    if (dY < clipArea.top) {
+        int diff = clipArea.top - dY;
+        sy += diff;
+        szy -= diff;
+        if (szy < 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+        dY = clipArea.top;
+    }
+    else if (dY + szy > clipArea.bottom) {
+        szy -= (dY + szy) - clipArea.bottom;
+        if (szy < 0) {
+            m_rcBound.top = -1;
+            m_bOnCriticalSection = false;
+            return;
+        }
+    }
+
+    if (szx == 0 || szy == 0) {
+        m_bOnCriticalSection = false;
+        return;
+    }
+
+    m_rcBound = { dX, dY, dX + szx, dY + szy };
+
+    uint16_t* pSrc = m_pSurfaceAddr + sx + sy * m_sPitch;
+    uint16_t* pDst = m_pDDraw->m_pBackB4Addr + dX + dY * m_pDDraw->m_sBackB4Pitch;
+
+    // Use G_lTransRB2/G_lTransG2 tables (matches original PutShiftTransSprite2)
+    switch (m_pDDraw->m_cPixelFormat) {
+    case 1: // RGB565
+        for (int iy = 0; iy < szy; iy++) {
+            for (int ix = 0; ix < szx; ix++) {
+                if (pSrc[ix] != m_wColorKey) {
+                    pDst[ix] = static_cast<uint16_t>(
+                        (G_lTransRB2[(pDst[ix] & 0xF800) >> 11][(pSrc[ix] & 0xF800) >> 11] << 11) |
+                        (G_lTransG2[(pDst[ix] & 0x7E0) >> 5][(pSrc[ix] & 0x7E0) >> 5] << 5) |
+                        G_lTransRB2[(pDst[ix] & 0x1F)][(pSrc[ix] & 0x1F)]
+                    );
+                }
+            }
+            pSrc += m_sPitch;
+            pDst += m_pDDraw->m_sBackB4Pitch;
+        }
+        break;
+
+    case 2: // RGB555
+        for (int iy = 0; iy < szy; iy++) {
+            for (int ix = 0; ix < szx; ix++) {
+                if (pSrc[ix] != m_wColorKey) {
+                    pDst[ix] = static_cast<uint16_t>(
+                        (G_lTransRB2[(pDst[ix] & 0x7C00) >> 10][(pSrc[ix] & 0x7C00) >> 10] << 10) |
+                        (G_lTransG2[(pDst[ix] & 0x3E0) >> 5][(pSrc[ix] & 0x3E0) >> 5] << 5) |
+                        G_lTransRB2[(pDst[ix] & 0x1F)][(pSrc[ix] & 0x1F)]
                     );
                 }
             }
@@ -729,23 +1063,32 @@ void DDrawSprite::DrawTintedTransparent(int x, int y, int frame, int16_t r, int1
     int iGreenPlus255 = g + 255;
     int iBluePlus255 = b + 255;
 
-    // Select transparency table based on alpha
-    int (*pAddTransTable31)[64] = G_iAddTransTable31;
-    int (*pAddTransTable63)[64] = G_iAddTransTable63;
+    // Original algorithm from PutTransSpriteRGB:
+    // 1. First additive blend source with destination using G_lTransRB100
+    // 2. Then apply tint adjustment using G_iAddTransTable31
 
     switch (m_pDDraw->m_cPixelFormat) {
     case 1: // RGB565
         for (int iy = 0; iy < szy; iy++) {
             for (int ix = 0; ix < szx; ix++) {
                 if (!useColorKey || pSrc[ix] != m_wColorKey) {
-                    int srcR = G_iAddTable31[(pSrc[ix] & 0xF800) >> 11][iRedPlus255];
-                    int srcG = G_iAddTable63[(pSrc[ix] & 0x7E0) >> 5][iGreenPlus255];
-                    int srcB = G_iAddTable31[(pSrc[ix] & 0x1F)][iBluePlus255];
+                    int dstR = (pDst[ix] & 0xF800) >> 11;
+                    int dstG = (pDst[ix] & 0x7E0) >> 5;
+                    int dstB = (pDst[ix] & 0x1F);
+                    int srcR = (pSrc[ix] & 0xF800) >> 11;
+                    int srcG = (pSrc[ix] & 0x7E0) >> 5;
+                    int srcB = (pSrc[ix] & 0x1F);
 
+                    // Step 1: Additive blend (src + dst, clamped)
+                    int blendedR = G_lTransRB100[dstR][srcR];
+                    int blendedG = G_lTransG100[dstG][srcG];
+                    int blendedB = G_lTransRB100[dstB][srcB];
+
+                    // Step 2: Apply tint adjustment
                     pDst[ix] = static_cast<uint16_t>(
-                        (pAddTransTable31[srcR + 255][(pDst[ix] & 0xF800) >> 11] << 11) |
-                        (pAddTransTable63[srcG + 255][(pDst[ix] & 0x7E0) >> 5] << 5) |
-                        pAddTransTable31[srcB + 255][(pDst[ix] & 0x1F)]
+                        (G_iAddTransTable31[blendedR + iRedPlus255][dstR] << 11) |
+                        (G_iAddTransTable63[blendedG + iGreenPlus255][dstG] << 5) |
+                        G_iAddTransTable31[blendedB + iBluePlus255][dstB]
                     );
                 }
             }
@@ -758,14 +1101,23 @@ void DDrawSprite::DrawTintedTransparent(int x, int y, int frame, int16_t r, int1
         for (int iy = 0; iy < szy; iy++) {
             for (int ix = 0; ix < szx; ix++) {
                 if (!useColorKey || pSrc[ix] != m_wColorKey) {
-                    int srcR = G_iAddTable31[(pSrc[ix] & 0x7C00) >> 10][iRedPlus255];
-                    int srcG = G_iAddTable31[(pSrc[ix] & 0x3E0) >> 5][iGreenPlus255];
-                    int srcB = G_iAddTable31[(pSrc[ix] & 0x1F)][iBluePlus255];
+                    int dstR = (pDst[ix] & 0x7C00) >> 10;
+                    int dstG = (pDst[ix] & 0x3E0) >> 5;
+                    int dstB = (pDst[ix] & 0x1F);
+                    int srcR = (pSrc[ix] & 0x7C00) >> 10;
+                    int srcG = (pSrc[ix] & 0x3E0) >> 5;
+                    int srcB = (pSrc[ix] & 0x1F);
 
+                    // Step 1: Additive blend (src + dst, clamped)
+                    int blendedR = G_lTransRB100[dstR][srcR];
+                    int blendedG = G_lTransG100[dstG][srcG];
+                    int blendedB = G_lTransRB100[dstB][srcB];
+
+                    // Step 2: Apply tint adjustment
                     pDst[ix] = static_cast<uint16_t>(
-                        (pAddTransTable31[srcR + 255][(pDst[ix] & 0x7C00) >> 10] << 10) |
-                        (pAddTransTable31[srcG + 255][(pDst[ix] & 0x3E0) >> 5] << 5) |
-                        pAddTransTable31[srcB + 255][(pDst[ix] & 0x1F)]
+                        (G_iAddTransTable31[blendedR + iRedPlus255][dstR] << 10) |
+                        (G_iAddTransTable31[blendedG + iGreenPlus255][dstG] << 5) |
+                        G_iAddTransTable31[blendedB + iBluePlus255][dstB]
                     );
                 }
             }
@@ -880,17 +1232,15 @@ void DDrawSprite::DrawFadeInternal(int x, int y, int frame, uint16_t* pDestAddr,
         return;
     }
 
-    // Use fade tables (G_lTransG2, G_lTransRB2)
+    // Fade effect: darken destination pixels where source is non-transparent
+    // Uses bit masking and right shift to reduce each color channel to 1/4 value
+    // The mask prevents color channel bleeding when shifting
     switch (m_pDDraw->m_cPixelFormat) {
-    case 1: // RGB565
+    case 1: // RGB565 - mask 0xE79C keeps top 3 bits of each color channel
         for (int iy = 0; iy < szy; iy++) {
             for (int ix = 0; ix < szx; ix++) {
                 if (pSrc[ix] != m_wColorKey) {
-                    pDst[ix] = static_cast<uint16_t>(
-                        (G_lTransRB2[(pDst[ix] & 0xF800) >> 11][(pSrc[ix] & 0xF800) >> 11] << 11) |
-                        (G_lTransG2[(pDst[ix] & 0x7E0) >> 5][(pSrc[ix] & 0x7E0) >> 5] << 5) |
-                        G_lTransRB2[(pDst[ix] & 0x1F)][(pSrc[ix] & 0x1F)]
-                    );
+                    pDst[ix] = ((pDst[ix] & 0xE79C) >> 2);
                 }
             }
             pSrc += m_sPitch;
@@ -898,15 +1248,11 @@ void DDrawSprite::DrawFadeInternal(int x, int y, int frame, uint16_t* pDestAddr,
         }
         break;
 
-    case 2: // RGB555
+    case 2: // RGB555 - mask 0x739C keeps top 3 bits of each color channel
         for (int iy = 0; iy < szy; iy++) {
             for (int ix = 0; ix < szx; ix++) {
                 if (pSrc[ix] != m_wColorKey) {
-                    pDst[ix] = static_cast<uint16_t>(
-                        (G_lTransRB2[(pDst[ix] & 0x7C00) >> 10][(pSrc[ix] & 0x7C00) >> 10] << 10) |
-                        (G_lTransG2[(pDst[ix] & 0x3E0) >> 5][(pSrc[ix] & 0x3E0) >> 5] << 5) |
-                        G_lTransRB2[(pDst[ix] & 0x1F)][(pSrc[ix] & 0x1F)]
-                    );
+                    pDst[ix] = ((pDst[ix] & 0x739C) >> 2);
                 }
             }
             pSrc += m_sPitch;

@@ -58,6 +58,31 @@ public:
         Draw(x, y, frame, DrawParams::Alpha(AlphaPreset::Alpha25));
     }
 
+    // Alpha blending without color key (NoColorKey variants)
+    void DrawAlphaNoColorKey(int x, int y, int frame, float alpha) {
+        DrawParams p = DrawParams::Alpha(alpha);
+        p.useColorKey = false;
+        Draw(x, y, frame, p);
+    }
+
+    void DrawAlpha70NoColorKey(int x, int y, int frame) {
+        DrawParams p = DrawParams::Alpha(AlphaPreset::Alpha70);
+        p.useColorKey = false;
+        Draw(x, y, frame, p);
+    }
+
+    void DrawAlpha50NoColorKey(int x, int y, int frame) {
+        DrawParams p = DrawParams::Alpha(AlphaPreset::Alpha50);
+        p.useColorKey = false;
+        Draw(x, y, frame, p);
+    }
+
+    void DrawAlpha25NoColorKey(int x, int y, int frame) {
+        DrawParams p = DrawParams::Alpha(AlphaPreset::Alpha25);
+        p.useColorKey = false;
+        Draw(x, y, frame, p);
+    }
+
     // Color tinting
     void DrawTinted(int x, int y, int frame, int16_t r, int16_t g, int16_t b) {
         Draw(x, y, frame, DrawParams::Tint(r, g, b));
@@ -92,6 +117,17 @@ public:
     virtual SpriteRect GetFrameRect(int frame) const = 0;
     virtual void GetBoundingRect(int x, int y, int frame, int& left, int& top, int& right, int& bottom) = 0;
 
+    // Calculate and store bounds for later retrieval (without drawing)
+    // Used for pre-checking collision before deciding how to draw
+    virtual void CalculateBounds(int x, int y, int frame) = 0;
+
+    // Get bounds from the last Draw() or CalculateBounds() call
+    // Returns true if valid bounds exist (top != -1), false otherwise
+    virtual bool GetLastDrawBounds(int& left, int& top, int& right, int& bottom) const = 0;
+
+    // Get bounds as a struct (for easier legacy code compatibility)
+    virtual BoundRect GetBoundRect() const = 0;
+
     //------------------------------------------------------------------
     // Collision Detection
     //------------------------------------------------------------------
@@ -106,6 +142,12 @@ public:
     virtual void Unload() = 0;
     virtual bool IsLoaded() const = 0;
     virtual void Restore() = 0;  // Restore after device loss (DDraw specific, no-op for modern)
+
+    // Check if sprite is currently in use (e.g., in a critical section during draw)
+    virtual bool IsInUse() const = 0;
+
+    // Get timestamp of last access (for cache eviction)
+    virtual uint32_t GetLastAccessTime() const = 0;
 };
 
 } // namespace SpriteLib
