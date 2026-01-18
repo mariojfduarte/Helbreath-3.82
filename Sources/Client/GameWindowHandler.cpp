@@ -73,8 +73,8 @@ void GameWindowHandler::OnActivate(bool active)
         InputManager::Get().ClearAllKeys();
 
         m_pGame->m_bIsRedrawPDBGS = true;
-        if (m_pGame->m_DDraw != nullptr)
-            m_pGame->m_DDraw->ChangeDisplayMode(Window::GetHandle());
+        if (m_pGame->m_Renderer != nullptr)
+            m_pGame->m_Renderer->ChangeDisplayMode(Window::GetHandle());
 
         if (m_pGame->bCheckImportantFile() == false)
         {

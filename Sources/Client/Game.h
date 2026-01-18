@@ -653,7 +653,7 @@ public:
 		int iCost;
 	} m_stTeleportList[20];
 
-	class IRenderer* m_DDraw;  // Abstract renderer interface
+	class IRenderer* m_Renderer;  // Abstract renderer interface
 	class CSprite  * m_pSprite[DEF_MAXSPRITES];
 	class CSprite  * m_pTileSpr[DEF_MAXTILES];
 	class CSprite  * m_pEffectSpr[DEF_MAXEFFECTSPR];
