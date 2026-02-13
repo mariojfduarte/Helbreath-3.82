@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helbreath PAK Sprite Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #e94560;
+      white-space: nowrap;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    select, button, input[type="file"] {
+      background: #0f3460;
+      color: #e0e0e0;
+      border: 1px solid #533483;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    select:hover, button:hover { background: #533483; }
+    button:active { background: #e94560; }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    .separator {
+      width: 1px;
+      height: 24px;
+      background: #533483;
+    }
+
+    label {
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .nav-bar {
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .nav-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-group span {
+      font-size: 13px;
+      min-width: 80px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .nav-group button {
+      padding: 4px 10px;
+      font-size: 14px;
+      min-width: 32px;
+    }
+
+    .play-btn.playing { background: #e94560; border-color: #e94560; }
+
+    .speed-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .speed-control input[type="range"] {
+      width: 80px;
+      accent-color: #e94560;
+    }
+
+    .canvas-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      /* CSS checkerboard for transparency */
+      background-image:
+        linear-gradient(45deg, #222 25%, transparent 25%),
+        linear-gradient(-45deg, #222 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #222 75%),
+        linear-gradient(-45deg, transparent 75%, #222 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+      background-color: #2a2a2a;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+    }
+
+    .info-bar {
+      background: #16213e;
+      border-top: 1px solid #0f3460;
+      padding: 8px 20px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      color: #aaa;
+    }
+
+    .info-bar .info-item {
+      display: flex;
+      gap: 6px;
+    }
+
+    .info-bar .info-label { color: #666; }
+    .info-bar .info-value { color: #e0e0e0; }
+
+    .color-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1px solid #666;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+
+    .drop-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(233, 69, 96, 0.15);
+      border: 3px dashed #e94560;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      font-size: 24px;
+      color: #e94560;
+      pointer-events: none;
+    }
+
+    .drop-overlay.active { display: flex; }
+
+    .status {
+      font-size: 12px;
+      color: #e94560;
+      padding: 2px 8px;
+    }
+
+    #zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #zoom-label {
+      font-size: 12px;
+      min-width: 40px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .view-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .view-toggle input[type="checkbox"] {
+      accent-color: #e94560;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PAK Sprite Viewer</h1>
+    <a href="/map.html" style="color:#533483;font-size:13px;text-decoration:none;">Map Viewer &rarr;</a>
+    <div class="controls">
+      <select id="pak-select">
+        <option value="">-- Select a PAK --</option>
+      </select>
+      <button id="load-btn">Load</button>
+      <div class="separator"></div>
+      <label for="file-input">or drop / pick a file:</label>
+      <input type="file" id="file-input" accept=".pak,.PAK" />
+    </div>
+    <div class="status" id="status"></div>
+  </header>
+
+  <div class="nav-bar" id="nav-bar" style="display: none;">
+    <div class="nav-group">
+      <label>Sprite:</label>
+      <button id="prev-sprite">&lt;</button>
+      <span id="sprite-label">0 / 0</span>
+      <button id="next-sprite">&gt;</button>
+    </div>
+    <div class="separator"></div>
+    <div class="nav-group">
+      <label>Frame:</label>
+      <button id="prev-frame">&lt;</button>
+      <span id="frame-label">0 / 0</span>
+      <button id="next-frame">&gt;</button>
+    </div>
+    <div class="separator"></div>
+    <div class="nav-group">
+      <button id="play-btn" class="play-btn">&#9654; Play</button>
+      <div class="speed-control">
+        <label>FPS:</label>
+        <input type="range" id="fps-slider" min="1" max="30" value="8" />
+        <span id="fps-label">8</span>
+      </div>
+    </div>
+    <div class="separator"></div>
+    <div id="zoom-controls">
+      <button id="zoom-out">-</button>
+      <span id="zoom-label">2x</span>
+      <button id="zoom-in">+</button>
+    </div>
+    <div class="separator"></div>
+    <div class="view-toggle">
+      <input type="checkbox" id="show-sheet" />
+      <label for="show-sheet">Full spritesheet</label>
+    </div>
+    <div class="view-toggle">
+      <input type="checkbox" id="show-pivot" checked />
+      <label for="show-pivot">Pivot</label>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="canvas-container" id="canvas-container"></div>
+  </div>
+
+  <div class="info-bar" id="info-bar" style="display: none;">
+    <div class="info-item">
+      <span class="info-label">BMP:</span>
+      <span class="info-value" id="info-bmp">-</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Frame Rect:</span>
+      <span class="info-value" id="info-rect">-</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Pivot:</span>
+      <span class="info-value" id="info-pivot">-</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Color Key:</span>
+      <span class="info-value" id="info-colorkey">-</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Frames:</span>
+      <span class="info-value" id="info-frames">-</span>
+    </div>
+  </div>
+
+  <div class="drop-overlay" id="drop-overlay">Drop .pak file here</div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
