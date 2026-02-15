@@ -6,18 +6,19 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /**
- * Vite plugin that serves game asset files from Binaries/Game/.
- * Maps:
+ * Vite plugin that serves game asset files from Binaries/.
  *   /sprites/*.pak  → Binaries/Game/SPRITES/*.pak
- *   /mapdata/*.amd  → Binaries/Game/MAPDATA/*.amd
+ *   /mapdata/*.amd  → Binaries/Game/MAPDATA/*.amd, else Binaries/Server/MAPDATA/*.amd
+ * Assets live under Binaries/Game (and optionally Binaries/Server for mapdata).
  */
 function serveGameAssets(): Plugin {
-  const gameDir = path.resolve(__dirname, '..', 'Binaries', 'Game')
+  const binariesDir = path.resolve(__dirname, '..', 'Binaries')
+  const gameDir = path.join(binariesDir, 'Game')
+  const serverDir = path.join(binariesDir, 'Server')
 
-  const routes: Record<string, { dir: string; ext: string }> = {
-    '/sprites/': { dir: path.join(gameDir, 'SPRITES'), ext: '.pak' },
-    '/mapdata/': { dir: path.join(gameDir, 'MAPDATA'), ext: '.amd' },
-  }
+  const spriteDir = path.join(gameDir, 'SPRITES')
+  const gameMapDir = path.join(gameDir, 'MAPDATA')
+  const serverMapDir = path.join(serverDir, 'MAPDATA')
 
   return {
     name: 'serve-game-assets',
@@ -25,40 +26,71 @@ function serveGameAssets(): Plugin {
       server.middlewares.use((req, res, next) => {
         const url = req.url || ''
 
-        // Find matching route
-        const route = Object.entries(routes).find(([prefix]) => url.startsWith(prefix))
-        if (!route) return next()
+        if (url.startsWith('/sprites/')) {
+          const fileName = decodeURIComponent(url.slice('/sprites/'.length))
+          const spriteDirRes = path.resolve(spriteDir)
+          const filePath = path.resolve(spriteDir, fileName)
+          if (filePath !== spriteDirRes && !filePath.startsWith(spriteDirRes + path.sep)) return next()
+          serveFileOrDir(res, filePath, '.pak', 'application/octet-stream')
+          return
+        }
 
-        const [prefix, { dir, ext }] = route
-        const fileName = decodeURIComponent(url.slice(prefix.length))
-        const filePath = path.join(dir, fileName)
-
-        // Security: no path traversal
-        if (!filePath.startsWith(dir)) return next()
-
-        if (fs.existsSync(filePath)) {
-          const stat = fs.statSync(filePath)
-
-          // Directory listing
-          if (stat.isDirectory()) {
-            const files = fs.readdirSync(filePath)
-              .filter(f => f.toLowerCase().endsWith(ext))
-              .sort()
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify(files))
+        if (url.startsWith('/mapdata/')) {
+          const fileName = decodeURIComponent(url.slice('/mapdata/'.length))
+          const gameMapDirRes = path.resolve(gameMapDir)
+          const serverMapDirRes = path.resolve(serverMapDir)
+          const primary = path.resolve(gameMapDir, fileName)
+          const fallback = path.resolve(serverMapDir, fileName)
+          const allowed = (p: string, dir: string) => p === dir || p.startsWith(dir + path.sep)
+          let filePath: string | null = null
+          if (fs.existsSync(primary) && allowed(primary, gameMapDirRes)) filePath = primary
+          else if (fs.existsSync(fallback) && allowed(fallback, serverMapDirRes)) filePath = fallback
+          if (!filePath) {
+            res.statusCode = 404
+            res.end('Not found: ' + fileName)
             return
           }
-
-          res.setHeader('Content-Type', 'application/octet-stream')
-          res.setHeader('Content-Length', stat.size.toString())
-          res.setHeader('Cache-Control', 'public, max-age=3600')
-          fs.createReadStream(filePath).pipe(res)
-        } else {
-          res.statusCode = 404
-          res.end('Not found: ' + fileName)
+          serveFile(res, filePath, 'application/octet-stream')
+          return
         }
+
+        next()
       })
     }
+  }
+
+  function serveFile(res: any, filePath: string, contentType: string) {
+    const stat = fs.statSync(filePath)
+    if (stat.isDirectory()) {
+      res.statusCode = 404
+      res.end('Not found')
+      return
+    }
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Length', stat.size.toString())
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    fs.createReadStream(filePath).pipe(res)
+  }
+
+  function serveFileOrDir(res: any, filePath: string, ext: string, contentType: string) {
+    if (!fs.existsSync(filePath)) {
+      res.statusCode = 404
+      res.end('Not found: ' + path.basename(filePath))
+      return
+    }
+    const stat = fs.statSync(filePath)
+    if (stat.isDirectory()) {
+      const files = fs.readdirSync(filePath)
+        .filter(f => f.toLowerCase().endsWith(ext))
+        .sort()
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify(files))
+      return
+    }
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Length', stat.size.toString())
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    fs.createReadStream(filePath).pipe(res)
   }
 }
 

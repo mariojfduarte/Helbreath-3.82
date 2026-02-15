@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Helbreath Engine — Visual Benchmark</title>
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+
+		body {
+			font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+			background: #0d1117;
+			color: #c9d1d9;
+			min-height: 100vh;
+			overflow: hidden;
+		}
+
+		.header {
+			background: #161b22;
+			border-bottom: 1px solid #30363d;
+			padding: 10px 20px;
+			display: flex;
+			align-items: center;
+			gap: 16px;
+			flex-wrap: wrap;
+		}
+
+		.header h1 {
+			font-size: 16px;
+			color: #f0f6fc;
+			white-space: nowrap;
+		}
+
+		.controls {
+			background: #161b22;
+			border-bottom: 1px solid #30363d;
+			padding: 8px 20px;
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			flex-wrap: wrap;
+		}
+
+		label {
+			font-size: 13px;
+			color: #8b949e;
+		}
+
+		select {
+			background: #0d1117;
+			color: #c9d1d9;
+			border: 1px solid #30363d;
+			border-radius: 6px;
+			padding: 5px 8px;
+			font-size: 13px;
+		}
+
+		button {
+			background: #21262d;
+			color: #c9d1d9;
+			border: 1px solid #30363d;
+			border-radius: 6px;
+			padding: 6px 14px;
+			font-size: 13px;
+			cursor: pointer;
+			transition: all 0.15s;
+		}
+
+		button:hover { background: #30363d; }
+
+		button.load-btn {
+			background: #238636;
+			color: #fff;
+			border-color: #238636;
+			font-weight: 600;
+		}
+
+		button.load-btn:hover { background: #2ea043; }
+
+		.renderer-group {
+			display: flex;
+			gap: 4px;
+			margin-left: 8px;
+		}
+
+		.renderer-btn {
+			padding: 5px 12px;
+			font-size: 12px;
+			font-weight: 600;
+			border-radius: 4px;
+		}
+
+		.renderer-btn.active {
+			background: #1f6feb;
+			border-color: #1f6feb;
+			color: #fff;
+		}
+
+		.renderer-btn kbd {
+			font-family: inherit;
+			background: rgba(255,255,255,0.1);
+			padding: 1px 4px;
+			border-radius: 3px;
+			font-size: 11px;
+			margin-right: 4px;
+		}
+
+		.status-bar {
+			background: #0d1117;
+			border-bottom: 1px solid #21262d;
+			padding: 4px 20px;
+			font-size: 12px;
+			color: #8b949e;
+			display: flex;
+			justify-content: space-between;
+		}
+
+		#fps-display {
+			color: #3fb950;
+			font-weight: 600;
+			font-family: 'SF Mono', 'Cascadia Code', monospace;
+		}
+
+		.canvas-wrapper {
+			display: flex;
+			justify-content: center;
+			align-items: flex-start;
+			padding: 16px;
+			height: calc(100vh - 130px);
+		}
+
+		#canvas-container {
+			width: 640px;
+			height: 480px;
+			background: #000;
+			border: 2px solid #30363d;
+			border-radius: 4px;
+			overflow: hidden;
+			position: relative;
+			image-rendering: pixelated;
+		}
+
+		#canvas-container canvas {
+			display: block;
+			image-rendering: pixelated;
+		}
+
+		/* Loading overlay */
+		#loading-overlay {
+			display: none;
+			position: absolute;
+			top: 0; left: 0; right: 0; bottom: 0;
+			background: rgba(0,0,0,0.85);
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			z-index: 10;
+		}
+
+		#loading-text {
+			color: #8b949e;
+			font-size: 14px;
+			margin-bottom: 12px;
+		}
+
+		.loading-bar-outer {
+			width: 300px;
+			height: 6px;
+			background: #21262d;
+			border-radius: 3px;
+			overflow: hidden;
+		}
+
+		#loading-bar {
+			height: 100%;
+			width: 0%;
+			background: #238636;
+			transition: width 0.2s;
+			border-radius: 3px;
+		}
+
+		#info-bar {
+			font-size: 12px;
+			color: #8b949e;
+		}
+
+		.controls-hint {
+			position: absolute;
+			bottom: 8px;
+			right: 8px;
+			background: rgba(0,0,0,0.7);
+			padding: 6px 10px;
+			border-radius: 4px;
+			font-size: 11px;
+			color: #8b949e;
+			pointer-events: none;
+		}
+
+		.controls-hint kbd {
+			background: rgba(255,255,255,0.15);
+			padding: 1px 5px;
+			border-radius: 3px;
+			font-family: inherit;
+		}
+	</style>
+</head>
+<body>
+
+<div class="header">
+	<h1>Helbreath Engine — Visual Benchmark</h1>
+	<span style="font-size:12px;color:#8b949e;margin-left:8px;">PixiJS renderer</span>
+</div>
+
+<div class="controls">
+	<label for="map-select">Map:</label>
+	<select id="map-select"></select>
+	<button class="load-btn" id="load-btn">Load</button>
+</div>
+
+<div class="status-bar">
+	<span id="info-bar">Load a map to begin.</span>
+	<span id="fps-display">-- FPS</span>
+</div>
+
+<div class="canvas-wrapper">
+	<div id="canvas-container">
+		<div id="loading-overlay">
+			<span id="loading-text">Loading...</span>
+			<div class="loading-bar-outer">
+				<div id="loading-bar"></div>
+			</div>
+		</div>
+		<div class="controls-hint">
+			<kbd>↑↓←→</kbd> / <kbd>WASD</kbd> move
+			&nbsp; <kbd>Shift</kbd> run
+			&nbsp; <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch renderer
+		</div>
+	</div>
+</div>
+
+<div id="status" style="display:none;"></div>
+
+<script type="module" src="/src/benchmark/manual.ts"></script>
+
+</body>
+</html>

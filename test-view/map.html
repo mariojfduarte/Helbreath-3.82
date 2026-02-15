@@ -142,6 +142,76 @@
       z-index: 5;
       line-height: 1.6;
     }
+
+    /* ── Effects Panel (matches DDrawEngine DrawParams) ── */
+    .effects-bar {
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      padding: 6px 20px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .eg {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .eg label {
+      font-size: 11px;
+      color: #888;
+    }
+
+    .eg input[type="range"] {
+      width: 68px;
+      accent-color: #e94560;
+    }
+
+    .eg .val {
+      font-size: 10px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      color: #e0e0e0;
+      min-width: 32px;
+      text-align: right;
+    }
+
+    .eg input[type="checkbox"] {
+      accent-color: #e94560;
+    }
+
+    .tint-swatch {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 1px solid #533483;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+
+    .effect-presets {
+      display: flex;
+      gap: 3px;
+    }
+
+    .effect-presets button {
+      padding: 1px 6px;
+      font-size: 10px;
+      min-width: unset;
+    }
+
+    .effect-presets button.active {
+      background: #e94560;
+      border-color: #e94560;
+    }
+
+    button.sm {
+      font-size: 10px;
+      padding: 2px 8px;
+    }
   </style>
 </head>
 <body>
@@ -160,6 +230,58 @@
     </select>
     <div class="status" id="status">Ready</div>
   </header>
+
+  <!-- Effects bar (DDrawEngine DrawParams / AlphaDegree simulation) -->
+  <div class="effects-bar" id="effects-bar">
+    <div class="eg">
+      <label>Time:</label>
+      <input type="range" id="alpha-degree" min="1" max="13" value="1" />
+      <span class="val" id="alpha-degree-val">Day</span>
+    </div>
+    <div class="separator"></div>
+    <div class="eg">
+      <label>Alpha:</label>
+      <div class="effect-presets">
+        <button id="alpha-100" class="active">100</button>
+        <button id="alpha-70">70</button>
+        <button id="alpha-50">50</button>
+      </div>
+      <input type="range" id="alpha-slider" min="0" max="100" value="100" />
+      <span class="val" id="alpha-val">100%</span>
+    </div>
+    <div class="separator"></div>
+    <div class="eg">
+      <label style="color:#e66">R:</label>
+      <input type="range" id="tint-r" min="-255" max="255" value="0" />
+      <span class="val" id="tint-r-val">0</span>
+    </div>
+    <div class="eg">
+      <label style="color:#6e6">G:</label>
+      <input type="range" id="tint-g" min="-255" max="255" value="0" />
+      <span class="val" id="tint-g-val">0</span>
+    </div>
+    <div class="eg">
+      <label style="color:#66e">B:</label>
+      <input type="range" id="tint-b" min="-255" max="255" value="0" />
+      <span class="val" id="tint-b-val">0</span>
+    </div>
+    <span class="tint-swatch" id="tint-swatch"></span>
+    <div class="separator"></div>
+    <div class="eg">
+      <input type="checkbox" id="show-blocked" />
+      <label for="show-blocked">Blocked</label>
+    </div>
+    <div class="eg">
+      <input type="checkbox" id="show-teleports" />
+      <label for="show-teleports">Teleports</label>
+    </div>
+    <div class="eg">
+      <input type="checkbox" id="show-grid" />
+      <label for="show-grid">Grid</label>
+    </div>
+    <div class="separator"></div>
+    <button class="sm" id="reset-effects">Reset</button>
+  </div>
 
   <div class="canvas-container" id="canvas-container">
     <div class="loading-overlay hidden" id="loading-overlay">
@@ -183,6 +305,7 @@
     <div><span class="il">Tile:</span> <span class="iv" id="info-tile">-</span></div>
     <div><span class="il">Tiles loaded:</span> <span class="iv" id="info-loaded">0</span></div>
     <div><span class="il">FPS:</span> <span class="iv" id="info-fps">0</span></div>
+    <div><span class="il">Effect:</span> <span class="iv" id="info-effect">Day</span></div>
   </div>
 
   <script type="module" src="/src/map.ts"></script>

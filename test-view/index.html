@@ -211,6 +211,69 @@
     .view-toggle input[type="checkbox"] {
       accent-color: #e94560;
     }
+
+    /* ── Effects Panel ── */
+    .effects-panel {
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      padding: 8px 20px;
+      display: none;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .effects-panel.visible { display: flex; }
+
+    .effect-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .effect-group label {
+      font-size: 12px;
+      color: #888;
+      min-width: 36px;
+    }
+
+    .effect-group input[type="range"] {
+      width: 72px;
+      accent-color: #e94560;
+    }
+
+    .effect-group .val {
+      font-size: 11px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      color: #e0e0e0;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .effect-presets {
+      display: flex;
+      gap: 4px;
+    }
+
+    .effect-presets button {
+      padding: 2px 8px;
+      font-size: 11px;
+      min-width: unset;
+    }
+
+    .effect-presets button.active {
+      background: #e94560;
+      border-color: #e94560;
+    }
+
+    .tint-swatch {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 1px solid #533483;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
   </style>
 </head>
 <body>
@@ -269,6 +332,64 @@
     </div>
   </div>
 
+  <!-- Effects panel (matches DDrawEngine DrawParams) -->
+  <div class="effects-panel" id="effects-panel">
+    <div class="effect-group">
+      <label>Alpha:</label>
+      <div class="effect-presets">
+        <button id="alpha-100" class="active">100%</button>
+        <button id="alpha-70">70%</button>
+        <button id="alpha-50">50%</button>
+        <button id="alpha-25">25%</button>
+      </div>
+      <input type="range" id="alpha-slider" min="0" max="100" value="100" />
+      <span class="val" id="alpha-val">100%</span>
+    </div>
+    <div class="separator"></div>
+    <div class="effect-group">
+      <label style="color:#e66">R:</label>
+      <input type="range" id="tint-r" min="-255" max="255" value="0" />
+      <span class="val" id="tint-r-val">0</span>
+    </div>
+    <div class="effect-group">
+      <label style="color:#6e6">G:</label>
+      <input type="range" id="tint-g" min="-255" max="255" value="0" />
+      <span class="val" id="tint-g-val">0</span>
+    </div>
+    <div class="effect-group">
+      <label style="color:#66e">B:</label>
+      <input type="range" id="tint-b" min="-255" max="255" value="0" />
+      <span class="val" id="tint-b-val">0</span>
+    </div>
+    <span class="tint-swatch" id="tint-swatch"></span>
+    <div class="separator"></div>
+    <div class="view-toggle">
+      <input type="checkbox" id="show-shadow" />
+      <label for="show-shadow">Shadow</label>
+    </div>
+    <div class="view-toggle">
+      <input type="checkbox" id="show-fade" />
+      <label for="show-fade">Fade</label>
+    </div>
+    <div class="separator"></div>
+    <div class="view-toggle">
+      <input type="checkbox" id="show-bounds" />
+      <label for="show-bounds">Bounds</label>
+    </div>
+    <div class="view-toggle">
+      <input type="checkbox" id="show-tile-grid" />
+      <label for="show-tile-grid">Tile grid</label>
+    </div>
+    <div class="separator"></div>
+    <div class="effect-group">
+      <label>Time:</label>
+      <input type="range" id="alpha-degree" min="1" max="13" value="1" />
+      <span class="val" id="alpha-degree-val">Day</span>
+    </div>
+    <div class="separator"></div>
+    <button id="reset-effects" style="font-size:11px;padding:3px 10px;">Reset</button>
+  </div>
+
   <div class="main-area">
     <div class="canvas-container" id="canvas-container"></div>
   </div>
@@ -293,6 +414,14 @@
     <div class="info-item">
       <span class="info-label">Frames:</span>
       <span class="info-value" id="info-frames">-</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Bounds:</span>
+      <span class="info-value" id="info-bounds">-</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Effect:</span>
+      <span class="info-value" id="info-effect">Opaque</span>
     </div>
   </div>
 

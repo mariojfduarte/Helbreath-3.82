@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helbreath Engine</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: #e0e0e0;
+    }
+
+    #game-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      image-rendering: pixelated;
+    }
+
+    #game-container canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 12px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+      z-index: 10;
+    }
+
+    #hud .title {
+      font-weight: 600;
+      color: #e94560;
+    }
+
+    #fps-display { color: #4a4; }
+    #mode-display { color: #888; margin-left: auto; }
+
+    #map-select {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      border: 1px solid #533483;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    #map-select:hover { border-color: #e94560; }
+
+    #char-select {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      border: 1px solid #533483;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    #char-select:hover { border-color: #e94560; }
+
+    .sep {
+      width: 1px;
+      height: 16px;
+      background: #333;
+    }
+
+    #hud label {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      color: #888;
+      cursor: pointer;
+      user-select: none;
+    }
+    #hud label:hover { color: #e0e0e0; }
+    #hud input[type="checkbox"] { accent-color: #e94560; }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="hud">
+      <span class="title">Helbreath Engine</span>
+      <div class="sep"></div>
+      <select id="map-select"></select>
+      <select id="char-select">
+        <option value="Wm">Woman (Wm)</option>
+        <option value="Bm">Man (Bm)</option>
+      </select>
+      <div class="sep"></div>
+      <label><input type="checkbox" id="show-blocked"> Blocked</label>
+      <label><input type="checkbox" id="show-teleports"> Teleports</label>
+      <label><input type="checkbox" id="show-grid"> Grid</label>
+      <div class="sep"></div>
+      <span id="fps-display">-- FPS</span>
+      <span id="mode-display">Mode: -</span>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
