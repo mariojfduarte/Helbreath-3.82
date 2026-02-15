@@ -18,6 +18,7 @@ import {
   BaseTexture,
   SCALE_MODES,
   Container,
+  Sprite,
   Graphics,
   Text,
   TextStyle,
@@ -35,9 +36,15 @@ import type { GameMap } from "../assets/map-parser";
 import { DEFAULT_MAP, DEFAULT_CHAR_PAK } from "../assets/SpriteDefs";
 import { TileRenderer } from "../rendering/TileRenderer";
 import { ObjectRenderer, type Bounds } from "../rendering/ObjectRenderer";
-import { EntityRenderer } from "../rendering/EntityRenderer";
+import { EntityRenderer, defaultEquipment, type EntityEquipment } from "../rendering/EntityRenderer";
 import { AnimationController } from "./AnimationController";
-import { DEF_OBJECTSTOP, DEF_OBJECTMOVE, DEF_OBJECTRUN } from "./ActionID";
+import { DEF_OBJECTSTOP, DEF_OBJECTMOVE, DEF_OBJECTRUN, ACTION_TO_SPRITE_OFFSET } from "./ActionID";
+import {
+  type EquipSlot,
+  getEquipBaseIndex,
+  getSlotBase,
+  WEAPON_STRIDE,
+} from "../assets/EquipmentDefs";
 import { HUD } from "../ui/HUD";
 import { Minimap } from "../ui/Minimap";
 
@@ -102,12 +109,28 @@ export class CGame {
 	private hud!: HUD;
 	private minimap!: Minimap;
 	private overlayGfx!: Graphics;
+	private cursorSprite!: Sprite;
+	private cursorFrames: Array<{ texture: Texture; pivotX: number; pivotY: number }> = [];
+	private cursorLoaded = false;
 
 	// ── Debug overlay flags (set from UI checkboxes) ─────────────
 
 	showBlocked = false;
 	showTeleports = false;
 	showGrid = false;
+
+  // ── Spawned monsters ────────────────────────────────────────
+
+  private spawnedMonsters: Array<{
+    pakName: string;
+    ownerType: number;
+    x: number;
+    y: number;
+    dir: number;
+    anim: AnimationController;
+    sprite: Sprite;
+    shadowSprite: Sprite;
+  }> = [];
 
   // ── Core subsystems ──────────────────────────────────────────
 
@@ -120,6 +143,15 @@ export class CGame {
   private playerDir = DIR_S;
   private playerAnim = new AnimationController(1); // ownerType 1 = player character
   private playerBounds: Bounds = { left: 0, top: 0, right: 0, bottom: 0 };
+
+  /**
+   * Per-slot equipment: maps slot → { group, pakName } for equipped items.
+   * When non-empty, drawEntity is used instead of drawPlayer.
+   */
+  private playerEquipSlots = new Map<EquipSlot, { group: number; pakName: string }>();
+
+  /** True if current character body is female (Bw/Ww/Yw). */
+  private isFemaleChar = false;
 
   // ── Movement ─────────────────────────────────────────────────
 
@@ -191,6 +223,19 @@ export class CGame {
 		this.hud = new HUD(this.hudLayer);
 		this.minimap = new Minimap(this.hudLayer);
 
+		// Cursor sprite (topmost, follows mouse)
+		this.cursorSprite = new Sprite(Texture.EMPTY);
+		this.cursorSprite.visible = false;
+		this.cursorSprite.zIndex = 99999;
+		this.app.stage.addChild(this.cursorSprite);
+
+		// Hide the default CSS cursor (also set in CSS, belt+suspenders)
+		(this.app.view as HTMLCanvasElement).style.cursor = 'none';
+		document.body.style.cursor = 'none';
+
+		// Load cursor sprite asynchronously
+		this.loadCursorSprite();
+
 		// Loading overlay (also on hudLayer, hidden during gameplay)
     this.loadGfx = new Graphics();
     this.hudLayer.addChild(this.loadGfx);
@@ -246,6 +291,134 @@ export class CGame {
   }
 
   /**
+   * Spawn a monster near the player. Loads its PAK if not already loaded.
+   */
+  async spawnMonster(pakName: string, ownerType: number): Promise<void> {
+    const assets = AssetManager.get();
+
+    // Load monster sprites if needed
+    if (!assets.isMonsterLoaded(pakName)) {
+      console.log(`[CGame] Loading monster ${pakName}.pak...`);
+      const cache = await assets.loadMonster(pakName);
+      if (!cache) {
+        console.warn(`[CGame] Failed to load ${pakName}.pak`);
+        return;
+      }
+    }
+
+    // Pick a random walkable position near the player
+    const map = assets.getMap();
+    if (!map) return;
+
+    let mx = Math.round(this.playerX) + Math.floor(Math.random() * 6) - 3;
+    let my = Math.round(this.playerY) + Math.floor(Math.random() * 6) - 3;
+    mx = Math.max(1, Math.min(map.sizeX - 2, mx));
+    my = Math.max(1, Math.min(map.sizeY - 2, my));
+
+    // Find walkable tile near target
+    for (let tries = 0; tries < 20; tries++) {
+      if (map.tiles[mx]?.[my]?.isMoveAllowed) break;
+      mx = Math.round(this.playerX) + Math.floor(Math.random() * 10) - 5;
+      my = Math.round(this.playerY) + Math.floor(Math.random() * 10) - 5;
+      mx = Math.max(1, Math.min(map.sizeX - 2, mx));
+      my = Math.max(1, Math.min(map.sizeY - 2, my));
+    }
+
+    const dir = Math.floor(Math.random() * 8) + 1; // 1-8
+
+    // Create sprites on worldLayer
+    const shadowSprite = new Sprite(Texture.EMPTY);
+    shadowSprite.tint = 0x000000;
+    shadowSprite.alpha = 0.3;
+    shadowSprite.visible = false;
+    this.worldLayer.addChild(shadowSprite);
+
+    const sprite = new Sprite(Texture.EMPTY);
+    sprite.visible = false;
+    this.worldLayer.addChild(sprite);
+
+    const anim = new AnimationController(ownerType);
+
+    this.spawnedMonsters.push({
+      pakName, ownerType, x: mx, y: my, dir, anim, sprite, shadowSprite,
+    });
+
+    console.log(`[CGame] Spawned ${pakName} (type ${ownerType}) at ${mx},${my}`);
+  }
+
+  // ── Equipment management ─────────────────────────────────────
+
+  /**
+   * Equip an item: load the PAK and register the slot.
+   * The PAK is loaded additively into charCache at the correct sprite index.
+   */
+  async equipItem(slot: EquipSlot, pakName: string, group: number): Promise<void> {
+    const assets = AssetManager.get();
+    const baseIndex = getEquipBaseIndex(slot, group, this.isFemaleChar);
+
+    console.log(`[CGame] Equipping ${pakName} → slot=${slot} group=${group} baseIdx=${baseIndex}`);
+    const ok = await assets.loadEquipmentPak(pakName, baseIndex);
+    if (!ok) {
+      console.warn(`[CGame] Failed to load equipment ${pakName}`);
+      return;
+    }
+
+    this.playerEquipSlots.set(slot, { group, pakName });
+  }
+
+  /** Unequip a slot. */
+  unequipSlot(slot: EquipSlot): void {
+    this.playerEquipSlots.delete(slot);
+  }
+
+  /**
+   * Compute EntityEquipment indices for the current frame.
+   * Maps persistent slot state + current action/dir → per-frame sprite indices.
+   */
+  private computePlayerEquipment(): EntityEquipment {
+    const equip = defaultEquipment();
+    const action = this.playerAnim.getAction();
+    const actionOffset = ACTION_TO_SPRITE_OFFSET[action] ?? 0;
+    const dir = this.playerDir;
+
+    // Body — 0-based in charCache (from loadCharacter)
+    equip.bodyIndex = actionOffset * 8;
+
+    // Equipment layers
+    for (const [slot, info] of this.playerEquipSlots) {
+      const base = getEquipBaseIndex(slot, info.group, this.isFemaleChar);
+
+      if (slot === 'weapon') {
+        // Weapon: sprIndex = base + actionOffset * 8 + (dir - 1)
+        // But drawEntity does NOT add dir for weapons (it uses frame directly).
+        // C++: iWeaponIndex = DEF_SPRID_WEAPON_M + weaponType*64 + 8*actionOffset + (dir-1)
+        // drawEntity: charCache[weaponIndex], frame = animFrame
+        equip.weaponIndex = base + actionOffset * 8 + (dir - 1);
+      } else if (slot === 'shield') {
+        // Shield: sprIndex = base + actionOffset
+        // C++: iShieldIndex = DEF_SPRID_SHIELD_M + shieldType*8 + actionOffset
+        // drawEntity: charCache[shieldIndex], frame = (dir-1)*8 + animFrame
+        equip.shieldIndex = base + actionOffset;
+      } else {
+        // All other equipment: sprIndex = base + actionOffset
+        // C++: iXxxIndex = DEF_SPRID_XXX_M + type*15 + actionOffset
+        // drawEntity: charCache[xxxIndex], frame = (dir-1)*8 + animFrame
+        const idx = base + actionOffset;
+        switch (slot) {
+          case 'bodyArmor': equip.bodyArmorIndex = idx; break;
+          case 'armArmor':  equip.armArmorIndex = idx; break;
+          case 'leggings':  equip.leggingsIndex = idx; break;
+          case 'boots':     equip.bootsIndex = idx; break;
+          case 'mantle':    equip.mantleIndex = idx; break;
+          case 'helm':      equip.helmIndex = idx; break;
+        }
+      }
+    }
+
+    return equip;
+  }
+
+  /**
    * Switch to a different map (and optionally character PAK).
    * Reloads assets and resets player to spawn point.
    */
@@ -274,6 +447,10 @@ export class CGame {
         this.loadMessage = msg;
         this.loadProgress = progress;
       });
+      // Track gender for equipment PAK selection (Bw/Ww/Yw = female)
+      this.isFemaleChar = charPak.endsWith('w');
+      // Clear equipment when switching character (different gender PAKs)
+      this.playerEquipSlots.clear();
     }
 
     // Reset player to spawn
@@ -307,6 +484,49 @@ export class CGame {
     }
     if (this.loadingDone) {
       this.changeGameMode(DEF_GAMEMODE_ONMAINGAME);
+    }
+  }
+
+  private async loadCursorSprite(): Promise<void> {
+    try {
+      // Cursor = interface.pak sprite 0 (DEF_SPRID_MOUSECURSOR)
+      let resp = await fetch('/sprites/interface.pak');
+      if (!resp.ok) resp = await fetch('/sprites/Interface.pak');
+      if (!resp.ok) return;
+
+      const { parsePak, decodeSpriteImage } = await import('../assets/pak-parser');
+      const pak = parsePak(await resp.arrayBuffer());
+      if (pak.sprites.length === 0) return;
+
+      const sprite = pak.sprites[0];
+      const decoded = await decodeSpriteImage(sprite);
+      if (!decoded) return;
+
+      const { BaseTexture: BT, Texture: TX, Rectangle: Rect, SCALE_MODES: SM } = await import('pixi.js');
+      const baseTex = BT.from(decoded.canvas, { scaleMode: SM.NEAREST });
+      const texW = decoded.width;
+      const texH = decoded.height;
+
+      this.cursorFrames = sprite.frames.map(f => {
+        const cx = Math.min(f.x, texW);
+        const cy = Math.min(f.y, texH);
+        const cw = Math.min(f.width, texW - cx);
+        const ch = Math.min(f.height, texH - cy);
+        return {
+          texture: (cw > 0 && ch > 0) ? new TX(baseTex, new Rect(cx, cy, cw, ch)) : TX.EMPTY,
+          pivotX: f.pivotX,
+          pivotY: f.pivotY,
+        };
+      });
+
+      this.cursorLoaded = this.cursorFrames.length > 0;
+      if (this.cursorLoaded) {
+        this.cursorSprite.texture = this.cursorFrames[0].texture;
+        this.cursorSprite.visible = true;
+        console.log(`[CGame] Cursor loaded: ${this.cursorFrames.length} frames`);
+      }
+    } catch (e) {
+      console.warn('[CGame] Failed to load cursor sprite:', e);
     }
   }
 
@@ -380,6 +600,8 @@ export class CGame {
 
     this.tileRenderer.getLayer().visible = false;
     this.worldLayer.visible = false;
+
+    this.drawCursor();
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -441,6 +663,11 @@ export class CGame {
       }
     }
 
+    // Update spawned monster animations
+    for (const mon of this.spawnedMonsters) {
+      mon.anim.update(dt);
+    }
+
     // Smooth camera follow
     const w = this.app.screen.width;
     const h = this.app.screen.height;
@@ -498,18 +725,38 @@ export class CGame {
     FrameTiming.beginProfile(ProfileStage.DrawObjects);
 
     // 3a. Player entity (action/frame from AnimationController)
-    this.playerBounds = this.entityRenderer.drawPlayer(
-      this.playerX,
-      this.playerY,
-      this.playerDir,
-      this.playerAnim.getAction(),
-      this.playerAnim.getFrame(),
-      this.cameraX,
-      this.cameraY,
-      assets
-    );
+    if (this.playerEquipSlots.size > 0) {
+      // Full equipment layer rendering via drawEntity
+      const screenX = this.playerX * TILE_SIZE - this.cameraX;
+      const screenY = this.playerY * TILE_SIZE - this.cameraY;
+      const zIdx = Math.round(this.playerY);
+      const equip = this.computePlayerEquipment();
+      this.playerBounds = this.entityRenderer.drawEntity(
+        screenX, screenY,
+        this.playerDir,
+        this.playerAnim.getFrame(),
+        zIdx,
+        equip,
+        assets,
+      );
+    } else {
+      // Phase 3 fallback: body + shadow only
+      this.playerBounds = this.entityRenderer.drawPlayer(
+        this.playerX,
+        this.playerY,
+        this.playerDir,
+        this.playerAnim.getAction(),
+        this.playerAnim.getFrame(),
+        this.cameraX,
+        this.cameraY,
+        assets,
+      );
+    }
 
-    // 3b. Map objects (trees, buildings, lamps — with transparency)
+    // 3b. Spawned monsters
+    this.drawMonsters();
+
+    // 3c. Map objects (trees, buildings, lamps — with transparency)
     this.objectRenderer.render(
       w,
       h,
@@ -535,12 +782,47 @@ export class CGame {
     this.drawOverlays(w, h, map);
     this.drawHUD(map);
     this.minimap.draw(w, h, this.playerX, this.playerY);
+
+    // Cursor (always drawn last, on top of everything)
+    this.drawCursor();
     FrameTiming.endProfile(ProfileStage.DrawMisc);
   }
 
   // ── HUD ──────────────────────────────────────────────────────
 
   // ── Debug overlays (blocked, teleports, grid) ──────────────────
+
+  private drawMonsters(): void {
+    const assets = AssetManager.get();
+    const TILE = 32; // TILE_SIZE
+
+    for (const mon of this.spawnedMonsters) {
+      const f = assets.getMonsterFrame(mon.pakName, mon.anim.getAction(), mon.dir, mon.anim.getFrame());
+      if (!f) {
+        mon.sprite.visible = false;
+        mon.shadowSprite.visible = false;
+        continue;
+      }
+
+      const sx = Math.floor(mon.x * TILE - this.cameraX + f.pivotX);
+      const sy = Math.floor(mon.y * TILE - this.cameraY + f.pivotY);
+      const tileY = Math.round(mon.y);
+
+      // Shadow
+      mon.shadowSprite.texture = f.texture;
+      mon.shadowSprite.x = sx + 2;
+      mon.shadowSprite.y = sy + 4;
+      mon.shadowSprite.zIndex = tileY - 0.1;
+      mon.shadowSprite.visible = true;
+
+      // Body
+      mon.sprite.texture = f.texture;
+      mon.sprite.x = sx;
+      mon.sprite.y = sy;
+      mon.sprite.zIndex = tileY;
+      mon.sprite.visible = true;
+    }
+  }
 
   private drawOverlays(screenW: number, screenH: number, map: GameMap): void {
     this.overlayGfx.clear();
@@ -607,6 +889,23 @@ export class CGame {
   }
 
   // ── Input ────────────────────────────────────────────────────
+
+  private drawCursor(): void {
+    if (!this.cursorLoaded) return;
+    const input = InputManager.get();
+    const mx = input.getMouseX();
+    const my = input.getMouseY();
+
+    // Frame 0 = normal, frame 8 = attack mode (if available)
+    const frameIdx = 0;
+    const frame = this.cursorFrames[frameIdx];
+    if (!frame || frame.texture === Texture.EMPTY) return;
+
+    this.cursorSprite.texture = frame.texture;
+    this.cursorSprite.x = mx;
+    this.cursorSprite.y = my;
+    this.cursorSprite.visible = true;
+  }
 
   private getInputDirection(): number {
     const input = InputManager.get();

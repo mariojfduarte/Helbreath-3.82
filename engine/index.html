@@ -20,12 +20,18 @@
       height: 100vh;
       position: relative;
       image-rendering: pixelated;
+      cursor: none;
     }
 
     #game-container canvas {
       display: block;
       width: 100% !important;
       height: 100% !important;
+      cursor: none;
+    }
+
+    #game-container * {
+      cursor: none;
     }
 
     #hud {
@@ -65,7 +71,7 @@
     }
     #map-select:hover { border-color: #e94560; }
 
-    #char-select {
+    #char-select, .equip-select {
       background: #1a1a2e;
       color: #e0e0e0;
       border: 1px solid #533483;
@@ -76,7 +82,7 @@
       cursor: pointer;
       pointer-events: auto;
     }
-    #char-select:hover { border-color: #e94560; }
+    #char-select:hover, .equip-select:hover { border-color: #e94560; }
 
     .sep {
       width: 1px;
@@ -107,6 +113,17 @@
         <option value="Wm">Woman (Wm)</option>
         <option value="Bm">Man (Bm)</option>
       </select>
+      <select id="monster-select">
+        <option value="">Summon Monster...</option>
+      </select>
+      <div class="sep"></div>
+      <select class="equip-select" id="equip-weapon"><option value="">Weapon</option></select>
+      <select class="equip-select" id="equip-bodyArmor"><option value="">Armor</option></select>
+      <select class="equip-select" id="equip-helm"><option value="">Helm</option></select>
+      <select class="equip-select" id="equip-mantle"><option value="">Cape</option></select>
+      <select class="equip-select" id="equip-armArmor"><option value="">Arms</option></select>
+      <select class="equip-select" id="equip-leggings"><option value="">Legs</option></select>
+      <select class="equip-select" id="equip-boots"><option value="">Boots</option></select>
       <div class="sep"></div>
       <label><input type="checkbox" id="show-blocked"> Blocked</label>
       <label><input type="checkbox" id="show-teleports"> Teleports</label>

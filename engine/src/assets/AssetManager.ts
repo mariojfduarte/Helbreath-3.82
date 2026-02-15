@@ -46,6 +46,9 @@ export class AssetManager {
 	/** spriteIndex → SpriteFrame[] (character sprites) */
 	private charCache = new Map<number, SpriteFrame[]>();
 
+	/** Monster sprite caches: pakName → Map<spriteIndex, SpriteFrame[]> */
+	private monsterCaches = new Map<string, Map<number, SpriteFrame[]>>();
+
 	/** Loaded map */
 	private currentMap: GameMap | null = null;
 
@@ -194,6 +197,42 @@ export class AssetManager {
 		}
 	}
 
+	// ── Loading: equipment ────────────────────────────────────────
+
+	/**
+	 * Load equipment sprites from a PAK file into charCache at a specific base index.
+	 * Additive — does NOT clear existing charCache entries.
+	 * Mirrors C++ MakeSprite("PakName", baseIndex, count, true).
+	 *
+	 * @param pakName   PAK filename (without .pak extension)
+	 * @param baseIndex Starting sprite index in charCache
+	 * @returns true if loaded successfully
+	 */
+	async loadEquipmentPak(pakName: string, baseIndex: number): Promise<boolean> {
+		// Skip if this range is already populated (avoid duplicate loads)
+		if (this.charCache.has(baseIndex)) return true;
+
+		try {
+			let resp = await fetch(`/sprites/${pakName}.pak`);
+			if (!resp.ok) resp = await fetch(`/sprites/${pakName.toLowerCase()}.pak`);
+			if (!resp.ok) return false;
+
+			const pak = parsePak(await resp.arrayBuffer());
+
+			for (let si = 0; si < pak.sprites.length; si++) {
+				const frames = await this.decodeSpriteToFrames(pak.sprites[si]);
+				if (frames) {
+					this.charCache.set(baseIndex + si, frames);
+				}
+			}
+
+			return true;
+		} catch (e) {
+			console.error(`[AssetManager] Failed to load equipment ${pakName}:`, e);
+			return false;
+		}
+	}
+
 	// ── Loading: map ──────────────────────────────────────────────
 
 	/**
@@ -240,6 +279,56 @@ export class AssetManager {
 
 		onProgress?.('Ready', 1.0);
 		return true;
+	}
+
+	// ── Loading: monster ──────────────────────────────────────────
+
+	/**
+	 * Load a monster's sprites from its PAK file.
+	 * Returns the sprite cache for accessing frames.
+	 */
+	async loadMonster(pakName: string): Promise<Map<number, SpriteFrame[]> | null> {
+		// Check if already loaded
+		const existing = this.monsterCaches.get(pakName);
+		if (existing) return existing;
+
+		try {
+			let resp = await fetch(`/sprites/${pakName}.pak`);
+			if (!resp.ok) resp = await fetch(`/sprites/${pakName.toLowerCase()}.pak`);
+			if (!resp.ok) return null;
+
+			const pak = parsePak(await resp.arrayBuffer());
+			const cache = new Map<number, SpriteFrame[]>();
+
+			for (let si = 0; si < pak.sprites.length; si++) {
+				const frames = await this.decodeSpriteToFrames(pak.sprites[si]);
+				if (frames) cache.set(si, frames);
+			}
+
+			this.monsterCaches.set(pakName, cache);
+			return cache;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Get a monster sprite frame by action offset and direction.
+	 * Uses the same ACTION_TO_SPRITE_OFFSET mapping as characters.
+	 */
+	getMonsterFrame(pakName: string, action: number, dir: number, frame: number): SpriteFrame | null {
+		const cache = this.monsterCaches.get(pakName);
+		if (!cache) return null;
+
+		const offset = ACTION_TO_SPRITE_OFFSET[action] ?? action;
+		const sprIdx = offset * 8 + (dir - 1);
+		const frames = cache.get(sprIdx);
+		if (!frames || frames.length === 0) return null;
+		return frames[frame % frames.length] ?? frames[0];
+	}
+
+	isMonsterLoaded(pakName: string): boolean {
+		return this.monsterCaches.has(pakName);
 	}
 
 	// ── Decode helper ─────────────────────────────────────────────
